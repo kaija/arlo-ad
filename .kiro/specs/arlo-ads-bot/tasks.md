@@ -113,7 +113,7 @@
     - _Requirements: 2.6_
     - _ADR: ADR-0003, ADR-0005_
 
-- [-] 8. ChatAdapter 與 Slack
+- [x] 8. ChatAdapter 與 Slack
   - [x] 8.1 語意訊息與介面
     - `ConversationRef`、`ChatMessage` union、`ChatAdapter` 介面、`FakeChatAdapter`
     - _Requirements: 7.6_
@@ -123,7 +123,7 @@
     - 單元測試：簽章正確/錯誤/過期；去重
     - _Requirements: 7.7_
     - _ADR: ADR-0005, ADR-0002_
-  - [ ] 8.3 SlackAdapter 與 Block Kit renderer
+  - [x] 8.3 SlackAdapter 與 Block Kit renderer
     - post / update / fetchContext / resolveUser / permalink / react
     - renderer：Report、Notice（帶 actions）、ApprovalRequest、ShadowResult；`action_id` 編碼/解碼
     - snapshot 測試 Block Kit JSON

@@ -1,0 +1,595 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Slack Block Kit renderer > renders a notice with Undo / keep actions 1`] = `
+{
+  "blocks": [
+    {
+      "text": {
+        "text": ":warning: 已暫停 Generic（熔斷：花費 pacing 180%）",
+        "type": "mrkdwn",
+      },
+      "type": "section",
+    },
+    {
+      "elements": [
+        {
+          "action_id": "cs:undo:0199b0c2-8f1e-7a3b-9c4d-123456789abc",
+          "style": "danger",
+          "text": {
+            "text": "Undo",
+            "type": "plain_text",
+          },
+          "type": "button",
+        },
+        {
+          "action_id": "cs:keep:0199b0c2-8f1e-7a3b-9c4d-123456789abc",
+          "text": {
+            "text": "維持",
+            "type": "plain_text",
+          },
+          "type": "button",
+        },
+      ],
+      "type": "actions",
+    },
+  ],
+  "text": "已暫停 Generic（熔斷：花費 pacing 180%）",
+}
+`;
+
+exports[`Slack Block Kit renderer > renders a pending approval request with buttons 1`] = `
+{
+  "blocks": [
+    {
+      "text": {
+        "emoji": true,
+        "text": "待審核變更 · Tier 2",
+        "type": "plain_text",
+      },
+      "type": "header",
+    },
+    {
+      "text": {
+        "text": "*降低 Brand 每日預算 20%*",
+        "type": "mrkdwn",
+      },
+      "type": "section",
+    },
+    {
+      "fields": [
+        {
+          "text": "*帳戶*
+Arlo TW",
+          "type": "mrkdwn",
+        },
+        {
+          "text": "*風險等級*
+Tier 2",
+          "type": "mrkdwn",
+        },
+        {
+          "text": "*提出者*
+Pat",
+          "type": "mrkdwn",
+        },
+        {
+          "text": "*到期*
+<!date^1791345600^{date_short_pretty} {time}|2026-10-07T04:00:00.000Z>",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "section",
+    },
+    {
+      "text": {
+        "text": "• Brand · 每日預算：NT$3,000 → *NT$2,400* (-20%)",
+        "type": "mrkdwn",
+      },
+      "type": "section",
+    },
+    {
+      "elements": [
+        {
+          "text": ":speech_balloon: CPA 連續 3 天高於目標 1.8 倍",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "context",
+    },
+    {
+      "elements": [
+        {
+          "text": ":warning: 超過單日變動上限 15%（MaxChangePct）",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "context",
+    },
+    {
+      "elements": [
+        {
+          "text": "<https://platform.openai.com/traces/trace_123|Trace> · ChangeSet \`0199b0c2-8f1e-7a3b-9c4d-123456789abc\`",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "context",
+    },
+    {
+      "elements": [
+        {
+          "action_id": "cs:approve:0199b0c2-8f1e-7a3b-9c4d-123456789abc",
+          "style": "primary",
+          "text": {
+            "text": "核准",
+            "type": "plain_text",
+          },
+          "type": "button",
+        },
+        {
+          "action_id": "cs:reject:0199b0c2-8f1e-7a3b-9c4d-123456789abc",
+          "style": "danger",
+          "text": {
+            "text": "拒絕",
+            "type": "plain_text",
+          },
+          "type": "button",
+        },
+      ],
+      "type": "actions",
+    },
+  ],
+  "text": "待審核變更 · Tier 2：降低 Brand 每日預算 20%",
+}
+`;
+
+exports[`Slack Block Kit renderer > renders a report with text, fields and a table 1`] = `
+{
+  "blocks": [
+    {
+      "text": {
+        "emoji": true,
+        "text": "每日報告 · 2026-10-05",
+        "type": "plain_text",
+      },
+      "type": "header",
+    },
+    {
+      "text": {
+        "text": "昨日花費 NT$12,345，較前日 +8%。",
+        "type": "mrkdwn",
+      },
+      "type": "section",
+    },
+    {
+      "text": {
+        "text": "*帳戶*",
+        "type": "mrkdwn",
+      },
+      "type": "section",
+    },
+    {
+      "fields": [
+        {
+          "text": "*MTD 花費*
+NT$250,000",
+          "type": "mrkdwn",
+        },
+        {
+          "text": "*Pacing*
+103%",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "section",
+    },
+    {
+      "text": {
+        "text": "*Campaigns*",
+        "type": "mrkdwn",
+      },
+      "type": "section",
+    },
+    {
+      "rows": [
+        [
+          {
+            "text": "Campaign",
+            "type": "raw_text",
+          },
+          {
+            "text": "Spend",
+            "type": "raw_text",
+          },
+          {
+            "text": "CPA",
+            "type": "raw_text",
+          },
+        ],
+        [
+          {
+            "text": "Brand",
+            "type": "raw_text",
+          },
+          {
+            "text": "3,000",
+            "type": "raw_text",
+          },
+          {
+            "text": "250",
+            "type": "raw_text",
+          },
+        ],
+        [
+          {
+            "text": "Generic",
+            "type": "raw_text",
+          },
+          {
+            "text": "9,345",
+            "type": "raw_text",
+          },
+          {
+            "text": "410",
+            "type": "raw_text",
+          },
+        ],
+      ],
+      "type": "table",
+    },
+    {
+      "text": {
+        "text": "\`\`\`A | B
+1 | 2\`\`\`",
+        "type": "mrkdwn",
+      },
+      "type": "section",
+    },
+  ],
+  "text": "每日報告 · 2026-10-05",
+}
+`;
+
+exports[`Slack Block Kit renderer > renders a shadow result with feedback buttons 1`] = `
+{
+  "blocks": [
+    {
+      "text": {
+        "emoji": true,
+        "text": "Shadow 模式 · 若為 live 會執行",
+        "type": "plain_text",
+      },
+      "type": "header",
+    },
+    {
+      "text": {
+        "text": "*降低 Brand 每日預算 20%*",
+        "type": "mrkdwn",
+      },
+      "type": "section",
+    },
+    {
+      "fields": [
+        {
+          "text": "*帳戶*
+Arlo TW",
+          "type": "mrkdwn",
+        },
+        {
+          "text": "*風險等級*
+Tier 1",
+          "type": "mrkdwn",
+        },
+        {
+          "text": "*提出者*
+Pat",
+          "type": "mrkdwn",
+        },
+        {
+          "text": "*到期*
+<!date^1791345600^{date_short_pretty} {time}|2026-10-07T04:00:00.000Z>",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "section",
+    },
+    {
+      "text": {
+        "text": "• Brand · 每日預算：NT$3,000 → *NT$2,400* (-20%)",
+        "type": "mrkdwn",
+      },
+      "type": "section",
+    },
+    {
+      "elements": [
+        {
+          "text": ":speech_balloon: CPA 連續 3 天高於目標 1.8 倍",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "context",
+    },
+    {
+      "elements": [
+        {
+          "text": ":warning: 超過單日變動上限 15%（MaxChangePct）",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "context",
+    },
+    {
+      "elements": [
+        {
+          "text": "<https://platform.openai.com/traces/trace_123|Trace> · ChangeSet \`0199b0c2-8f1e-7a3b-9c4d-123456789abc\`",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "context",
+    },
+    {
+      "elements": [
+        {
+          "action_id": "shadow:up:0199b0c2-8f1e-7a3b-9c4d-123456789abc",
+          "text": {
+            "emoji": true,
+            "text": ":+1: 判斷正確",
+            "type": "plain_text",
+          },
+          "type": "button",
+        },
+        {
+          "action_id": "shadow:down:0199b0c2-8f1e-7a3b-9c4d-123456789abc",
+          "text": {
+            "emoji": true,
+            "text": ":-1: 判斷錯誤",
+            "type": "plain_text",
+          },
+          "type": "button",
+        },
+      ],
+      "type": "actions",
+    },
+    {
+      "elements": [
+        {
+          "text": "回饋：:+1: 3 · :-1: 1",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "context",
+    },
+  ],
+  "text": "Shadow：降低 Brand 每日預算 20%",
+}
+`;
+
+exports[`Slack Block Kit renderer > renders selectable negative keyword batches as per-op checkboxes 1`] = `
+{
+  "blocks": [
+    {
+      "text": {
+        "emoji": true,
+        "text": "待審核變更 · Tier 2",
+        "type": "plain_text",
+      },
+      "type": "header",
+    },
+    {
+      "text": {
+        "text": "*新增 2 個否定關鍵字*",
+        "type": "mrkdwn",
+      },
+      "type": "section",
+    },
+    {
+      "fields": [
+        {
+          "text": "*帳戶*
+Arlo TW",
+          "type": "mrkdwn",
+        },
+        {
+          "text": "*風險等級*
+Tier 2",
+          "type": "mrkdwn",
+        },
+        {
+          "text": "*提出者*
+Pat",
+          "type": "mrkdwn",
+        },
+        {
+          "text": "*到期*
+<!date^1791345600^{date_short_pretty} {time}|2026-10-07T04:00:00.000Z>",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "section",
+    },
+    {
+      "accessory": {
+        "action_id": "neg:toggle:0199b0c2-8f1e-7a3b-9c4d-123456789abc:0",
+        "initial_options": [
+          {
+            "text": {
+              "text": "套用",
+              "type": "plain_text",
+            },
+            "value": "0",
+          },
+        ],
+        "options": [
+          {
+            "text": {
+              "text": "套用",
+              "type": "plain_text",
+            },
+            "value": "0",
+          },
+        ],
+        "type": "checkboxes",
+      },
+      "text": {
+        "text": "• arlo-auto-negatives：— → *free camera [EXACT]*",
+        "type": "mrkdwn",
+      },
+      "type": "section",
+    },
+    {
+      "accessory": {
+        "action_id": "neg:toggle:0199b0c2-8f1e-7a3b-9c4d-123456789abc:1",
+        "options": [
+          {
+            "text": {
+              "text": "套用",
+              "type": "plain_text",
+            },
+            "value": "1",
+          },
+        ],
+        "type": "checkboxes",
+      },
+      "text": {
+        "text": "• arlo-auto-negatives：— → *diy camera [EXACT]*",
+        "type": "mrkdwn",
+      },
+      "type": "section",
+    },
+    {
+      "elements": [
+        {
+          "text": ":speech_balloon: CPA 連續 3 天高於目標 1.8 倍",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "context",
+    },
+    {
+      "elements": [
+        {
+          "text": ":warning: 超過單日變動上限 15%（MaxChangePct）",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "context",
+    },
+    {
+      "elements": [
+        {
+          "text": "<https://platform.openai.com/traces/trace_123|Trace> · ChangeSet \`0199b0c2-8f1e-7a3b-9c4d-123456789abc\`",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "context",
+    },
+    {
+      "elements": [
+        {
+          "action_id": "cs:approve:0199b0c2-8f1e-7a3b-9c4d-123456789abc",
+          "style": "primary",
+          "text": {
+            "text": "核准",
+            "type": "plain_text",
+          },
+          "type": "button",
+        },
+        {
+          "action_id": "cs:reject:0199b0c2-8f1e-7a3b-9c4d-123456789abc",
+          "style": "danger",
+          "text": {
+            "text": "拒絕",
+            "type": "plain_text",
+          },
+          "type": "button",
+        },
+      ],
+      "type": "actions",
+    },
+  ],
+  "text": "待審核變更 · Tier 2：新增 2 個否定關鍵字",
+}
+`;
+
+exports[`Slack Block Kit renderer > replaces buttons with the outcome once handled 1`] = `
+{
+  "blocks": [
+    {
+      "text": {
+        "emoji": true,
+        "text": "待審核變更 · Tier 2",
+        "type": "plain_text",
+      },
+      "type": "header",
+    },
+    {
+      "text": {
+        "text": "*降低 Brand 每日預算 20%*",
+        "type": "mrkdwn",
+      },
+      "type": "section",
+    },
+    {
+      "fields": [
+        {
+          "text": "*帳戶*
+Arlo TW",
+          "type": "mrkdwn",
+        },
+        {
+          "text": "*風險等級*
+Tier 2",
+          "type": "mrkdwn",
+        },
+        {
+          "text": "*提出者*
+Pat",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "section",
+    },
+    {
+      "text": {
+        "text": "• Brand · 每日預算：NT$3,000 → *NT$2,400* (-20%)",
+        "type": "mrkdwn",
+      },
+      "type": "section",
+    },
+    {
+      "elements": [
+        {
+          "text": ":speech_balloon: CPA 連續 3 天高於目標 1.8 倍",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "context",
+    },
+    {
+      "elements": [
+        {
+          "text": ":warning: 超過單日變動上限 15%（MaxChangePct）",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "context",
+    },
+    {
+      "elements": [
+        {
+          "text": "<https://platform.openai.com/traces/trace_123|Trace> · ChangeSet \`0199b0c2-8f1e-7a3b-9c4d-123456789abc\`",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "context",
+    },
+    {
+      "text": {
+        "text": ":white_check_mark: 已執行 · @kai · <!date^1791262800^{date_short_pretty} {time}|2026-10-06T05:00:00.000Z>",
+        "type": "mrkdwn",
+      },
+      "type": "section",
+    },
+  ],
+  "text": "待審核變更 · Tier 2：降低 Brand 每日預算 20%",
+}
+`;

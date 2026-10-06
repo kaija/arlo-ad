@@ -1,8 +1,10 @@
+import { SlackAdapter } from '@arlo/adapters/chat';
 import { createGoogleAdsClient, GoogleAdsAdapter } from '@arlo/adapters/platform/google';
 import { EnvSchema, parseEnv } from '@arlo/config';
 import { createLogger } from '@arlo/config/logger';
 import { checkDatabase, createDb, createPool } from '@arlo/db';
 import { checkQueue, createBoss, enqueue, registerJobs } from '@arlo/queue';
+import { WebClient } from '@slack/web-api';
 import { closeServer, startHealthServer } from './health-server';
 import { jobDefinitions } from './jobs';
 import { applySystemSchedules } from './schedules';
@@ -29,6 +31,8 @@ const WorkerEnv = EnvSchema.pick({
   GOOGLE_ADS_CLIENT_SECRET: true,
   GOOGLE_ADS_REFRESH_TOKEN: true,
   GOOGLE_ADS_LOGIN_CUSTOMER_ID: true,
+  SLACK_BOT_TOKEN: true,
+  SLACK_OPS_CHANNEL_ID: true,
 });
 
 function loadEnv() {
@@ -59,6 +63,9 @@ const platform = new GoogleAdsAdapter(
   { loginCustomerId: env.GOOGLE_ADS_LOGIN_CUSTOMER_ID },
 );
 
+const chat = new SlackAdapter(new WebClient(env.SLACK_BOT_TOKEN));
+const opsChannel = { platform: 'slack' as const, channelId: env.SLACK_OPS_CHANNEL_ID };
+
 const boss = createBoss({ connectionString: env.DATABASE_URL, logger, role: 'worker' });
 await boss.start();
 // Registered after postgres so it stops first: in-flight jobs finish while the pool is open.
@@ -71,8 +78,7 @@ await registerJobs(
     logger,
     now: () => new Date(),
     enqueue: (spec, data) => enqueue(boss, spec, data),
-    // Replaced by the Slack ops channel once the ChatAdapter is wired (task 8.3).
-    notifyOps: async (notice) => logger.warn({ notice }, 'ops notice'),
+    notifyOps: async (notice) => void (await chat.post(opsChannel, { type: 'notice', ...notice })),
   }),
   { logger },
 );

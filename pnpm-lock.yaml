@@ -126,6 +126,9 @@ importers:
       '@arlo/queue':
         specifier: workspace:*
         version: link:../../packages/queue
+      '@slack/web-api':
+        specifier: ^8.2.0
+        version: 8.2.0
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
@@ -164,6 +167,9 @@ importers:
       '@arlo/core':
         specifier: workspace:*
         version: link:../core
+      '@slack/types':
+        specifier: ^3.2.0
+        version: 3.2.0
       '@slack/web-api':
         specifier: ^8.2.0
         version: 8.2.0
