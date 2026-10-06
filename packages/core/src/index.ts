@@ -1,3 +1,4 @@
+export * from './anomaly';
 export * from './authz';
 export * from './changeset';
 export * from './chat';

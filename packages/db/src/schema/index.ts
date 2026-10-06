@@ -10,3 +10,4 @@ export * from './changesets';
 export * from './automation';
 export * from './keywords';
 export * from './monitor';
+export * from './audit';

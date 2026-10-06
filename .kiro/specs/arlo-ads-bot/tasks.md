@@ -350,7 +350,7 @@
     - `@google-analytics/data` 拉 `google / cpc` 轉換 → `ga4_daily`；落差偏移計算 + 測試
     - _Requirements: 16.3_
     - _ADR: ADR-0021_
-  - [ ] 18.3 異常偵測
+  - [x] 18.3 異常偵測
     - `robustZ()`、各指標偵測、`anomalies` schema；clicks↑ sessions↔ 規則
     - 單元測試
     - _Requirements: 16.4_
