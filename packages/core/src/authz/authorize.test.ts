@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { authorize, ROLES, type Action, type AuthzUser, type Role, type Tier } from './authorize';
+import type { Tier } from '../changeset/types';
+import { authorize, ROLES, type Action, type AuthzUser, type Role } from './authorize';
 
 const ACCOUNT = 'acc-1';
 const OTHER = 'acc-2';

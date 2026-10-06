@@ -1,4 +1,5 @@
 export * from './authz';
+export * from './changeset';
 export * from './chat';
 export * from './format';
 export * from './health';

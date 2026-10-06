@@ -1,9 +1,9 @@
 // Central permission check shared by Slack and Web (ADR-0010, Requirements 1.4–1.6, 18.8).
+import type { Tier } from '../changeset/types';
 
 /** Ordered by privilege. */
 export const ROLES = ['viewer', 'operator', 'approver', 'admin'] as const;
 export type Role = (typeof ROLES)[number];
-export type Tier = 0 | 1 | 2 | 3;
 
 export interface RoleGrant {
   role: Role;

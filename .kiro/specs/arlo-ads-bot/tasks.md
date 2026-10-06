@@ -185,8 +185,8 @@
 
 ## M2 — 安全地改
 
-- [ ] 11. ChangeSet 核心（純邏輯）
-  - [ ] 11.1 型別與狀態機
+- [-] 11. ChangeSet 核心（純邏輯）
+  - [x] 11.1 型別與狀態機
     - `ChangeSet`、`Op`、`OpKind`、`transition()`；`classifyOp()`（protective / expansive / neutral）
     - 測試：所有合法 / 非法轉換、op 分類
     - _Requirements: 3.2, 3.4_
