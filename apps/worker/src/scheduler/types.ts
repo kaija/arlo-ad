@@ -6,6 +6,7 @@ import type { Agent } from '@openai/agents';
 
 export interface AgentFactories {
   analyst: () => Agent<AgentContext>;
+  bidding?: () => Agent<AgentContext>;
   orchestrator: () => Agent<AgentContext>;
 }
 

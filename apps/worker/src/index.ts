@@ -1,6 +1,6 @@
 import { SlackAdapter } from '@arlo/adapters/chat';
 import { createGoogleAdsClient, GoogleAdsAdapter } from '@arlo/adapters/platform/google';
-import { createAnalystAgent, createOrchestrator, meteredModelFactory, modelNameFor, type AgentName } from '@arlo/agents';
+import { createAnalystAgent, createBiddingAgent, createOrchestrator, meteredModelFactory, modelNameFor, type AgentName } from '@arlo/agents';
 import { EnvSchema, parseEnv } from '@arlo/config';
 import { createLogger } from '@arlo/config/logger';
 import { checkDatabase, createDb, createPool } from '@arlo/db';
@@ -9,6 +9,7 @@ import { OpenAIProvider, setDefaultOpenAIKey } from '@openai/agents';
 import { WebClient } from '@slack/web-api';
 import { closeServer, startHealthServer } from './health-server';
 import { jobDefinitions } from './jobs';
+import { createProposer } from './proposals';
 import { syncSchedules } from './scheduler/scheduler';
 import { TEMPLATES } from './scheduler/templates';
 import { applySystemSchedules } from './schedules';
@@ -81,7 +82,8 @@ setDefaultOpenAIKey(env.OPENAI_API_KEY);
 const metered = meteredModelFactory(new OpenAIProvider());
 const model = (agent: AgentName) => metered(agent, modelNameFor(agent, env));
 const analyst = () => createAnalystAgent({ model: model('analyst') });
-const orchestrator = () => createOrchestrator({ model: model('orchestrator'), specialists: { analyst: analyst() } });
+const bidding = () => createBiddingAgent({ model: model('bidding') });
+const orchestrator = () => createOrchestrator({ model: model('orchestrator'), specialists: { analyst: analyst(), bidding: bidding() } });
 
 const boss = createBoss({ connectionString: env.DATABASE_URL, logger, role: 'worker' });
 await boss.start();
@@ -94,7 +96,8 @@ await registerJobs(
     platform,
     chat,
     orchestrator,
-    agents: { analyst, orchestrator },
+    agents: { analyst, bidding, orchestrator },
+    propose: createProposer(db, boss),
     templates: TEMPLATES,
     llmBudgetUsd: env.DAILY_LLM_BUDGET_USD,
     boss,

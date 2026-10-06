@@ -257,8 +257,8 @@
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
     - _ADR: ADR-0012_
 
-- [ ] 14. Propose tools 與 Web 審核
-  - [ ] 14.1 propose tools
+- [-] 14. Propose tools 與 Web 審核
+  - [x] 14.1 propose tools
     - `propose_budget`、`propose_status`、`propose_bid_target`：從最新 snapshot 帶 `before`、建立 ChangeSet、enqueue、回傳 id
     - bidding agent 骨架掛上 tools，Orchestrator 加入 `bidding.asTool()` 與 `get_changeset_status`
     - 測試：before 正確、無 mutate 呼叫

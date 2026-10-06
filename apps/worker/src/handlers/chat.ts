@@ -14,6 +14,8 @@ export interface ChatJobDeps {
   now: () => Date;
   /** Builds the Orchestrator for one run (models come from config). */
   orchestrator: () => Agent<AgentContext>;
+  /** Stores a ChangeSet and queues changeset.process (propose_* tools, ADR-0006). */
+  propose?: AgentContext['propose'];
 }
 
 export const PROGRESS_EMOJI = 'hourglass_flowing_sand';
@@ -89,18 +91,22 @@ export async function handleMention(deps: ChatJobDeps, job: JobData<typeof Jobs.
       allowedAccountIds: readableAccountIds(user),
       user: { id: user.id, displayName: user.displayName },
       now: deps.now,
+      source: { kind: 'chat', ref: conversation },
+      propose: deps.propose,
     };
     const question = stripMentions(job.text) || '（使用者只標記了你，沒有其他內容）';
     let answer: string;
     try {
       const { result } = await trackedRun(
         { db, name: 'chat.mention', ref: { kind: 'session', id: sessionId }, metadata: { user_id: user.id }, now: deps.now },
-        () =>
-          run(deps.orchestrator(), `[發問者 ${user.displayName ?? user.googleEmail}]\n${question}`, {
+        (traceId) => {
+          context.traceId = traceId;
+          return run(deps.orchestrator(), `[發問者 ${user.displayName ?? user.googleEmail}]\n${question}`, {
             session,
             context,
             maxTurns: MAX_TURNS,
-          }),
+          });
+        },
       );
       answer = String(result.finalOutput ?? '').trim() || '（沒有產生回覆）';
     } catch (err) {

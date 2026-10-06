@@ -2,6 +2,7 @@
 // Requirement 10.5).
 import { Agent, type Model, type Tool } from '@openai/agents';
 import type { AgentContext } from '../context';
+import { getChangeSetStatusTool } from '../tools/propose';
 import { STYLE_GUIDE, UNTRUSTED_CONTENT_POLICY } from './prompts';
 
 export interface Specialists {
@@ -31,6 +32,7 @@ export const ORCHESTRATOR_INSTRUCTIONS = `
 - 簡單的寒暄或系統用法問題可直接回答。沒有對應工具的請求，說明目前不支援。
 
 ## 變更請求
+- 變更請求交給 bidding；使用者詢問先前變更的進度時，用 get_changeset_status 查詢。
 - 所有變更都會成為待審核的 ChangeSet，由系統規則與有權限的人核准後才執行；回覆時說明已送審與 ChangeSet 編號，不要宣稱已經生效。
 
 ## 對話脈絡
@@ -50,6 +52,6 @@ export function createOrchestrator(opts: { model: string | Model; specialists: S
     name: 'orchestrator',
     instructions: ORCHESTRATOR_INSTRUCTIONS,
     model: opts.model,
-    tools: [...specialistTools, ...(opts.tools ?? [])],
+    tools: [...specialistTools, getChangeSetStatusTool, ...(opts.tools ?? [])],
   });
 }
