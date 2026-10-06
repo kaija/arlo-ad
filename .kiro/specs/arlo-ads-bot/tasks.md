@@ -299,7 +299,7 @@
     - _Requirements: 9.4, 9.5_
     - _ADR: ADR-0013_
 
-- [-] 16. 搜尋字詞與否定關鍵字
+- [x] 16. 搜尋字詞與否定關鍵字
   - [x] 16.1 Business Profile
     - `business_profiles`（版本化）schema、`get_business_profile` tool、Web 編輯器
     - _Requirements: 14.1_
@@ -315,7 +315,7 @@
     - 整合測試
     - _Requirements: 14.4, 14.5, 14.6_
     - _ADR: ADR-0019, ADR-0007_
-  - [ ] 16.4 搜尋字詞頁
+  - [x] 16.4 搜尋字詞頁
     - 字詞、分類、否定歷史、篩選
     - _Requirements: 18.6_
     - _ADR: ADR-0019_
