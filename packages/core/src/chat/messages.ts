@@ -74,7 +74,15 @@ export type ChatMessage =
   /** A conversational answer from the bot. */
   | { type: 'reply'; text: string }
   | { type: 'report'; title: string; sections: Section[] }
-  | { type: 'notice'; level: 'info' | 'warn' | 'error'; text: string; changesetId?: string; actions?: NoticeAction[] }
+  | {
+      type: 'notice';
+      level: 'info' | 'warn' | 'error';
+      text: string;
+      changesetId?: string;
+      actions?: NoticeAction[];
+      /** Platform user ids to mention, e.g. approvers for an SLA reminder (Requirement 7.5). */
+      mentions?: string[];
+    }
   | { type: 'approval_request'; changeset: ChangeSetView; mirror?: boolean }
   | { type: 'shadow_result'; changeset: ChangeSetView; feedback?: { up: number; down: number } };
 

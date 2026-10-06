@@ -292,3 +292,25 @@ export async function loadTierThresholds(db: DbOrTx, accountId: string): Promise
   const row = rows.find((r) => r.accountId === accountId) ?? rows.find((r) => r.accountId === null);
   return row ? { tier3Pct: row.tier3Pct, tier3AmountMicros: row.tier3AmountMicros, tier1MaxReducePct: row.tier1MaxReducePct } : DEFAULT_TIER_THRESHOLDS;
 }
+
+// --- approval SLA (Requirement 7.5) ------------------------------------------------------
+
+/** PENDING_APPROVAL ChangeSets created before `before` that have not been reminded yet. */
+export async function listSlaOverdue(db: DbOrTx, before: Date): Promise<StoredChangeSet[]> {
+  const rows = await db
+    .select()
+    .from(changesets)
+    .where(and(eq(changesets.status, 'PENDING_APPROVAL'), isNull(changesets.slaRemindedAt), lt(changesets.createdAt, before)))
+    .orderBy(asc(changesets.createdAt));
+  return rows.map(stored);
+}
+
+/** Claims the one SLA reminder of a ChangeSet; false when it was already sent or claimed. */
+export async function claimSlaReminder(db: DbOrTx, id: string, at: Date): Promise<boolean> {
+  const rows = await db
+    .update(changesets)
+    .set({ slaRemindedAt: at })
+    .where(and(eq(changesets.id, id), eq(changesets.status, 'PENDING_APPROVAL'), isNull(changesets.slaRemindedAt)))
+    .returning({ id: changesets.id });
+  return rows.length === 1;
+}

@@ -1,6 +1,6 @@
 // Internal users are the identity root (ADR-0010): Google email from SSO, Slack user bound
 // on first sign-in or by an admin, role bindings for authorization.
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { DEFAULT_ORG_ID, roleBindings, users } from '../schema';
 import type { DbOrTx } from './upsert';
 
@@ -114,4 +114,17 @@ export async function resolveSlackUser(db: DbOrTx, slackUserId: string): Promise
   if (!user) return { ok: false, reason: 'unbound' };
   if (user.status === 'disabled') return { ok: false, reason: 'disabled' };
   return { ok: true, user };
+}
+
+/** Active users bound to Slack, with their role bindings (for picking approvers to mention). */
+export async function listActiveSlackUsers(db: DbOrTx): Promise<UserWithBindings[]> {
+  const rows = await db
+    .select()
+    .from(users)
+    .where(and(eq(users.orgId, DEFAULT_ORG_ID), eq(users.status, 'active')))
+    .orderBy(asc(users.createdAt));
+  const bindings = rows.length
+    ? await db.select().from(roleBindings).where(inArray(roleBindings.userId, rows.map((u) => u.id))).orderBy(asc(roleBindings.createdAt))
+    : [];
+  return rows.filter((u) => u.slackUserId).map((u) => ({ ...u, bindings: bindings.filter((b) => b.userId === u.id) }));
 }

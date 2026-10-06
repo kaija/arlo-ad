@@ -27,6 +27,8 @@ const context = (...texts: string[]): ContextBlock => ({
 });
 const header = (text: string): KnownBlock => ({ type: 'header', text: { type: 'plain_text', text: truncate(text, 150), emoji: true } });
 
+const SLACK_USER_ID = /^[UW][A-Z0-9]+$/;
+
 const LEVEL_ICON = { info: ':information_source:', warn: ':warning:', error: ':rotating_light:' } as const;
 
 const STATUS_LABEL: Record<string, string> = {
@@ -151,7 +153,8 @@ export function renderMessage(msg: ChatMessage): SlackRendered {
       return { text: msg.title, blocks: [header(msg.title), ...renderSections(msg.sections)].slice(0, 50) };
 
     case 'notice': {
-      const blocks: KnownBlock[] = [mrkdwn(`${LEVEL_ICON[msg.level]} ${defuseBroadcasts(msg.text)}`)];
+      const mentions = (msg.mentions ?? []).filter((u) => SLACK_USER_ID.test(u)).map((u) => `<@${u}>`);
+      const blocks: KnownBlock[] = [mrkdwn(`${LEVEL_ICON[msg.level]} ${mentions.length ? `${mentions.join(' ')} ` : ''}${defuseBroadcasts(msg.text)}`)];
       if (msg.changesetId && msg.actions?.length) {
         const id = msg.changesetId;
         blocks.push(

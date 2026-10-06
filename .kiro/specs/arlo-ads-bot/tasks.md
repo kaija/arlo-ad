@@ -246,7 +246,7 @@
     - Tier 3 approve 開 confirm modal（顯示金額與比例）；STALE / EXPIRED / BLOCKED 通知來源
     - _Requirements: 4.4, 6.3, 5.3_
     - _ADR: ADR-0007, ADR-0009_
-  - [ ] 13.4 SLA 提醒
+  - [x] 13.4 SLA 提醒
     - cron 每 15 分鐘 `remindSla()`：超時未處理 → approval channel mention 具資格 approver（每 ChangeSet 只提醒一次）
     - 測試
     - _Requirements: 7.5_

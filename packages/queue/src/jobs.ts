@@ -50,6 +50,8 @@ export const Jobs = {
   changesetProcess: jobSpec('changeset.process', changesetRef),
   // Cron: PENDING_APPROVAL past expires_at → EXPIRED, cards disabled (Requirement 6.2).
   changesetExpire: jobSpec('changeset.expire', z.object({})),
+  // Cron: remind approvers once about ChangeSets pending past the SLA (Requirement 7.5).
+  changesetRemind: jobSpec('changeset.remind', z.object({})),
   // Re-applies scheduled_jobs to pg-boss cron after a change in the Web console.
   schedulerSync: jobSpec('scheduler.sync', z.object({})),
 } satisfies Record<string, JobSpec>;

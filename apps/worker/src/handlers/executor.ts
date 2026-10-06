@@ -6,6 +6,7 @@ import type { PlatformAdapter } from '@arlo/adapters/platform';
 import { assertWriteAllowed, WriteNotAllowedError } from '@arlo/config';
 import type { Logger } from '@arlo/config/logger';
 import {
+  authorize,
   computeTier,
   diffCurrent,
   entityKey,
@@ -25,12 +26,16 @@ import {
 import {
   addApprovalMessage,
   applyTransition,
+  claimSlaReminder,
+  getSetting,
   getAdAccount,
   getChangeSet,
   getUserWithBindings,
   listApprovalMessages,
   listAudit,
+  listActiveSlackUsers,
   listExpiredPending,
+  listSlaOverdue,
   loadChangeSetView,
   loadRules,
   loadTierThresholds,
@@ -55,6 +60,10 @@ export interface ExecutorDeps {
   /** SLACK_APPROVAL_CHANNEL_ID: where non-conversation ChangeSets are reviewed. */
   approvalChannel: ConversationRef;
 }
+
+/** Approval SLA before approvers are reminded (Requirement 7.5); setting `approval_sla_minutes`. */
+export const DEFAULT_APPROVAL_SLA_MINUTES = 120;
+export const APPROVAL_SLA_SETTING = 'approval_sla_minutes';
 
 /** Approval TTL (Requirement 6.1): 24h, shorter for circuit-breaker follow-ups (ADR-0009). */
 export function approvalTtlMs(cs: Pick<ChangeSet, 'feature'>): number {
@@ -368,7 +377,34 @@ export function createExecutor(deps: ExecutorDeps) {
     return n;
   }
 
-  return { process: processChangeSet, approve, expireDue, reject, refreshCards, notify, drift, runOps, view, post, move, origin, account, handledBy, userName };
+  /** Users who may approve the ChangeSet, by Slack id (the requester is excluded for Tier 3). */
+  async function eligibleApprovers(cs: StoredChangeSet): Promise<string[]> {
+    const target = { accountId: cs.accountId, tier: cs.tier, requestedByUserId: cs.requestedBy.userId };
+    return (await listActiveSlackUsers(db)).filter((u) => authorize(u, 'approve', target).allowed).map((u) => u.slackUserId!);
+  }
+
+  /** One reminder per ChangeSet pending past the SLA, in the approval channel; returns how many. */
+  async function remindSla(): Promise<number> {
+    const configured = Number(await getSetting<number>(db, APPROVAL_SLA_SETTING));
+    const minutes = Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_APPROVAL_SLA_MINUTES;
+    const now = deps.now();
+    let n = 0;
+    for (const cs of await listSlaOverdue(db, new Date(now.getTime() - minutes * 60_000))) {
+      if (!(await claimSlaReminder(db, cs.id, now))) continue;
+      n++;
+      const acc = await account(cs);
+      const mentions = await eligibleApprovers(cs);
+      const card = (await listApprovalMessages(db, cs.id)).find((m) => m.channelId === deps.approvalChannel.channelId && m.kind !== 'notice');
+      const link = card ? await chat.permalink({ platform: 'slack', channelId: card.channelId, messageId: card.messageId }).catch(() => undefined) : undefined;
+      const hours = Math.round(((now.getTime() - cs.createdAt.getTime()) / 3_600_000) * 10) / 10;
+      const text = `待審核已超過 ${hours} 小時（Tier ${cs.tier ?? '?'} · ${acc.name}）：${cs.summary}${link ? `\n<${link}|前往審核>` : ''}${mentions.length ? '' : '\n目前沒有可核准的 approver，請 admin 調整權限。'}`;
+      await post(cs, deps.approvalChannel, { type: 'notice', level: 'warn', text, changesetId: cs.id, mentions }, 'notice');
+    }
+    if (n) logger.info({ reminded: n }, 'approval SLA reminders sent');
+    return n;
+  }
+
+  return { process: processChangeSet, approve, expireDue, remindSla, reject, refreshCards, notify, drift, runOps, view, post, move, origin, account, handledBy, userName };
 }
 
 export type Executor = ReturnType<typeof createExecutor>;
@@ -379,5 +415,6 @@ export function executorJobs(executor: Executor) {
       await executor.process(data.changesetId);
     }),
     defineJob(Jobs.changesetExpire, async () => ({ expired: await executor.expireDue() })),
+    defineJob(Jobs.changesetRemind, async () => ({ reminded: await executor.remindSla() })),
   ];
 }

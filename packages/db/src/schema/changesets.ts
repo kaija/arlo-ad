@@ -63,6 +63,8 @@ export const changesets = pgTable(
     revertOf: uuid('revert_of'),
     traceId: text('trace_id'),
     executedAt: timestamp('executed_at', { withTimezone: true }),
+    // Approval SLA reminder sent (Requirement 7.5: once per ChangeSet).
+    slaRemindedAt: timestamp('sla_reminded_at', { withTimezone: true }),
     ...timestamps,
   },
   (t) => [

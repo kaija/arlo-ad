@@ -2,11 +2,11 @@ import { FakeChatAdapter } from '@arlo/adapters/chat';
 import { FakePlatformAdapter } from '@arlo/adapters/platform';
 import { createLogger } from '@arlo/config/logger';
 import type { ChangeSetSource, EntityKind, Op } from '@arlo/core';
-import { createScheduledJob, DEFAULT_ORG_ID, getChangeSet, startJobRun, insertChangeSet, listApprovalMessages, listAudit, listOpResults, schema, upsertUserOnSignIn, type AdAccount } from '@arlo/db';
+import { createScheduledJob, DEFAULT_ORG_ID, getChangeSet, setSetting, setSlackBinding, startJobRun, insertChangeSet, listApprovalMessages, listAudit, listOpResults, schema, upsertUserOnSignIn, type AdAccount } from '@arlo/db';
 import { useTestDatabase } from '@arlo/db/testing';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { syncAccounts, syncSnapshots } from '../sync/sync';
-import { createExecutor, type ExecutorDeps } from './executor';
+import { APPROVAL_SLA_SETTING, createExecutor, type ExecutorDeps } from './executor';
 
 const logger = createLogger({ component: 'test', level: 'silent' });
 const ACC = '1234567890';
@@ -369,5 +369,71 @@ describe('Executor.approve / reject', () => {
     expect(card.message).toMatchObject({ changeset: { outcome: { status: 'REJECTED', actor: 'Bob', reason: 'not now' } } });
     expect(await executor.reject(cs.id, ann)).toMatchObject({ ok: false, status: 'REJECTED', handledBy: 'Bob' });
     expect(await executor.approve(cs.id, ann)).toMatchObject({ outcome: 'not_pending', status: 'REJECTED', handledBy: 'Bob' });
+  });
+});
+
+describe('Executor.remindSla (Requirement 7.5)', () => {
+  const t = useTestDatabase();
+  let account: AdAccount;
+  let chat: FakeChatAdapter;
+  // created_at comes from the database clock, so these tests run relative to real time.
+  const at = (hours: number) => () => new Date(Date.now() + hours * 3_600_000);
+  const depsAt = (hours: number): ExecutorDeps => ({ db: t.db, platform: seededPlatform(), chat, logger, now: at(hours), writeAllowedCustomerIds: [ACC], approvalChannel: APPROVAL });
+
+  beforeAll(async () => {
+    const platform = seededPlatform();
+    const sync = { db: t.db, platform, logger, now: () => NOW };
+    account = (await syncAccounts(sync))[0]!;
+    await syncSnapshots(sync, account);
+    for (const [slack, role, maxTier, bound] of [
+      ['UAPP2', 'approver', 2, true],
+      ['UADMIN', 'admin', 3, true],
+      ['UAPP1', 'approver', 1, true],
+      ['UVIEW', 'viewer', 0, true],
+      ['UNOSLACK', 'approver', 3, false],
+    ] as const) {
+      const u = await upsertUserOnSignIn(t.db, { email: `${slack.toLowerCase()}@example.com` });
+      if (bound) await setSlackBinding(t.db, u.id, slack);
+      await t.db.insert(schema.roleBindings).values({ orgId: DEFAULT_ORG_ID, userId: u.id, role, maxTier });
+    }
+  });
+
+  beforeEach(async () => {
+    chat = new FakeChatAdapter();
+    await t.db.delete(schema.approvalMessages);
+  });
+
+  const pending = async () => {
+    const op: Op = { kind: 'set_budget', target: CAMPAIGN, field: 'budget_micros', before: 1_000_000_000, after: 1_100_000_000 };
+    const cs = await insertChangeSet(t.db, { accountId: account.id, source: { kind: 'web' }, ops: [op], summary: 'raise Brand', requestedBy: { kind: 'agent' } });
+    await createExecutor(depsAt(0)).process(cs.id);
+    return cs;
+  };
+  const reminders = () => chat.postedTo(APPROVAL.channelId).filter((m) => m.message.type === 'notice');
+
+  it('reminds eligible approvers once after the SLA', async () => {
+    const cs = await pending();
+    expect(await createExecutor(depsAt(1.5)).remindSla()).toBe(0);
+    expect(await createExecutor(depsAt(2.5)).remindSla()).toBe(1);
+    expect(await createExecutor(depsAt(3)).remindSla()).toBe(0);
+
+    expect(reminders()).toHaveLength(1);
+    expect(reminders()[0]?.message).toMatchObject({
+      type: 'notice',
+      level: 'warn',
+      changesetId: cs.id,
+      mentions: ['UAPP2', 'UADMIN'],
+      text: expect.stringContaining('前往審核'),
+    });
+    expect((await getChangeSet(t.db, cs.id)) as { status: string }).toMatchObject({ status: 'PENDING_APPROVAL' });
+  });
+
+  it('uses the configured SLA and skips handled ChangeSets', async () => {
+    await setSetting(t.db, APPROVAL_SLA_SETTING, 30);
+    const cs = await pending();
+    await createExecutor(depsAt(0)).reject(cs.id, (await upsertUserOnSignIn(t.db, { email: 'uadmin@example.com' })).id);
+    await pending();
+    expect(await createExecutor(depsAt(0.75)).remindSla()).toBe(1);
+    await t.db.delete(schema.settings);
   });
 });

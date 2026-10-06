@@ -45,6 +45,11 @@ describe('Slack Block Kit renderer', () => {
     expect(renderMessage({ type: 'notice', level: 'warn', text: '已暫停 Generic（熔斷：花費 pacing 180%）', changesetId: id, actions: ['undo', 'keep'] })).toMatchSnapshot();
   });
 
+  it('mentions valid user ids on a notice and drops anything else', () => {
+    const { blocks } = renderMessage({ type: 'notice', level: 'warn', text: '待審核超過 2 小時', mentions: ['U123ABC', 'W9', '<!channel>', 'u1'] });
+    expect(blocks[0]).toMatchObject({ text: { text: ':warning: <@U123ABC> <@W9> 待審核超過 2 小時' } });
+  });
+
   it('renders a pending approval request with buttons', () => {
     expect(renderMessage({ type: 'approval_request', changeset })).toMatchSnapshot();
   });
