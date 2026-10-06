@@ -2,9 +2,8 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createLogger } from '@arlo/config/logger';
 import { checkDatabase, createPool, type Pool } from '@arlo/db';
-import { startTestPostgres } from '@arlo/db/testing';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { useTestDatabase } from '@arlo/db/testing';
+import { describe, expect, it } from 'vitest';
 import { closeServer, startHealthServer } from './health-server';
 
 const logger = createLogger({ component: 'test', level: 'silent' });
@@ -20,21 +19,10 @@ async function serve(pool: Pool): Promise<{ url: string; server: Server }> {
 }
 
 describe('worker /healthz', () => {
-  let container: StartedPostgreSqlContainer;
-  let pool: Pool;
-
-  beforeAll(async () => {
-    container = await startTestPostgres();
-    pool = createPool({ connectionString: container.getConnectionUri(), logger });
-  }, 120_000);
-
-  afterAll(async () => {
-    await pool?.end();
-    await container?.stop();
-  });
+  const t = useTestDatabase();
 
   it('returns 200 with DB status when Postgres is up', async () => {
-    const { url, server } = await serve(pool);
+    const { url, server } = await serve(t.pool);
     try {
       const res = await fetch(`${url}/healthz`);
       expect(res.status).toBe(200);
@@ -59,7 +47,7 @@ describe('worker /healthz', () => {
   });
 
   it('returns 404 for other paths and methods', async () => {
-    const { url, server } = await serve(pool);
+    const { url, server } = await serve(t.pool);
     try {
       expect((await fetch(`${url}/`)).status).toBe(404);
       expect((await fetch(`${url}/healthz`, { method: 'POST' })).status).toBe(404);

@@ -1,20 +1,18 @@
-import { startTestPostgres } from '@arlo/db/testing';
+import { useTestDatabase } from '@arlo/db/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getPool } from '../../../lib/server';
 import { GET } from './route';
 
 describe('GET /api/healthz', () => {
-  let stop: (() => Promise<unknown>) | undefined;
+  const t = useTestDatabase();
 
-  beforeAll(async () => {
-    const container = await startTestPostgres();
-    stop = () => container.stop();
-    process.env.DATABASE_URL = container.getConnectionUri();
-  }, 120_000);
+  beforeAll(() => {
+    process.env.DATABASE_URL = t.url;
+  });
 
   afterAll(async () => {
+    // The route's cached pool must close before the test database is dropped.
     await getPool().end();
-    await stop?.();
   });
 
   it('returns 200 with DB status when Postgres is up', async () => {

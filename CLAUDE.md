@@ -26,7 +26,7 @@ pnpm dev                      # turbo dev
 - typescript 固定 `~6.0`：typescript-eslint 尚未支援 TS 7。
 - pnpm 啟用 minimumReleaseAge；不要為了裝剛發布的版本而加入 `minimumReleaseAgeExclude`，改用前一個已過門檻的版本。
 - Vitest projects：每個 `apps/*`、`packages/*`、`evals` 各為一個 project（以 package name 命名）；repo 層級測試在 `tests/`（project `repo`）。
-- 整合測試以 Testcontainers 啟動 Postgres（`@arlo/db/testing` 的 `startTestPostgres()`，`postgres:18-alpine`），**需要 Docker daemon 在執行**。
+- DB 整合測試 harness（`@arlo/db/testing`，**需要 Docker daemon 在執行**）：project 的 `vitest.config.ts` 加 `globalSetup: ['@arlo/db/testing/global-setup']`（每次測試啟動一個 `postgres:18-alpine` container，migrations 套用到 template DB），測試檔呼叫 `const t = useTestDatabase()` 取得從 template 複製的獨立 database（`t.db` Drizzle、`t.pool`、`t.url`）。需要空 DB 時用 `{ migrated: false }`。隔離單位是 database 而非 schema，因為 drizzle-kit 產生的 SQL 帶 `"public".`。沒有設 globalSetup 的 project（core、config）不需要 Docker。
 - 安裝腳本預設拒絕：新依賴若出現 `ERR_PNPM_IGNORED_BUILDS`，在 `pnpm-workspace.yaml` 的 `allowBuilds` 明確設 `true`/`false`（只有真的需要時才設 `true`）。
 - 本機執行 worker：`DATABASE_URL=... pnpm --filter @arlo/worker dev`（health 在 `WORKER_HEALTH_PORT`，預設 9090）。
 - DB migration：schema 在 `packages/db/src/schema/`，產生 migration 用 `pnpm --filter @arlo/db db:generate`（輸出到 `packages/db/migrations/`），套用用 `DATABASE_URL=... pnpm --filter @arlo/worker migrate`；在 image 內為 `docker compose -f docker-compose.prod.yml run --rm worker migrate`。`runMigrations` 從 `@arlo/db/migrate` 匯入（不在 `@arlo/db` 主入口，避免 web bundle 進 migrations 目錄）。
@@ -42,6 +42,8 @@ pnpm dev                      # turbo dev
 - worker runtime 以 `node --import tsx` 直接跑 TS 原始碼（`tsx` 是 worker 的 production dependency）；web 用 Next.js `output: 'standalone'`。若之後新增 `apps/web/public/`，要在 Dockerfile.web runtime stage 補 COPY。
 
 ## 慣例
+
+- 資料表：每張表都有 `org_id`（Requirement 1.7），v1 寫入一律用 `DEFAULT_ORG_ID`（由 migration `0001_seed_default_org` 建立，無 DB default）；主鍵 `uuidv7()`；`created_at` / `updated_at`（`updated_at` 只在 Drizzle update 時自動更新）。共用欄位 helper 在 `packages/db/src/schema/columns.ts`。資料語意盡量用 CHECK constraint 固定（例：`users.status` 與 `slack_user_id` 一致、email 小寫）。
 
 - 環境變數一律經 `@arlo/config` 的 `parseEnv(EnvSchema.pick({...}))` 讀取，不直接讀 `process.env`。每個 process 只 pick 自己用到的 key，功能落地時再擴充 pick（`apps/worker/src/index.ts` 的 `WorkerEnv`、`apps/web/lib/server.ts` 的 `WebEnv`）。新增變數時同時改 `EnvSchema` 與 `.env.example`（`env.test.ts` 會檢查兩者一致）；錯誤訊息只列 key，不可帶出值。
 - 寫入廣告帳戶前必須呼叫 `assertWriteAllowed(env.ADS_WRITE_ALLOWED_CUSTOMER_IDS, customerId)`（ADR-0026）；空白清單代表不允許任何寫入。

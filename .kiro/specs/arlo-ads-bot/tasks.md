@@ -48,8 +48,8 @@
     - _Requirements: 20.4_
     - _ADR: ADR-0025_
 
-- [ ] 3. 資料庫 schema
-  - [ ] 3.1 身分與設定 schema
+- [-] 3. 資料庫 schema
+  - [x] 3.1 身分與設定 schema
     - Drizzle：`orgs`、`users`、`role_bindings`、`settings`；seed 單一 org
     - Testcontainers 測試 harness（每個 test file 獨立 schema）
     - _Requirements: 1.4, 1.7_

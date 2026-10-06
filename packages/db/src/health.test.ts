@@ -1,28 +1,16 @@
 import { createLogger } from '@arlo/config/logger';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { createPool, type Pool } from './client';
 import { checkDatabase } from './health';
-import { startTestPostgres } from './testing';
+import { useTestDatabase } from './testing';
 
 const logger = createLogger({ component: 'test', level: 'silent' });
 
 describe('checkDatabase', () => {
-  let container: StartedPostgreSqlContainer;
-  let pool: Pool;
-
-  beforeAll(async () => {
-    container = await startTestPostgres();
-    pool = createPool({ connectionString: container.getConnectionUri(), logger });
-  }, 120_000);
-
-  afterAll(async () => {
-    await pool?.end();
-    await container?.stop();
-  });
+  const t = useTestDatabase();
 
   it('is ok when Postgres answers', async () => {
-    const result = await checkDatabase(pool, { logger });
+    const result = await checkDatabase(t.pool, { logger });
     expect(result).toMatchObject({ ok: true });
     expect(result.latencyMs).toBeGreaterThanOrEqual(0);
   });
