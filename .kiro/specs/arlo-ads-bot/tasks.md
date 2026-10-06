@@ -231,8 +231,8 @@
     - _Requirements: 6.2_
     - _ADR: ADR-0009_
 
-- [ ] 13. Approval UX
-  - [ ] 13.1 Slack approve / reject 互動
+- [-] 13. Approval UX
+  - [x] 13.1 Slack approve / reject 互動
     - 解析 `action_id` → resolveSlackUser → `authorize` → Executor；無權限 ephemeral；重複點擊回「已由 @x 處理」
     - 測試：權限矩陣、冪等
     - _Requirements: 1.5, 1.6, 6.6_

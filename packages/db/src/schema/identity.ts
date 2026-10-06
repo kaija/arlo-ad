@@ -58,7 +58,7 @@ export const roleBindings = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     role: role('role').notNull(),
-    // Platform account IDs this binding covers; null means every account.
+    // ad_accounts.id values this binding covers; null means every account.
     accountIds: text('account_ids').array(),
     // Highest ChangeSet tier this binding may approve (Requirement 1.4).
     maxTier: smallint('max_tier').notNull().default(0),

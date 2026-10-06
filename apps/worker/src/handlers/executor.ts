@@ -352,8 +352,7 @@ export function createExecutor(deps: ExecutorDeps) {
 
 export type Executor = ReturnType<typeof createExecutor>;
 
-export function executorJobs(deps: ExecutorDeps) {
-  const executor = createExecutor(deps);
+export function executorJobs(executor: Executor) {
   return [
     defineJob(Jobs.changesetProcess, async (data) => {
       await executor.process(data.changesetId);
