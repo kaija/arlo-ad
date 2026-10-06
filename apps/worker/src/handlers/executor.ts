@@ -30,6 +30,7 @@ import {
   getUserWithBindings,
   listApprovalMessages,
   listAudit,
+  listExpiredPending,
   loadOpTargetNames,
   loadRules,
   loadTierThresholds,
@@ -331,7 +332,22 @@ export function createExecutor(deps: ExecutorDeps) {
     return { ok: true, changeset: moved.changeset };
   }
 
-  return { process: processChangeSet, approve, reject, refreshCards, notify, drift, runOps, view, post, move, origin, account, handledBy, userName };
+  /** EXPIRED for every pending ChangeSet past expires_at; returns how many expired. */
+  async function expireDue(): Promise<number> {
+    let n = 0;
+    for (const cs of await listExpiredPending(db, deps.now())) {
+      const moved = await move(cs, { type: 'expire' }, SYSTEM, '已超過審核期限');
+      if (!moved.ok) continue;
+      n++;
+      const acc = await account(cs);
+      await refreshCards(moved.changeset, acc, '系統');
+      await notify(moved.changeset, 'warn', `審核逾期，變更未執行：${cs.summary}`);
+    }
+    if (n) logger.info({ expired: n }, 'expired pending ChangeSets');
+    return n;
+  }
+
+  return { process: processChangeSet, approve, expireDue, reject, refreshCards, notify, drift, runOps, view, post, move, origin, account, handledBy, userName };
 }
 
 export type Executor = ReturnType<typeof createExecutor>;
@@ -342,5 +358,6 @@ export function executorJobs(deps: ExecutorDeps) {
     defineJob(Jobs.changesetProcess, async (data) => {
       await executor.process(data.changesetId);
     }),
+    defineJob(Jobs.changesetExpire, async () => ({ expired: await executor.expireDue() })),
   ];
 }

@@ -264,6 +264,20 @@ describe('Executor.approve / reject', () => {
     expect(platform.applied).toEqual([]);
   });
 
+  it('expires overdue ChangeSets, disables their cards and tells the source', async () => {
+    const { cs, card } = await pending();
+    const { cs: fresh } = await pending();
+    const at = (h: number) => createExecutor({ ...deps, now: () => new Date(NOW.getTime() + h * 3_600_000) });
+
+    expect(await at(23).expireDue()).toBe(0);
+    expect(await at(24.5).expireDue()).toBe(2);
+    expect(await at(25).expireDue()).toBe(0);
+    expect((await getChangeSet(t.db, cs.id))?.status).toBe('EXPIRED');
+    expect((await getChangeSet(t.db, fresh.id))?.status).toBe('EXPIRED');
+    expect(card.message).toMatchObject({ changeset: { status: 'EXPIRED', outcome: { status: 'EXPIRED', actor: '系統' } } });
+    expect(chat.postedTo(THREAD.channelId).filter((m) => m.message.type === 'notice')).toHaveLength(2);
+  });
+
   it('rejects with a reason, once', async () => {
     const { cs, executor, card } = await pending();
     const result = await executor.reject(cs.id, bob, '  not now ');

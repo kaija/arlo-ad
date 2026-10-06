@@ -7,6 +7,7 @@ export const SYSTEM_SCHEDULES = [
   { name: Jobs.syncHourly.name, cron: '5 * * * *' },
   // 06:00 UTC: yesterday is complete in Asia and Europe; D-3..D-1 covers the Americas too.
   { name: Jobs.syncDaily.name, cron: '0 6 * * *' },
+  { name: Jobs.changesetExpire.name, cron: '*/5 * * * *' },
 ] as const;
 
 export async function applySystemSchedules(boss: PgBoss): Promise<void> {

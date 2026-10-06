@@ -48,6 +48,8 @@ export const Jobs = {
   schedulerRun: jobSpec('scheduler.run', schedulerRun, { retryLimit: 0 }),
   // Validation → tier → auto-execute or approval request (ADR-0006). Idempotent per status.
   changesetProcess: jobSpec('changeset.process', changesetRef),
+  // Cron: PENDING_APPROVAL past expires_at → EXPIRED, cards disabled (Requirement 6.2).
+  changesetExpire: jobSpec('changeset.expire', z.object({})),
   // Re-applies scheduled_jobs to pg-boss cron after a change in the Web console.
   schedulerSync: jobSpec('scheduler.sync', z.object({})),
 } satisfies Record<string, JobSpec>;

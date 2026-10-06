@@ -208,7 +208,7 @@
     - _Requirements: 3.4, 3.6, 3.7, 6.6_
     - _ADR: ADR-0006_
 
-- [-] 12. Executor
+- [x] 12. Executor
   - [x] 12.1 GoogleAdsAdapter 寫入
     - `applyOps()`：set_budget、set_status、set_bid_target、add_negative_keyword（shared set）、add_keyword；mutate 前 `assertWriteAllowed`
     - contract test（測試帳戶，手動觸發）
@@ -225,7 +225,7 @@
     - 整合測試：drift → STALE、revalidate 失敗 → BLOCKED、部分失敗 → FAILED
     - _Requirements: 3.5, 6.3, 6.4, 6.5_
     - _ADR: ADR-0009_
-  - [ ] 12.4 過期處理
+  - [x] 12.4 過期處理
     - cron 每 5 分鐘 `expireDue()`：EXPIRED + 更新卡片停用按鈕
     - 測試
     - _Requirements: 6.2_
