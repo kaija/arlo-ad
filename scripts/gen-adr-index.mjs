@@ -15,7 +15,7 @@ const adrTasks = {};
 const taskReqs = new Set();
 let task;
 for (const l of tasks) {
-  task = l.match(/^\s*- \[[ x]\] (\d+\.\d+) /)?.[1] ?? task;
+  task = l.match(/^\s*- \[[ x-]\] (\d+\.\d+) /)?.[1] ?? task;
   const adr = l.match(/_ADR: (.+)_/);
   if (adr && task) adrIds(adr[1]).forEach((a) => push(adrTasks, a, task));
   const req = l.match(/_Requirements: (.+)_/);
