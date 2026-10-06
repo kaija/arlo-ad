@@ -320,7 +320,7 @@
     - _Requirements: 18.6_
     - _ADR: ADR-0019_
 
-- [-] 17. Monitor 熔斷
+- [x] 17. Monitor 熔斷
   - [x] 17.1 Monitor 規則評估
     - `MonitorRuleSpec`、`evaluateMonitor()`、冷卻判斷；`monitor_rules`、`monitor_firings` schema
     - table-driven 測試
@@ -336,7 +336,7 @@
     - 測試：模板降級
     - _Requirements: 12.5_
     - _ADR: ADR-0017, ADR-0023_
-  - [ ] 17.4 Monitor 設定頁
+  - [x] 17.4 Monitor 設定頁
     - 規則 CRUD、冷卻、動作
     - _Requirements: 18.4_
     - _ADR: ADR-0017_
