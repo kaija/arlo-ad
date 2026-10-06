@@ -26,6 +26,12 @@ export type Tier = 0 | 1 | 2 | 3;
 export const AUTOMATION_FEATURES = ['negative_kw_auto', 'circuit_breaker', 'bid_auto_reduce', 'budget_rebalance'] as const;
 export type AutomationFeature = (typeof AUTOMATION_FEATURES)[number];
 
+/** off: the automation proposes nothing; shadow: validate and tier, never mutate; live: execute. */
+export const AUTOMATION_MODES = ['off', 'shadow', 'live'] as const;
+export type AutomationMode = (typeof AUTOMATION_MODES)[number];
+/** New accounts start every automation in shadow (Requirement 9.2). */
+export const DEFAULT_AUTOMATION_MODE: AutomationMode = 'shadow';
+
 export const CHANGESET_SOURCES = ['chat', 'schedule', 'monitor', 'web', 'undo'] as const;
 export type ChangeSetSourceKind = (typeof CHANGESET_SOURCES)[number];
 

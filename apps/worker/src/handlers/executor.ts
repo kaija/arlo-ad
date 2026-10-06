@@ -29,6 +29,7 @@ import {
   claimSlaReminder,
   getSetting,
   getAdAccount,
+  getAutomationMode,
   getChangeSet,
   getUserWithBindings,
   insertChangeSet,
@@ -290,6 +291,23 @@ export function createExecutor(deps: ExecutorDeps) {
       if (moved.ok) await post(moved.changeset, await origin(cs), { type: 'notice', level: 'warn', text: `帳戶現況已變更，未執行：${cs.summary}\n${describeDrift(drifts)}`, changesetId: cs.id }, 'notice');
       return moved.ok ? moved.changeset : moved.current;
     }
+
+    // Automations follow their mode right before the mutate step (ADR-0013), so shadow and live
+    // share every check above. ChangeSets without a feature (people's requests) always run.
+    const mode = cs.feature ? await getAutomationMode(db, acc.id, cs.feature) : 'live';
+    if (mode === 'off') {
+      const off: Violation = { ruleId: 'automation_mode', ruleType: 'AUTOMATION_OFF', severity: 'HARD_BLOCK', message: `自動化 ${cs.feature} 在此帳戶為 off` };
+      const moved = await move(cs, { type: 'block', violations: [...violations, off] }, SYSTEM, 'automation off');
+      return moved.ok ? moved.changeset : moved.current;
+    }
+    if (mode === 'shadow') {
+      const simulated = await move(cs, { type: 'simulate', tier, violations }, SYSTEM, 'shadow mode: not executed', { feature: cs.feature });
+      if (!simulated.ok) return simulated.current;
+      log.info({ feature: cs.feature }, 'ChangeSet simulated (shadow)');
+      await post(simulated.changeset, await origin(cs), { type: 'shadow_result', changeset: await view(simulated.changeset, acc) }, 'origin');
+      return simulated.changeset;
+    }
+
     const executing = await move(cs, { type: 'auto_execute', tier, violations }, SYSTEM);
     if (!executing.ok) return executing.current;
     const done = await runOps(executing.changeset, acc, SYSTEM);

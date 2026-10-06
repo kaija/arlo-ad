@@ -2,7 +2,7 @@ import { FakeChatAdapter } from '@arlo/adapters/chat';
 import { FakePlatformAdapter } from '@arlo/adapters/platform';
 import { createLogger } from '@arlo/config/logger';
 import type { ChangeSetSource, EntityKind, Op } from '@arlo/core';
-import { createScheduledJob, DEFAULT_ORG_ID, getChangeSet, setSetting, setSlackBinding, startJobRun, insertChangeSet, listApprovalMessages, listAudit, listOpResults, schema, upsertUserOnSignIn, type AdAccount } from '@arlo/db';
+import { createScheduledJob, DEFAULT_ORG_ID, getAutomationMode, getChangeSet, setAutomationMode, setSetting, setSlackBinding, startJobRun, insertChangeSet, listApprovalMessages, listAudit, listOpResults, schema, upsertUserOnSignIn, type AdAccount } from '@arlo/db';
 import { useTestDatabase } from '@arlo/db/testing';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { syncAccounts, syncSnapshots } from '../sync/sync';
@@ -513,5 +513,80 @@ describe('Executor.undo (ADR-0012)', () => {
   it('refuses ops that create things', async () => {
     const cs = await executed([{ kind: 'google.add_negative_keyword', target: { ...CAMPAIGN, kind: 'shared_set', id: '9' }, before: null, after: { text: 'free', matchType: 'EXACT' } }]);
     expect(await createExecutor(deps).undo(cs.id, users.op!)).toEqual({ ok: false, reason: 'not_revertible' });
+  });
+});
+
+describe('automation modes in the Tier 1 branch (ADR-0013)', () => {
+  const t = useTestDatabase();
+  let platform: FakePlatformAdapter;
+  let chat: FakeChatAdapter;
+  let account: AdAccount;
+  let deps: ExecutorDeps;
+
+  beforeAll(async () => {
+    platform = seededPlatform();
+    const sync = { db: t.db, platform, logger, now: () => NOW };
+    account = (await syncAccounts(sync))[0]!;
+    await syncSnapshots(sync, account);
+  });
+
+  beforeEach(async () => {
+    platform = seededPlatform();
+    chat = new FakeChatAdapter();
+    deps = { db: t.db, platform, chat, logger, now: () => NOW, writeAllowedCustomerIds: [ACC], approvalChannel: APPROVAL };
+    await t.db.delete(schema.approvalMessages);
+    await t.db.delete(schema.rules);
+  });
+
+  const breaker = () =>
+    insertChangeSet(t.db, {
+      accountId: account.id,
+      feature: 'circuit_breaker',
+      source: { kind: 'monitor', monitorRuleId: 'r1' },
+      ops: [{ kind: 'set_status', target: CAMPAIGN, field: 'status', before: 'ENABLED', after: 'PAUSED' }],
+      summary: '熔斷：暫停 Brand',
+      requestedBy: { kind: 'system' },
+    });
+  const system = { kind: 'system' as const };
+
+  it('defaults new accounts to shadow: validates, simulates, never mutates', async () => {
+    expect(await getAutomationMode(t.db, account.id, 'circuit_breaker')).toBe('shadow');
+    const cs = await breaker();
+    expect(await createExecutor(deps).process(cs.id)).toMatchObject({ status: 'SIMULATED', tier: 1 });
+    expect(platform.applied).toEqual([]);
+    expect(chat.postedTo(APPROVAL.channelId).map((m) => m.message)).toEqual([
+      expect.objectContaining({ type: 'shadow_result', changeset: expect.objectContaining({ id: cs.id, status: 'SIMULATED', ops: [expect.objectContaining({ after: '暫停' })] }) }),
+    ]);
+    expect(await listApprovalMessages(t.db, cs.id)).toMatchObject([{ kind: 'origin' }]);
+  });
+
+  it('shadow still runs the drift check, like live would', async () => {
+    platform.drift(CAMPAIGN, { status: 'PAUSED' });
+    expect(await createExecutor(deps).process((await breaker()).id)).toMatchObject({ status: 'STALE' });
+  });
+
+  it('live executes', async () => {
+    await setAutomationMode(t.db, account.id, 'circuit_breaker', 'live', system);
+    const cs = await breaker();
+    expect(await createExecutor(deps).process(cs.id)).toMatchObject({ status: 'EXECUTED' });
+    expect(platform.entity(CAMPAIGN)?.status).toBe('PAUSED');
+  });
+
+  it('off blocks anything that slipped through, and modes are per feature', async () => {
+    await setAutomationMode(t.db, account.id, 'circuit_breaker', 'off', system);
+    const cs = await breaker();
+    expect(await createExecutor(deps).process(cs.id)).toMatchObject({ status: 'BLOCKED', violations: [{ ruleType: 'AUTOMATION_OFF' }] });
+    expect(platform.applied).toEqual([]);
+    expect(await getAutomationMode(t.db, account.id, 'bid_auto_reduce')).toBe('shadow');
+    expect((await listAudit(t.db, 'automation_mode', (await t.db.select().from(schema.automationModes))[0]!.id)).map((a) => [a.fromStatus, a.toStatus])).toEqual([
+      ['shadow', 'live'],
+      ['live', 'off'],
+    ]);
+  });
+
+  it("people's Tier 1 requests (no feature) are not affected by modes", async () => {
+    await setAutomationMode(t.db, account.id, 'circuit_breaker', 'off', system);
+    const cs = await insertChangeSet(t.db, { accountId: account.id, source: { kind: 'chat', ref: THREAD }, ops: [{ kind: 'set_status', target: CAMPAIGN, field: 'status', before: 'ENABLED', after: 'PAUSED' }], summary: 'pause', requestedBy: { kind: 'agent' } });
+    expect(await createExecutor(deps).process(cs.id)).toMatchObject({ status: 'EXECUTED' });
   });
 });

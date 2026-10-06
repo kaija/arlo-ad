@@ -7,3 +7,4 @@ export * from './agents';
 export * from './scheduler';
 export * from './usage';
 export * from './changesets';
+export * from './automation';

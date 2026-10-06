@@ -288,8 +288,8 @@
 
 ## M3 — 自動化
 
-- [ ] 15. Shadow 模式
-  - [ ] 15.1 自動化模式與 Executor 分支
+- [-] 15. Shadow 模式
+  - [x] 15.1 自動化模式與 Executor 分支
     - `automation_modes` schema（新帳戶預設 shadow）；Executor tier 1 分支依 mode → SIMULATED / 執行 / off 時不產生
     - 整合測試：三種模式
     - _Requirements: 9.1, 9.2, 9.3_
