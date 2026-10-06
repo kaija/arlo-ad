@@ -5,6 +5,7 @@ export * from './agents/prompts';
 export * from './config/models';
 export * from './context';
 export * from './session';
+export * from './tools/keyword';
 export * from './tools/propose';
 export * from './tools/read';
 export * from './usage';

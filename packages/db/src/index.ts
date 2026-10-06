@@ -4,6 +4,7 @@ export * from './repositories/automation';
 export * from './repositories/changesets';
 export * from './repositories/executor';
 export * from './repositories/identity';
+export * from './repositories/keywords';
 export * from './repositories/platform';
 export * from './repositories/reads';
 export * from './repositories/scheduler';

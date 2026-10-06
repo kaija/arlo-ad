@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic';
 const SECTIONS = [
   { href: '/settings/rules', title: 'Validator 規則', text: '預算上限、月花費上限、變動幅度、出價範圍、每日變更次數（ADR-0008）。' },
   { href: '/settings/thresholds', title: 'Tier 門檻', text: '哪些變更可自動執行、哪些需要 Tier 3 確認（ADR-0007）。' },
+  { href: '/settings/business-profile', title: 'Business Profile', text: '各帳戶販售內容、想要／排除的搜尋意圖、品牌字與範例，供搜尋字詞分類使用（ADR-0019）。' },
   { href: '/settings/users', title: '使用者與權限', text: '角色、帳戶範圍、可審核的 Tier 上限、Slack 綁定（ADR-0010）。' },
   { href: '/schedules', title: '排程', text: '定期報告與自動化任務（ADR-0016）。' },
 ];

@@ -8,3 +8,4 @@ export * from './scheduler';
 export * from './usage';
 export * from './changesets';
 export * from './automation';
+export * from './keywords';
