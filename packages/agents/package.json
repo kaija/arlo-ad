@@ -9,12 +9,16 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@arlo/config": "workspace:*",
     "@arlo/core": "workspace:*",
     "@arlo/db": "workspace:*",
-    "@arlo/config": "workspace:*"
+    "@openai/agents": "^0.18.0",
+    "drizzle-orm": "^0.45.3",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

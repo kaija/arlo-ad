@@ -36,6 +36,13 @@
       "when": 1791298831591,
       "tag": "0004_slack_events_seen",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791299170774,
+      "tag": "0005_agent_sessions",
+      "breakpoints": true
     }
   ]
 }

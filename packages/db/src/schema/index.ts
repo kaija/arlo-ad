@@ -3,3 +3,4 @@ export * from './identity';
 export * from './platform';
 export * from './sync';
 export * from './slack';
+export * from './agents';

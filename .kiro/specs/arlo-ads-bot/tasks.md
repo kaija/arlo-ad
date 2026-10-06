@@ -130,8 +130,8 @@
     - _Requirements: 7.6_
     - _ADR: ADR-0005_
 
-- [ ] 9. Agents 與對話
-  - [ ] 9.1 PgSession
+- [-] 9. Agents 與對話
+  - [x] 9.1 PgSession
     - 實作 SDK `Session` 介面；`agent_sessions`、`agent_session_items`；超過上限保留最近 N items + 摘要
     - 整合測試：add / get / pop / clear、截斷
     - _Requirements: 10.3_
