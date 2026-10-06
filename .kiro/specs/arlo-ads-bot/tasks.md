@@ -191,7 +191,7 @@
     - 測試：所有合法 / 非法轉換、op 分類
     - _Requirements: 3.2, 3.4_
     - _ADR: ADR-0006_
-  - [ ] 11.2 Validator
+  - [x] 11.2 Validator
     - 五種 RuleSpec、scope 覆寫解析、`validate()`；MonthlySpendCap 估算
     - table-driven 測試
     - _Requirements: 5.1, 5.2, 5.4, 5.5, 5.6_
