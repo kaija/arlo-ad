@@ -113,8 +113,8 @@
     - _Requirements: 2.6_
     - _ADR: ADR-0003, ADR-0005_
 
-- [ ] 8. ChatAdapter 與 Slack
-  - [ ] 8.1 語意訊息與介面
+- [-] 8. ChatAdapter 與 Slack
+  - [x] 8.1 語意訊息與介面
     - `ConversationRef`、`ChatMessage` union、`ChatAdapter` 介面、`FakeChatAdapter`
     - _Requirements: 7.6_
     - _ADR: ADR-0005_
