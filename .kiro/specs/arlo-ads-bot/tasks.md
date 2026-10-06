@@ -88,8 +88,8 @@
 
 ## M1 — 看得到
 
-- [ ] 6. PlatformAdapter（讀取）
-  - [ ] 6.1 介面與 Fake 實作
+- [-] 6. PlatformAdapter（讀取）
+  - [x] 6.1 介面與 Fake 實作
     - `PlatformAdapter`、`GoogleAdsExtensions`、`EntityRef`、`Op`、`OpResult` 型別
     - `FakePlatformAdapter`（in-memory，可注入 drift 與錯誤）
     - _Requirements: 2.7_

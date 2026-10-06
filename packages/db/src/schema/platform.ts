@@ -17,6 +17,7 @@ import {
   unique,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { ENTITY_KINDS, PLATFORMS } from '@arlo/core';
 import { id, timestamps } from './columns';
 import { orgs } from './identity';
 
@@ -40,7 +41,7 @@ const share = (name: string) => numeric(name, { precision: 6, scale: 5, mode: 'n
 // Calendar date in the account's timezone.
 const day = () => date('date', { mode: 'string' }).notNull();
 
-export const PLATFORMS = ['google_ads'] as const;
+export { ENTITY_KINDS, PLATFORMS };
 export const platform = pgEnum('platform', PLATFORMS);
 
 export const adAccounts = pgTable(
@@ -64,7 +65,6 @@ export const adAccounts = pgTable(
 );
 
 // `account` rows exist so account-level metrics share the entity_id keyed metric tables.
-export const ENTITY_KINDS = ['account', 'campaign', 'ad_group', 'keyword', 'shared_set', 'campaign_budget'] as const;
 export const entityKind = pgEnum('entity_kind', ENTITY_KINDS);
 
 export const entities = pgTable(
