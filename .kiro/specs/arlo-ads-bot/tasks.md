@@ -48,13 +48,13 @@
     - _Requirements: 20.4_
     - _ADR: ADR-0025_
 
-- [-] 3. 資料庫 schema
+- [x] 3. 資料庫 schema
   - [x] 3.1 身分與設定 schema
     - Drizzle：`orgs`、`users`、`role_bindings`、`settings`；seed 單一 org
     - Testcontainers 測試 harness（每個 test file 獨立 schema）
     - _Requirements: 1.4, 1.7_
     - _ADR: ADR-0001, ADR-0010_
-  - [ ] 3.2 平台資料 schema
+  - [x] 3.2 平台資料 schema
     - `ad_accounts`、`entities`、`entity_snapshots`、`metrics_daily`、`metrics_hourly`、`change_events`、`g_search_terms`、`g_conversion_actions`、`g_audience_metrics`、`ga4_daily`
     - repository 的 upsert 函式與冪等測試
     - _Requirements: 2.5, 2.7_

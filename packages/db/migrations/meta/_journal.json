@@ -15,6 +15,13 @@
       "when": 1791296146685,
       "tag": "0001_seed_default_org",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791296800932,
+      "tag": "0002_platform",
+      "breakpoints": true
     }
   ]
 }

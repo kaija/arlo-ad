@@ -44,6 +44,8 @@ pnpm dev                      # turbo dev
 ## 慣例
 
 - 資料表：每張表都有 `org_id`（Requirement 1.7），v1 寫入一律用 `DEFAULT_ORG_ID`（由 migration `0001_seed_default_org` 建立，無 DB default）；主鍵 `uuidv7()`；`created_at` / `updated_at`（`updated_at` 只在 Drizzle update 時自動更新）。共用欄位 helper 在 `packages/db/src/schema/columns.ts`。資料語意盡量用 CHECK constraint 固定（例：`users.status` 與 `slack_user_id` 一致、email 小寫）。
+- 平台資料（`packages/db/src/schema/platform.ts`）：`platform` 只存在 `ad_accounts`；`entities.external_id` 在 (account, kind) 內唯一（Google keyword 用 `adGroupId~criterionId`）；帳戶層級 metrics 用 kind=`account` 的 entity。`metrics_*` 的 `account_id`/`level` 是反正規化欄位，由複合 FK 對應 entity。金額一律 micros（bigint），比例 0–1。
+- 同步寫入走 `packages/db/src/repositories/platform.ts` 的 upsert 函式：metrics / 報表衝突時覆寫（回補）、snapshot 與 change_events 只插入不改；自動分批避開 bind parameter 上限；同一次呼叫內 row 不可重複 conflict key。
 
 - 環境變數一律經 `@arlo/config` 的 `parseEnv(EnvSchema.pick({...}))` 讀取，不直接讀 `process.env`。每個 process 只 pick 自己用到的 key，功能落地時再擴充 pick（`apps/worker/src/index.ts` 的 `WorkerEnv`、`apps/web/lib/server.ts` 的 `WebEnv`）。新增變數時同時改 `EnvSchema` 與 `.env.example`（`env.test.ts` 會檢查兩者一致）；錯誤訊息只列 key，不可帶出值。
 - 寫入廣告帳戶前必須呼叫 `assertWriteAllowed(env.ADS_WRITE_ALLOWED_CUSTOMER_IDS, customerId)`（ADR-0026）；空白清單代表不允許任何寫入。
