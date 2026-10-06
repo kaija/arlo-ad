@@ -5,7 +5,7 @@ import type { Logger } from '@arlo/config/logger';
 import { authorize, decodeAction, type ChangeSetStatus, type ChatAction, type ConversationRef, type DenyReason } from '@arlo/core';
 import { getChangeSet, resolveSlackUser, type Db, type UserWithBindings } from '@arlo/db';
 import { defineJob, Jobs, type JobData } from '@arlo/queue';
-import type { Executor } from './executor';
+import type { Executor, UndoResult } from './executor';
 
 export interface InteractionDeps {
   db: Db;
@@ -46,6 +46,29 @@ export function alreadyHandled(status: ChangeSetStatus | null, by?: string | nul
   return by ? `這個變更已由 ${by} 處理（${what}）。` : `這個變更已處理（${what}）。`;
 }
 
+export function undoRefusal(result: Extract<UndoResult, { ok: false }>): string {
+  switch (result.reason) {
+    case 'forbidden':
+      return 'Undo 需要 operator 以上、且涵蓋這個帳戶的權限。';
+    case 'not_executed':
+      return '這個變更目前不是已執行狀態，無法還原。';
+    case 'window_passed':
+      return '已超過 24 小時的 Undo 時限，請改為提出新的變更。';
+    case 'not_revertible':
+      return '這類新增型變更目前無法一鍵還原，請改為提出新的變更。';
+    case 'drift': {
+      const now = (result.drifts ?? []).map((d) => `op ${d.opIndex + 1}：${d.field} 現在是 ${String(d.actual ?? '（已不存在）')}，不是當初寫入的 ${String(d.expected)}`).join('\n');
+      return `目標在執行後已被修改${result.lastModifiedBy ? `（最後修改者：${result.lastModifiedBy}）` : ''}，為避免覆蓋，未執行 Undo。\n${now}`;
+    }
+    case 'in_progress':
+      return '這個變更已在還原中或已還原。';
+    case 'failed':
+      return '還原寫入失敗，請查看通知中的錯誤。';
+    case 'not_found':
+      return '找不到這個變更。';
+  }
+}
+
 function confirmMetadata(raw: string): ConfirmMetadata | null {
   try {
     const m = JSON.parse(raw) as Partial<ConfirmMetadata>;
@@ -80,6 +103,11 @@ export function createInteractionHandler(deps: InteractionDeps) {
       }
       const result = await executor.reject(cs.id, user.id);
       if (!result.ok) return say(alreadyHandled(result.status, result.handledBy));
+      return;
+    }
+    if (action.verb === 'undo') {
+      const result = await executor.undo(cs.id, user.id);
+      if (!result.ok) return say(undoRefusal(result));
       return;
     }
     deps.logger.info({ verb: action.verb, changeset_id: cs.id }, 'changeset action not handled yet');

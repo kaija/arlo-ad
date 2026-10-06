@@ -231,7 +231,7 @@
     - _Requirements: 6.2_
     - _ADR: ADR-0009_
 
-- [-] 13. Approval UX
+- [x] 13. Approval UX
   - [x] 13.1 Slack approve / reject 互動
     - 解析 `action_id` → resolveSlackUser → `authorize` → Executor；無權限 ephemeral；重複點擊回「已由 @x 處理」
     - 測試：權限矩陣、冪等
@@ -251,7 +251,7 @@
     - 測試
     - _Requirements: 7.5_
     - _ADR: ADR-0011_
-  - [ ] 13.5 Undo
+  - [x] 13.5 Undo
     - `undo()`：24h 窗、operator 以上、fetchCurrent == after → 寫回 before；否則拒絕並由 change_events 找修改者；新 ChangeSet `revert_of`、原 REVERTED
     - 整合測試：成功、drift 拒絕、逾時、權限不足
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_

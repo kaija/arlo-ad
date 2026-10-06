@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "changesets_one_active_revert" ON "changesets" USING btree ("revert_of") WHERE "changesets"."revert_of" is not null and "changesets"."status" not in ('FAILED', 'STALE', 'BLOCKED');

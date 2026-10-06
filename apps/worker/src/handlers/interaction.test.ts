@@ -7,7 +7,7 @@ import { useTestDatabase } from '@arlo/db/testing';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { syncAccounts, syncSnapshots } from '../sync/sync';
 import { createExecutor } from './executor';
-import { alreadyHandled, createInteractionHandler, DENY_TEXT } from './interaction';
+import { alreadyHandled, createInteractionHandler, DENY_TEXT, undoRefusal } from './interaction';
 
 const logger = createLogger({ component: 'test', level: 'silent' });
 const ACC = '1234567890';
@@ -75,7 +75,7 @@ describe('Slack approve / reject interactions', () => {
     return cs.id;
   }
 
-  const click = (slackUser: string, verb: 'approve' | 'reject', changesetId: string) =>
+  const click = (slackUser: string, verb: 'approve' | 'reject' | 'undo', changesetId: string) =>
     handle({ type: 'block_actions', userId: slackUser, channelId: CHANNEL, messageTs: '1.0', actions: [{ actionId: encodeAction({ kind: 'changeset', verb, changesetId }) }] });
   const lastEphemeral = (slackUser: string) => chat.ephemerals.filter((e) => e.userId === slackUser).at(-1)?.text;
 
@@ -137,6 +137,16 @@ describe('Slack approve / reject interactions', () => {
     await click('UADMIN', 'reject', id);
     expect(chat.ephemerals.filter((e) => e.userId === 'UADMIN').map((e) => e.text)).toEqual([alreadyHandled('EXECUTED', 'UAPPROVER'), alreadyHandled('EXECUTED', 'UAPPROVER')]);
     expect(platform.applied).toHaveLength(1);
+  });
+
+  it('undoes a Tier 1 change from the notice button for operators only', async () => {
+    const id = await pending(1_100_000_000);
+    await click('UADMIN', 'approve', id);
+    await click('UVIEWER', 'undo', id);
+    expect(lastEphemeral('UVIEWER')).toBe(undoRefusal({ ok: false, reason: 'forbidden' }));
+    await click('UOPERATOR', 'undo', id);
+    expect((await getChangeSet(t.db, id))?.status).toBe('REVERTED');
+    expect(platform.entity(CAMPAIGN)?.state?.budgetMicros).toBe(1_000_000_000);
   });
 
   it('rejects', async () => {

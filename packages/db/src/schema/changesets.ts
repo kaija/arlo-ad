@@ -71,6 +71,10 @@ export const changesets = pgTable(
     index('changesets_status_idx').on(t.status),
     index('changesets_account_created_idx').on(t.accountId, t.createdAt),
     foreignKey({ name: 'changesets_revert_of_fk', columns: [t.revertOf], foreignColumns: [t.id] }),
+    // At most one live Undo per ChangeSet (ADR-0012); a failed attempt can be retried.
+    uniqueIndex('changesets_one_active_revert')
+      .on(t.revertOf)
+      .where(sql`${t.revertOf} is not null and ${t.status} not in ('FAILED', 'STALE', 'BLOCKED')`),
     check('changesets_tier_range', sql`${t.tier} is null or ${t.tier} between 0 and 3`),
     check('changesets_requested_by_kind', sql`${t.requestedByKind} in ('user', 'agent', 'system')`),
     check('changesets_ops_array', sql`jsonb_typeof(${t.ops}) = 'array'`),

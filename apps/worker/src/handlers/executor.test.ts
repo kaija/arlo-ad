@@ -437,3 +437,81 @@ describe('Executor.remindSla (Requirement 7.5)', () => {
     await t.db.delete(schema.settings);
   });
 });
+
+describe('Executor.undo (ADR-0012)', () => {
+  const t = useTestDatabase();
+  let platform: FakePlatformAdapter;
+  let chat: FakeChatAdapter;
+  let account: AdAccount;
+  let deps: ExecutorDeps;
+  const users: Record<string, string> = {};
+
+  beforeAll(async () => {
+    platform = seededPlatform();
+    const sync = { db: t.db, platform, logger, now: () => NOW };
+    account = (await syncAccounts(sync))[0]!;
+    await syncSnapshots(sync, account);
+    for (const [name, role, accountIds] of [
+      ['op', 'operator', null],
+      ['viewer', 'viewer', null],
+      ['elsewhere', 'admin', ['00000000-0000-7000-8000-000000000000']],
+    ] as const) {
+      const u = await upsertUserOnSignIn(t.db, { email: `${name}@example.com`, displayName: name });
+      await t.db.insert(schema.roleBindings).values({ orgId: DEFAULT_ORG_ID, userId: u.id, role, maxTier: 0, accountIds: accountIds ? [...accountIds] : null });
+      users[name] = u.id;
+    }
+  });
+
+  beforeEach(async () => {
+    platform = seededPlatform();
+    chat = new FakeChatAdapter();
+    deps = { db: t.db, platform, chat, logger, now: () => NOW, writeAllowedCustomerIds: [ACC], approvalChannel: APPROVAL };
+    await t.db.delete(schema.approvalMessages);
+  });
+
+  async function executed(ops: Op[] = [{ kind: 'set_budget', target: CAMPAIGN, field: 'budget_micros', before: 1_000_000_000, after: 900_000_000 }]) {
+    const cs = await insertChangeSet(t.db, { accountId: account.id, source: { kind: 'chat', ref: THREAD }, ops, summary: 'trim Brand', requestedBy: { kind: 'agent' } });
+    expect(await createExecutor(deps).process(cs.id)).toMatchObject({ status: 'EXECUTED' });
+    return cs;
+  }
+
+  it('writes back the before values as a revert_of ChangeSet and marks the original REVERTED', async () => {
+    const cs = await executed();
+    const result = await createExecutor({ ...deps, now: () => new Date(NOW.getTime() + 3_600_000) }).undo(cs.id, users.op!);
+
+    expect(result).toMatchObject({ ok: true, revert: { status: 'EXECUTED', revertOf: cs.id, source: { kind: 'undo' }, ops: [{ before: 900_000_000, after: 1_000_000_000 }] } });
+    expect(platform.entity(CAMPAIGN)?.state?.budgetMicros).toBe(1_000_000_000);
+    expect(await getChangeSet(t.db, cs.id)).toMatchObject({ status: 'REVERTED' });
+    expect(chat.postedTo(THREAD.channelId).at(-1)?.message).toMatchObject({ type: 'notice', text: expect.stringContaining('op 已還原') });
+
+    // The original is no longer EXECUTED, so a second click does nothing.
+    expect(await createExecutor(deps).undo(cs.id, users.op!)).toEqual({ ok: false, reason: 'not_executed' });
+    expect(platform.applied).toHaveLength(2);
+  });
+
+  it('refuses when the target changed since execution and names who changed it', async () => {
+    const cs = await executed();
+    platform.drift(CAMPAIGN, { budgetMicros: 950_000_000 }, 'ann@example.com');
+    const result = await createExecutor(deps).undo(cs.id, users.op!);
+
+    expect(result).toMatchObject({ ok: false, reason: 'drift', lastModifiedBy: 'ann@example.com', drifts: [{ field: 'budget_micros', expected: 900_000_000, actual: 950_000_000 }] });
+    expect(platform.entity(CAMPAIGN)?.state?.budgetMicros).toBe(950_000_000);
+    expect(await getChangeSet(t.db, cs.id)).toMatchObject({ status: 'EXECUTED' });
+  });
+
+  it('refuses after the 24h window', async () => {
+    const cs = await executed();
+    expect(await createExecutor({ ...deps, now: () => new Date(NOW.getTime() + 24 * 3_600_000 + 1) }).undo(cs.id, users.op!)).toEqual({ ok: false, reason: 'window_passed' });
+  });
+
+  it.each([['viewer'], ['elsewhere']])('refuses %s (operator and account scope required)', async (who) => {
+    const cs = await executed();
+    expect(await createExecutor(deps).undo(cs.id, users[who]!)).toEqual({ ok: false, reason: 'forbidden' });
+    expect(platform.applied).toHaveLength(1);
+  });
+
+  it('refuses ops that create things', async () => {
+    const cs = await executed([{ kind: 'google.add_negative_keyword', target: { ...CAMPAIGN, kind: 'shared_set', id: '9' }, before: null, after: { text: 'free', matchType: 'EXACT' } }]);
+    expect(await createExecutor(deps).undo(cs.id, users.op!)).toEqual({ ok: false, reason: 'not_revertible' });
+  });
+});

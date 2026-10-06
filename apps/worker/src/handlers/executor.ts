@@ -31,6 +31,7 @@ import {
   getAdAccount,
   getChangeSet,
   getUserWithBindings,
+  insertChangeSet,
   listApprovalMessages,
   listAudit,
   listActiveSlackUsers,
@@ -94,6 +95,20 @@ export interface ApproveResult {
   /** Who handled it first, for "already handled by @x" (Requirement 6.6). */
   handledBy?: string | null;
 }
+
+/** Undo window after execution (ADR-0012). */
+export const UNDO_WINDOW_MS = 24 * 3_600_000;
+
+export type UndoResult =
+  | { ok: true; revert: StoredChangeSet }
+  | {
+      ok: false;
+      reason: 'not_found' | 'forbidden' | 'not_executed' | 'window_passed' | 'not_revertible' | 'drift' | 'in_progress' | 'failed';
+      /** For drift: what is live now and who changed it last, when change history tells (Requirement 8.4). */
+      drifts?: Drift[];
+      lastModifiedBy?: string | null;
+      revert?: StoredChangeSet;
+    };
 
 export type RejectResult = { ok: true; changeset: StoredChangeSet } | { ok: false; status: ChangeSetStatus | null; handledBy?: string | null; changeset?: StoredChangeSet };
 
@@ -404,7 +419,75 @@ export function createExecutor(deps: ExecutorDeps) {
     return n;
   }
 
-  return { process: processChangeSet, approve, expireDue, remindSla, reject, refreshCards, notify, drift, runOps, view, post, move, origin, account, handledBy, userName };
+  /** Who last changed the drifted targets after `since`, from live change history. */
+  async function lastModifier(acc: AdAccount, cs: ChangeSet, drifts: readonly Drift[], since: Date): Promise<string | null> {
+    try {
+      const events = await deps.platform.fetchChangeHistory(acc.externalId, since);
+      const targets = drifts.map((d) => cs.ops[d.opIndex]!);
+      const touched = events.filter((e) =>
+        targets.some((op) => e.resourceName?.endsWith(`/${op.target.id}`) || (op.field === 'budget_micros' && e.resourceType === 'CAMPAIGN_BUDGET')),
+      );
+      // Latest change wins; on equal times the later one in the (chronological) history.
+      const last = touched.reduce<(typeof touched)[number] | undefined>((best, e) => (!best || e.changedAt >= best.changedAt ? e : best), undefined);
+      return last ? (last.userEmail ?? last.clientType ?? null) : null;
+    } catch (err) {
+      logger.warn({ err, changeset_id: cs.id }, 'change history lookup failed');
+      return null;
+    }
+  }
+
+  /**
+   * Undo (ADR-0012, Requirements 8.1–8.5): within 24h of execution, operator or above, and only
+   * when every target still holds the value we wrote. Skips validator and approval; the revert
+   * is a new ChangeSet (`revert_of`) and the original becomes REVERTED.
+   */
+  async function undo(changesetId: string, userId: string): Promise<UndoResult> {
+    const original = await getChangeSet(db, changesetId);
+    if (!original) return { ok: false, reason: 'not_found' };
+    const user = await getUserWithBindings(db, userId);
+    if (!user || !authorize(user, 'undo', { accountId: original.accountId }).allowed) return { ok: false, reason: 'forbidden' };
+    if (original.status !== 'EXECUTED' || !original.executedAt) return { ok: false, reason: 'not_executed' };
+    if (deps.now().getTime() - original.executedAt.getTime() > UNDO_WINDOW_MS) return { ok: false, reason: 'window_passed' };
+    // Creates (keywords, negatives, campaigns) have no inverse op yet.
+    if (original.ops.some((op) => !op.field)) return { ok: false, reason: 'not_revertible' };
+
+    const acc = await account(original);
+    const inverse = original.ops.map((op) => ({ kind: op.kind, target: op.target, field: op.field, before: op.after, after: op.before }));
+    const drifts = await drift({ ...original, ops: inverse });
+    if (drifts.length) {
+      return { ok: false, reason: 'drift', drifts, lastModifiedBy: await lastModifier(acc, original, drifts, original.executedAt) };
+    }
+
+    let revert: StoredChangeSet;
+    try {
+      revert = await insertChangeSet(db, {
+        accountId: original.accountId,
+        source: { kind: 'undo', ...(original.source.ref ? { ref: original.source.ref } : {}) },
+        ops: inverse,
+        summary: `還原：${original.summary}`,
+        requestedBy: { kind: 'user', userId },
+        revertOf: original.id,
+      });
+    } catch (err) {
+      if ((err as { cause?: { code?: string } }).cause?.code === '23505' || (err as { code?: string }).code === '23505') return { ok: false, reason: 'in_progress' };
+      throw err;
+    }
+    const actor: Actor = { kind: 'user', id: userId };
+    const executing = await move(revert, { type: 'auto_execute', tier: original.tier ?? 1 }, actor, 'undo: no validator or approval (ADR-0012)');
+    if (!executing.ok) return { ok: false, reason: 'in_progress' };
+    const done = await runOps(executing.changeset, acc, actor);
+    const name = await userName(userId);
+    if (done.status !== 'EXECUTED') {
+      await notify(done, 'error', `還原失敗：${original.summary}\n${done.statusReason ?? ''}`);
+      return { ok: false, reason: 'failed', revert: done };
+    }
+    const reverted = await move(original, { type: 'revert' }, actor, `reverted by ${done.id}`, { revertId: done.id });
+    if (!reverted.ok) logger.error({ changeset_id: original.id, revert_id: done.id }, 'original left EXECUTED concurrently');
+    await notify(done, 'info', `${name ?? '使用者'} 已還原：${original.summary}`);
+    return { ok: true, revert: done };
+  }
+
+  return { process: processChangeSet, approve, expireDue, remindSla, undo, reject, refreshCards, notify, drift, runOps, view, post, move, origin, account, handledBy, userName };
 }
 
 export type Executor = ReturnType<typeof createExecutor>;
