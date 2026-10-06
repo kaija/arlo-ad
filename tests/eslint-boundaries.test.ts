@@ -26,7 +26,10 @@ const cases: Case[] = [
   { name: 'core rejects db clients', file: 'packages/core/src/a.ts', code: "import pg from 'pg';\nexport { pg };", expected: ['no-restricted-imports'] },
   { name: 'core rejects other workspace packages', file: 'packages/core/src/a.ts', code: "export * from '@arlo/db';", expected: ['no-restricted-imports'] },
   { name: 'core rejects process', file: 'packages/core/src/a.ts', code: 'export const url = process.env.DATABASE_URL;', expected: ['no-restricted-globals'] },
-  { name: 'core rejects fetch', file: 'packages/core/src/a.ts', code: "export const r = fetch('https://example.com');", expected: ['no-restricted-globals'] },
+  { name: 'core tests may import vitest', file: 'packages/core/src/a.test.ts', code: "export { it } from 'vitest';", expected: [] },
+  { name: 'core tests still reject I/O', file: 'packages/core/src/a.test.ts', code: "export { readFile } from 'node:fs';", expected: ['no-restricted-imports'] },
+  { name: 'core source rejects vitest', file: 'packages/core/src/a.ts', code: "export { it } from 'vitest';", expected: ['no-restricted-imports'] },
+  { name: 'core rejects fetch',file: 'packages/core/src/a.ts', code: "export const r = fetch('https://example.com');", expected: ['no-restricted-globals'] },
 
   // packages/agents: no platform adapter, no SDK, no applyOps
   { name: 'agents may import core and db', file: 'packages/agents/src/tools.ts', code: "export * from '@arlo/core';\nexport * from '@arlo/db';", expected: [] },

@@ -21,12 +21,14 @@ const platformSdkPatterns = [
 ];
 
 // packages/core is pure logic: allowlist relative imports and zod, reject everything else.
-const coreImportPatterns = [
+// Test files may additionally import vitest.
+const coreImportPatterns = (allowed) => [
   {
-    regex: '^(?!\\.{1,2}(?:/|$)|zod(?:/|$))',
+    regex: `^(?!\\.{1,2}(?:/|$)|(?:${allowed.join('|')})(?:/|$))`,
     message: 'packages/core 必須是無 I/O 的純邏輯，只能 import 相對路徑與 zod（ADR-0006）。',
   },
 ];
+const coreAllowed = ['zod'];
 
 // Agents only get read tools and propose_* tools; they must not reach the platform adapters.
 const agentImportPatterns = [
@@ -89,13 +91,20 @@ export default defineConfig(
   {
     files: ['packages/core/**/*.ts'],
     rules: {
-      'no-restricted-imports': ['error', { patterns: coreImportPatterns }],
+      'no-restricted-imports': ['error', { patterns: coreImportPatterns(coreAllowed) }],
       'no-restricted-globals': [
         'error',
         { name: 'process', message: 'packages/core 不得讀取 process；設定請由呼叫端傳入。' },
         { name: 'fetch', message: 'packages/core 不得做網路 I/O。' },
         { name: 'WebSocket', message: 'packages/core 不得做網路 I/O。' },
       ],
+    },
+  },
+
+  {
+    files: ['packages/core/**/*.test.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: coreImportPatterns([...coreAllowed, 'vitest']) }],
     },
   },
 

@@ -6,17 +6,20 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "dev": "tsx watch --clear-screen=false src/index.ts",
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@arlo/core": "workspace:*",
-    "@arlo/db": "workspace:*",
     "@arlo/adapters": "workspace:*",
     "@arlo/agents": "workspace:*",
-    "@arlo/config": "workspace:*"
+    "@arlo/config": "workspace:*",
+    "@arlo/core": "workspace:*",
+    "@arlo/db": "workspace:*"
   },
   "devDependencies": {
+    "@testcontainers/postgresql": "^12.2.0",
     "@types/node": "catalog:",
+    "tsx": "^4.23.15",
     "typescript": "catalog:"
   }
 }

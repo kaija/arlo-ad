@@ -12,7 +12,7 @@
     - 寫一個 lint 測試 fixture 證明邊界規則生效
     - _Requirements: 3.1_
     - _ADR: ADR-0002, ADR-0006_
-  - [ ] 1.2 web 與 worker 骨架
+  - [x] 1.2 web 與 worker 骨架
     - Next.js App Router 骨架、`/api/healthz`
     - worker entry、`:9090/healthz`、pino logger（含 redaction）、graceful shutdown
     - 測試：healthz 回應 DB 狀態

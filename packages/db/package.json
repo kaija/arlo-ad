@@ -3,17 +3,21 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
   },
   "scripts": {
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@arlo/config": "workspace:*",
     "@arlo/core": "workspace:*",
-    "@arlo/config": "workspace:*"
+    "pg": "^8.23.1"
   },
   "devDependencies": {
+    "@testcontainers/postgresql": "^12.2.0",
     "@types/node": "catalog:",
+    "@types/pg": "^8.23.1",
     "typescript": "catalog:"
   }
 }

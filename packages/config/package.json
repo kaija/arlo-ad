@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./logger": "./src/logger.ts"
   },
   "scripts": {
     "typecheck": "tsc"
@@ -11,5 +12,8 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "typescript": "catalog:"
+  },
+  "dependencies": {
+    "pino": "^10.4.0"
   }
 }

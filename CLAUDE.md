@@ -26,6 +26,14 @@ pnpm dev                      # turbo dev
 - typescript 固定 `~6.0`：typescript-eslint 尚未支援 TS 7。
 - pnpm 啟用 minimumReleaseAge；不要為了裝剛發布的版本而加入 `minimumReleaseAgeExclude`，改用前一個已過門檻的版本。
 - Vitest projects：每個 `apps/*`、`packages/*`、`evals` 各為一個 project（以 package name 命名）；repo 層級測試在 `tests/`（project `repo`）。
+- 整合測試以 Testcontainers 啟動 Postgres（`@arlo/db/testing` 的 `startTestPostgres()`，`postgres:18-alpine`），**需要 Docker daemon 在執行**。
+- 安裝腳本預設拒絕：新依賴若出現 `ERR_PNPM_IGNORED_BUILDS`，在 `pnpm-workspace.yaml` 的 `allowBuilds` 明確設 `true`/`false`（只有真的需要時才設 `true`）。
+- 本機執行 worker：`DATABASE_URL=... pnpm --filter @arlo/worker dev`（health 在 `WORKER_HEALTH_PORT`，預設 9090）。
+
+## 慣例
+
+- Log 一律用 `@arlo/config/logger` 的 `createLogger({ component })`，追蹤欄位以 `logger.child({ changeset_id, job_id, trace_id })` 帶入；錯誤用 `{ err }` 欄位（序列化時會移除 pg `client` 等連線物件）。秘密與 email 依 key 名遮罩，新增敏感欄位時擴充 `SECRET_KEYS`。
+- Healthz 回應是公開的：失敗只回錯誤代碼（`ECONNREFUSED`、SQLSTATE、`timeout`），細節寫 log。新增檢查項（pg-boss、last sync）時加進 web 與 worker 的 `runHealthChecks({...})`。
 
 ## 文件位置
 

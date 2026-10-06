@@ -3,6 +3,15 @@ packages:
   - packages/*
   - evals
 
+# Install scripts are denied unless a package needs one to work.
+# esbuild ships its binary via optional platform packages; ssh2/cpu-features
+# (testcontainers) fall back to pure JS; protobufjs only runs a version check.
+allowBuilds:
+  cpu-features: false
+  esbuild: false
+  protobufjs: false
+  ssh2: false
+
 catalog:
   '@types/node': ^24.19.1
   typescript: ~6.0.3
