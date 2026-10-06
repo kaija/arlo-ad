@@ -1,5 +1,6 @@
 export * from './client';
 export * from './health';
+export * from './repositories/identity';
 export * from './repositories/platform';
 export type { DbOrTx, Insert } from './repositories/upsert';
 export * as schema from './schema';

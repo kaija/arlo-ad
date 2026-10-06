@@ -60,8 +60,8 @@
     - _Requirements: 2.5, 2.7_
     - _ADR: ADR-0003, ADR-0004_
 
-- [ ] 4. 身分與 RBAC
-  - [ ] 4.1 Google Workspace SSO
+- [-] 4. 身分與 RBAC
+  - [x] 4.1 Google Workspace SSO
     - Auth.js Google provider、`hd` 限制、session callback 帶入內部 user + bindings
     - 測試：非允許 domain 被拒
     - _Requirements: 1.1_

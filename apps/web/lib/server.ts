@@ -1,6 +1,6 @@
 import { EnvSchema, parseEnv } from '@arlo/config';
 import { createLogger } from '@arlo/config/logger';
-import { createPool, type Pool } from '@arlo/db';
+import { createDb, createPool, type Db, type Pool } from '@arlo/db';
 
 export const logger = createLogger({ component: 'web' });
 
@@ -9,7 +9,7 @@ export const logger = createLogger({ component: 'web' });
 const WebEnv = EnvSchema.pick({ DATABASE_URL: true });
 
 // Cached on globalThis so dev hot reloads reuse one pool.
-const cache = globalThis as typeof globalThis & { arloPool?: Pool };
+const cache = globalThis as typeof globalThis & { arloPool?: Pool; arloDb?: Db };
 
 export function getPool(): Pool {
   if (!cache.arloPool) {
@@ -23,4 +23,9 @@ export function getPool(): Pool {
     cache.arloPool = createPool({ connectionString: env.DATABASE_URL, logger });
   }
   return cache.arloPool;
+}
+
+export function getDb(): Db {
+  cache.arloDb ??= createDb(getPool());
+  return cache.arloDb;
 }
