@@ -1,6 +1,7 @@
 export * from './client';
 export * from './health';
 export * from './repositories/changesets';
+export * from './repositories/executor';
 export * from './repositories/identity';
 export * from './repositories/platform';
 export * from './repositories/reads';

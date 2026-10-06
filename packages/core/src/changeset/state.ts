@@ -20,7 +20,8 @@ export type ChangeSetEventType = ChangeSetEvent['type'];
 
 /** Legal events per status → next status. */
 export const TRANSITIONS: Readonly<Record<ChangeSetStatus, Partial<Record<ChangeSetEventType, ChangeSetStatus>>>> = {
-  PENDING_VALIDATION: { block: 'BLOCKED', simulate: 'SIMULATED', auto_execute: 'EXECUTING', request_approval: 'PENDING_APPROVAL' },
+  // stale: a Tier 1 ChangeSet whose live values moved since it was proposed (ADR-0009).
+  PENDING_VALIDATION: { block: 'BLOCKED', stale: 'STALE', simulate: 'SIMULATED', auto_execute: 'EXECUTING', request_approval: 'PENDING_APPROVAL' },
   PENDING_APPROVAL: { approve: 'APPROVED', reject: 'REJECTED', expire: 'EXPIRED' },
   // Re-validation after approval can still block (Requirement 6.4).
   APPROVED: { stale: 'STALE', block: 'BLOCKED', execute: 'EXECUTING' },

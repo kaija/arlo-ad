@@ -214,7 +214,7 @@
     - contract test（測試帳戶，手動觸發）
     - _Requirements: 3.1, 20.9_
     - _ADR: ADR-0004, ADR-0026_
-  - [ ] 12.2 process 管線
+  - [x] 12.2 process 管線
     - `changeset.process`：validate → BLOCKED / computeTier → tier1 自動執行 / tier≥2 PENDING_APPROVAL（設 expires_at）→ 發送 ChatMessage
     - 整合測試（Fake adapters）：每個分支
     - _Requirements: 3.3, 4.6, 5.3, 6.1_

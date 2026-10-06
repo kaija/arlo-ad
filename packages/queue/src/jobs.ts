@@ -33,6 +33,8 @@ const chatInteraction = z.object({
   view: z.object({ callbackId: z.string(), privateMetadata: z.string(), values: z.record(z.string(), z.unknown()) }).optional(),
 });
 
+const changesetRef = z.object({ changesetId: z.uuid() });
+
 const schedulerRun = z.object({ scheduledJobId: z.uuid(), trigger: z.enum(['schedule', 'manual']).default('schedule') });
 
 export const Jobs = {
@@ -44,6 +46,8 @@ export const Jobs = {
   chatInteraction: jobSpec('chat.interaction', chatInteraction, { retryLimit: 2 }),
   // A failed run is recorded in job_runs and reported; retrying could post a report twice.
   schedulerRun: jobSpec('scheduler.run', schedulerRun, { retryLimit: 0 }),
+  // Validation → tier → auto-execute or approval request (ADR-0006). Idempotent per status.
+  changesetProcess: jobSpec('changeset.process', changesetRef),
   // Re-applies scheduled_jobs to pg-boss cron after a change in the Web console.
   schedulerSync: jobSpec('scheduler.sync', z.object({})),
 } satisfies Record<string, JobSpec>;

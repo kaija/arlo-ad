@@ -36,6 +36,8 @@ const events: Record<ChangeSetEventType, ChangeSetEvent> = {
 // The design's state diagram, written out independently of TRANSITIONS.
 const LEGAL: [ChangeSetStatus, ChangeSetEventType, ChangeSetStatus][] = [
   ['PENDING_VALIDATION', 'block', 'BLOCKED'],
+  // Tier 1 drift check before auto-execution (ADR-0009).
+  ['PENDING_VALIDATION', 'stale', 'STALE'],
   ['PENDING_VALIDATION', 'simulate', 'SIMULATED'],
   ['PENDING_VALIDATION', 'auto_execute', 'EXECUTING'],
   ['PENDING_VALIDATION', 'request_approval', 'PENDING_APPROVAL'],
