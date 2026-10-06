@@ -136,7 +136,7 @@
     - 整合測試：add / get / pop / clear、截斷
     - _Requirements: 10.3_
     - _ADR: ADR-0015_
-  - [ ] 9.2 analyst agent 與讀取 tools
+  - [x] 9.2 analyst agent 與讀取 tools
     - tools：`query_metrics`、`list_campaigns`、`get_pacing`、`get_change_history`（讀 Postgres，zod 參數）
     - tool 單元測試（Testcontainers seed 資料）
     - _Requirements: 2.8, 10.5_
