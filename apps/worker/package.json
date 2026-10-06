@@ -17,6 +17,7 @@
     "@arlo/config": "workspace:*",
     "@arlo/core": "workspace:*",
     "@arlo/db": "workspace:*",
+    "@arlo/queue": "workspace:*",
     "tsx": "^4.23.15"
   },
   "devDependencies": {

@@ -78,8 +78,8 @@
     - _Requirements: 1.4, 1.5, 1.6_
     - _ADR: ADR-0010_
 
-- [ ] 5. Queue 基礎
-  - [ ] 5.1 pg-boss 整合
+- [x] 5. Queue 基礎
+  - [x] 5.1 pg-boss 整合
     - worker 啟動 pg-boss、typed job registry（`defineJob(name, zodSchema, handler)`）、retry/backoff 預設
     - web 端 `enqueue()` helper
     - 整合測試：enqueue → handler 收到 → 失敗重試

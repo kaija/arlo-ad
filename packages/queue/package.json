@@ -1,0 +1,23 @@
+{
+  "name": "@arlo/queue",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@arlo/config": "workspace:*",
+    "@arlo/core": "workspace:*",
+    "pg-boss": "^12.36.0",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@arlo/db": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
