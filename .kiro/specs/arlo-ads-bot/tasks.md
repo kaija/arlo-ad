@@ -1,0 +1,423 @@
+# Implementation Plan
+
+> 每個 task 標註 `_Requirements_`（對應 requirements.md）與 `_ADR_`（對應 `docs/adr/`）。
+> 依 ADR-0027 分為 M0–M4；每個里程碑完成後系統可獨立使用。
+
+## M0 — 基礎與 EC2 環境
+
+- [ ] 1. Monorepo 與本機開發環境
+  - [ ] 1.1 建立 pnpm + turbo workspace
+    - 建立 `apps/web`、`apps/worker`、`packages/{core,db,adapters,agents,config}`、`evals/`
+    - 共用 tsconfig、eslint（含 `no-restricted-imports` 邊界規則：core 禁 I/O、agents 禁 mutate 介面）、Vitest
+    - 寫一個 lint 測試 fixture 證明邊界規則生效
+    - _Requirements: 3.1_
+    - _ADR: ADR-0002, ADR-0006_
+  - [ ] 1.2 web 與 worker 骨架
+    - Next.js App Router 骨架、`/api/healthz`
+    - worker entry、`:9090/healthz`、pino logger（含 redaction）、graceful shutdown
+    - 測試：healthz 回應 DB 狀態
+    - _Requirements: 20.8_
+    - _ADR: ADR-0002_
+  - [ ] 1.3 Dockerfile 與本機 compose
+    - `infra/docker/Dockerfile.web`、`Dockerfile.worker`（multi-stage、non-root）
+    - `docker-compose.yml`：postgres、web、worker（dev 熱重載）
+    - `.env.example` 列出所有變數
+    - _Requirements: 20.1, 20.6, 20.7_
+    - _ADR: ADR-0025_
+  - [ ] 1.4 Config 模組
+    - `packages/config`：zod env schema、`ADS_WRITE_ALLOWED_CUSTOMER_IDS` 解析、`assertWriteAllowed()`
+    - 單元測試：缺變數報錯、白名單判斷
+    - _Requirements: 20.6, 20.9_
+    - _ADR: ADR-0026_
+
+- [ ] 2. EC2 部署腳本
+  - [ ] 2.1 Production compose 與 Caddy
+    - `docker-compose.prod.yml`：caddy、web、worker、postgres（volume 掛 `/data/pg`）、restart policy、logging driver 限制大小
+    - `infra/caddy/Caddyfile`：`{$APP_DOMAIN}` 自動 TLS、反向代理 web、安全標頭
+    - _Requirements: 20.1, 20.2, 20.3_
+    - _ADR: ADR-0025_
+  - [ ] 2.2 部署與 migration 腳本
+    - `scripts/migrate.ts`（drizzle migrate，可在 worker image 內執行）
+    - `scripts/deploy.sh`：`git pull` → `compose build` → `compose run --rm worker migrate` → `compose up -d` → healthz 檢查，失敗時印出 log 並非零退出
+    - _Requirements: 20.5_
+    - _ADR: ADR-0025_
+  - [ ] 2.3 備份與還原
+    - `scripts/backup.sh`：`pg_dump -Fc` → gzip → `aws s3 cp`，失敗發送 Slack ops webhook
+    - `scripts/restore.sh`：從 S3 下載指定 dump 還原
+    - 整合測試：Testcontainers 上 dump → restore → 資料一致
+    - _Requirements: 20.4_
+    - _ADR: ADR-0025_
+
+- [ ] 3. 資料庫 schema
+  - [ ] 3.1 身分與設定 schema
+    - Drizzle：`orgs`、`users`、`role_bindings`、`settings`；seed 單一 org
+    - Testcontainers 測試 harness（每個 test file 獨立 schema）
+    - _Requirements: 1.4, 1.7_
+    - _ADR: ADR-0001, ADR-0010_
+  - [ ] 3.2 平台資料 schema
+    - `ad_accounts`、`entities`、`entity_snapshots`、`metrics_daily`、`metrics_hourly`、`change_events`、`g_search_terms`、`g_conversion_actions`、`g_audience_metrics`、`ga4_daily`
+    - repository 的 upsert 函式與冪等測試
+    - _Requirements: 2.5, 2.7_
+    - _ADR: ADR-0003, ADR-0004_
+
+- [ ] 4. 身分與 RBAC
+  - [ ] 4.1 Google Workspace SSO
+    - Auth.js Google provider、`hd` 限制、session callback 帶入內部 user + bindings
+    - 測試：非允許 domain 被拒
+    - _Requirements: 1.1_
+    - _ADR: ADR-0010_
+  - [ ] 4.2 Slack 身分綁定
+    - 首次登入呼叫 `users.lookupByEmail`；失敗標記 `unbound`
+    - `resolveSlackUser(slackUserId)` 供 Slack 互動使用
+    - 測試（fake Slack client）：綁定成功、找不到、重複綁定
+    - _Requirements: 1.2, 1.3, 1.5_
+    - _ADR: ADR-0010_
+  - [ ] 4.3 `authorize()` 純函式
+    - 角色層級、account scope、`max_tier`、Tier 3 四眼
+    - table-driven 單元測試覆蓋所有角色 × action × tier
+    - _Requirements: 1.4, 1.5, 1.6_
+    - _ADR: ADR-0010_
+
+- [ ] 5. Queue 基礎
+  - [ ] 5.1 pg-boss 整合
+    - worker 啟動 pg-boss、typed job registry（`defineJob(name, zodSchema, handler)`）、retry/backoff 預設
+    - web 端 `enqueue()` helper
+    - 整合測試：enqueue → handler 收到 → 失敗重試
+    - _Requirements: 7.7_
+    - _ADR: ADR-0002_
+
+## M1 — 看得到
+
+- [ ] 6. PlatformAdapter（讀取）
+  - [ ] 6.1 介面與 Fake 實作
+    - `PlatformAdapter`、`GoogleAdsExtensions`、`EntityRef`、`Op`、`OpResult` 型別
+    - `FakePlatformAdapter`（in-memory，可注入 drift 與錯誤）
+    - _Requirements: 2.7_
+    - _ADR: ADR-0004_
+  - [ ] 6.2 GoogleAdsAdapter 讀取
+    - 以 `google-ads-api` 實作 listAccounts、fetchEntities、fetchMetrics、fetchChangeHistory、fetchCurrent、fetchSearchTerms、fetchConversionActions
+    - GAQL 查詢集中於 `queries.ts`；mapper 單元測試（以錄製的 API 回應 fixture）
+    - _Requirements: 2.1, 2.3, 2.4_
+    - _ADR: ADR-0004_
+
+- [ ] 7. Sync worker
+  - [ ] 7.1 Sync handlers
+    - `sync.snapshots`（15m：entities + snapshots + change_events）、`sync.hourly`（當日 metrics）、`sync.daily`（D-3..D-1、search terms、conversion actions）
+    - 冪等 upsert；`metrics_hourly` 14 天清理
+    - 整合測試（Fake adapter）：重跑結果一致、回補覆寫
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
+    - _ADR: ADR-0003_
+  - [ ] 7.2 失敗處理
+    - 連續失敗計數、≥ 3 次發 ops Notice（經 ChatAdapter）
+    - 測試：計數與通知觸發
+    - _Requirements: 2.6_
+    - _ADR: ADR-0003, ADR-0005_
+
+- [ ] 8. ChatAdapter 與 Slack
+  - [ ] 8.1 語意訊息與介面
+    - `ConversationRef`、`ChatMessage` union、`ChatAdapter` 介面、`FakeChatAdapter`
+    - _Requirements: 7.6_
+    - _ADR: ADR-0005_
+  - [ ] 8.2 Slack endpoints
+    - `/api/slack/events`、`/api/slack/interactivity`：HMAC 驗簽、timestamp 視窗、`event_id` 去重、3 秒內 ack、enqueue
+    - 單元測試：簽章正確/錯誤/過期；去重
+    - _Requirements: 7.7_
+    - _ADR: ADR-0005, ADR-0002_
+  - [ ] 8.3 SlackAdapter 與 Block Kit renderer
+    - post / update / fetchContext / resolveUser / permalink / react
+    - renderer：Report、Notice（帶 actions）、ApprovalRequest、ShadowResult；`action_id` 編碼/解碼
+    - snapshot 測試 Block Kit JSON
+    - _Requirements: 7.6_
+    - _ADR: ADR-0005_
+
+- [ ] 9. Agents 與對話
+  - [ ] 9.1 PgSession
+    - 實作 SDK `Session` 介面；`agent_sessions`、`agent_session_items`；超過上限保留最近 N items + 摘要
+    - 整合測試：add / get / pop / clear、截斷
+    - _Requirements: 10.3_
+    - _ADR: ADR-0015_
+  - [ ] 9.2 analyst agent 與讀取 tools
+    - tools：`query_metrics`、`list_campaigns`、`get_pacing`、`get_change_history`（讀 Postgres，zod 參數）
+    - tool 單元測試（Testcontainers seed 資料）
+    - _Requirements: 2.8, 10.5_
+    - _ADR: ADR-0014_
+  - [ ] 9.3 Orchestrator
+    - analyst `.asTool()`；系統 prompt 定義角色、不可信內容處理原則
+    - eval case：路由到 analyst 的問題集
+    - _Requirements: 10.5_
+    - _ADR: ADR-0014_
+  - [ ] 9.4 Slack mention handler
+    - `chat.mention` job：reaction ⏳ → authorize(viewer) → 上下文規則（thread 首則 + 最後 20；主線前 10 並開 thread）→ 差量補入 session → run → 回覆 → 移除 reaction
+    - 整合測試（Fake chat + 假 model）：thread / 主線 / 第二次 @ 差量
+    - _Requirements: 10.1, 10.2, 10.4, 10.6, 1.5_
+    - _ADR: ADR-0015_
+  - [ ] 9.5 Scheduler 與 daily_report
+    - `scheduled_jobs` schema；變更同步至 pg-boss schedule；`job_runs` 紀錄
+    - `TemplateHandler` 介面與 `daily_report`（決定性彙整 + analyst 撰寫摘要 → Report）
+    - 測試：schedule 同步、run 紀錄
+    - _Requirements: 11.1, 11.2, 11.4_
+    - _ADR: ADR-0016_
+  - [ ] 9.6 模型設定、用量與 tracing
+    - `config/models.ts`；每次 run 以 `withTrace` 帶 metadata、寫 `llm_usage` 與 `trace_id`
+    - `runGuard()`：超過 `daily_llm_budget_usd` skip 非關鍵 job 並通知
+    - 單元測試：成本計算、guard 判斷
+    - _Requirements: 19.1, 19.2, 19.3, 19.4_
+    - _ADR: ADR-0023, ADR-0024_
+  - [ ] 9.7 Agent eval harness
+    - `evals/` runner：golden set 格式、評分函式、CI 小樣本模式
+    - _Requirements: 19.1_
+    - _ADR: ADR-0026_
+
+- [ ] 10. Web 儀表板
+  - [ ] 10.1 指標查詢層
+    - MTD 花費、pacing 預測（線性 + 星期係數）、campaign 表格聚合、IS / lost IS
+    - 單元測試：pacing 預測
+    - _Requirements: 18.1_
+    - _ADR: ADR-0003_
+  - [ ] 10.2 總覽與趨勢頁
+    - 總覽卡片、campaign 表格、Recharts 趨勢圖疊加 change_event 標記
+    - _Requirements: 18.1, 18.2_
+    - _ADR: ADR-0003_
+  - [ ] 10.3 排程設定頁
+    - 建立 / 編輯 / 停用 / 手動觸發；目標 channel 選擇
+    - _Requirements: 11.5, 18.4_
+    - _ADR: ADR-0016_
+
+## M2 — 安全地改
+
+- [ ] 11. ChangeSet 核心（純邏輯）
+  - [ ] 11.1 型別與狀態機
+    - `ChangeSet`、`Op`、`OpKind`、`transition()`；`classifyOp()`（protective / expansive / neutral）
+    - 測試：所有合法 / 非法轉換、op 分類
+    - _Requirements: 3.2, 3.4_
+    - _ADR: ADR-0006_
+  - [ ] 11.2 Validator
+    - 五種 RuleSpec、scope 覆寫解析、`validate()`；MonthlySpendCap 估算
+    - table-driven 測試
+    - _Requirements: 5.1, 5.2, 5.4, 5.5, 5.6_
+    - _ADR: ADR-0008_
+  - [ ] 11.3 Tier 計算
+    - `computeTier()`：op 分類、門檻、WARN 提升、取最大值
+    - 測試：保護性在門檻內為 1、擴張至少 2、超過 X%/$Y 為 3
+    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
+    - _ADR: ADR-0007_
+  - [ ] 11.4 ChangeSet 持久化與稽核
+    - `changesets`、`changeset_op_results`、`approval_messages`、`audit_log`（trigger 禁止 UPDATE/DELETE）、`rules`、`tier_thresholds`
+    - CAS 狀態更新 repository；每次轉換寫 audit_log
+    - 整合測試：並發 CAS 只有一個成功；audit_log 不可改
+    - _Requirements: 3.4, 3.6, 3.7, 6.6_
+    - _ADR: ADR-0006_
+
+- [ ] 12. Executor
+  - [ ] 12.1 GoogleAdsAdapter 寫入
+    - `applyOps()`：set_budget、set_status、set_bid_target、add_negative_keyword（shared set）、add_keyword；mutate 前 `assertWriteAllowed`
+    - contract test（測試帳戶，手動觸發）
+    - _Requirements: 3.1, 20.9_
+    - _ADR: ADR-0004, ADR-0026_
+  - [ ] 12.2 process 管線
+    - `changeset.process`：validate → BLOCKED / computeTier → tier1 自動執行 / tier≥2 PENDING_APPROVAL（設 expires_at）→ 發送 ChatMessage
+    - 整合測試（Fake adapters）：每個分支
+    - _Requirements: 3.3, 4.6, 5.3, 6.1_
+    - _ADR: ADR-0006, ADR-0007_
+  - [ ] 12.3 approve / reject 與重驗
+    - approve：CAS → fetchCurrent → `diffCurrent` → STALE / revalidate → mutate → op results → EXECUTED / FAILED
+    - reject：REJECTED + 原因
+    - 整合測試：drift → STALE、revalidate 失敗 → BLOCKED、部分失敗 → FAILED
+    - _Requirements: 3.5, 6.3, 6.4, 6.5_
+    - _ADR: ADR-0009_
+  - [ ] 12.4 過期處理
+    - cron 每 5 分鐘 `expireDue()`：EXPIRED + 更新卡片停用按鈕
+    - 測試
+    - _Requirements: 6.2_
+    - _ADR: ADR-0009_
+
+- [ ] 13. Approval UX
+  - [ ] 13.1 Slack approve / reject 互動
+    - 解析 `action_id` → resolveSlackUser → `authorize` → Executor；無權限 ephemeral；重複點擊回「已由 @x 處理」
+    - 測試：權限矩陣、冪等
+    - _Requirements: 1.5, 1.6, 6.6_
+    - _ADR: ADR-0010_
+  - [ ] 13.2 路由與鏡像
+    - 來源 thread / 排程目標 channel；不在 approval channel 時發鏡像（含 permalink）；`approval_messages` 同步更新
+    - 測試：三種來源的路由
+    - _Requirements: 7.1, 7.2, 7.3, 7.4_
+    - _ADR: ADR-0011_
+  - [ ] 13.3 Tier 3 確認與狀態通知
+    - Tier 3 approve 開 confirm modal（顯示金額與比例）；STALE / EXPIRED / BLOCKED 通知來源
+    - _Requirements: 4.4, 6.3, 5.3_
+    - _ADR: ADR-0007, ADR-0009_
+  - [ ] 13.4 SLA 提醒
+    - cron 每 15 分鐘 `remindSla()`：超時未處理 → approval channel mention 具資格 approver（每 ChangeSet 只提醒一次）
+    - 測試
+    - _Requirements: 7.5_
+    - _ADR: ADR-0011_
+  - [ ] 13.5 Undo
+    - `undo()`：24h 窗、operator 以上、fetchCurrent == after → 寫回 before；否則拒絕並由 change_events 找修改者；新 ChangeSet `revert_of`、原 REVERTED
+    - 整合測試：成功、drift 拒絕、逾時、權限不足
+    - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
+    - _ADR: ADR-0012_
+
+- [ ] 14. Propose tools 與 Web 審核
+  - [ ] 14.1 propose tools
+    - `propose_budget`、`propose_status`、`propose_bid_target`：從最新 snapshot 帶 `before`、建立 ChangeSet、enqueue、回傳 id
+    - bidding agent 骨架掛上 tools，Orchestrator 加入 `bidding.asTool()` 與 `get_changeset_status`
+    - 測試：before 正確、無 mutate 呼叫
+    - _Requirements: 3.1, 3.2, 3.7_
+    - _ADR: ADR-0006, ADR-0014_
+  - [ ] 14.2 審核佇列與稽核頁
+    - 列表（狀態 / tier / 帳戶篩選）、diff 檢視、violations、trace 連結、approve / reject / undo（同一 Executor 與 authorize）
+    - _Requirements: 18.3, 18.8_
+    - _ADR: ADR-0006, ADR-0010_
+  - [ ] 14.3 規則與門檻設定頁
+    - validator 規則 CRUD（依 RuleSpec 動態表單）、tier 門檻
+    - _Requirements: 5.1, 5.2, 18.4_
+    - _ADR: ADR-0008, ADR-0007_
+  - [ ] 14.4 RBAC 設定頁
+    - 使用者列表、未綁定處理、role bindings 編輯
+    - _Requirements: 1.3, 1.4, 18.4_
+    - _ADR: ADR-0010_
+  - [ ] 14.5 E2E 測試
+    - Slack mention payload → propose → PENDING_APPROVAL → interactivity approve payload → EXECUTED（Fake adapters + 假 model）
+    - _Requirements: 3.3, 6.3, 7.1_
+    - _ADR: ADR-0026_
+  - [ ] 14.6 custom_prompt 排程模板
+    - 以 Orchestrator 執行 `extra_instructions`；輸出限定 Report 或經 propose tools 產生的 ChangeSet
+    - 測試：tool 清單中不含任何 mutate 能力、輸出 schema 驗證
+    - _Requirements: 11.1, 11.3_
+    - _ADR: ADR-0016, ADR-0006_
+
+## M3 — 自動化
+
+- [ ] 15. Shadow 模式
+  - [ ] 15.1 自動化模式與 Executor 分支
+    - `automation_modes` schema（新帳戶預設 shadow）；Executor tier 1 分支依 mode → SIMULATED / 執行 / off 時不產生
+    - 整合測試：三種模式
+    - _Requirements: 9.1, 9.2, 9.3_
+    - _ADR: ADR-0013_
+  - [ ] 15.2 Shadow 回饋與準確率
+    - ShadowResult 卡片 👍/👎 → `shadow_feedback`；Web 準確率頁、admin 切換模式
+    - _Requirements: 9.4, 9.5_
+    - _ADR: ADR-0013_
+
+- [ ] 16. 搜尋字詞與否定關鍵字
+  - [ ] 16.1 Business Profile
+    - `business_profiles`（版本化）schema、`get_business_profile` tool、Web 編輯器
+    - _Requirements: 14.1_
+    - _ADR: ADR-0019_
+  - [ ] 16.2 搜尋字詞分類器
+    - 小模型批次 100、structured output（intent / relevant / confidence / reason）、`g_search_term_labels` 快取
+    - eval golden set：auto 門檻 precision ≥ 0.98
+    - _Requirements: 14.2, 14.3_
+    - _ADR: ADR-0019, ADR-0023_
+  - [ ] 16.3 negative_kw_sweep 模板
+    - 自動條件函式（純函式 + 測試）→ Tier 1 ChangeSet（EXACT → `arlo-auto-negatives`）；其餘 → Tier 2 批次 ChangeSet，卡片可逐項勾選；剔除項回寫 examples
+    - keyword agent 骨架：`propose_negative_keywords`
+    - 整合測試
+    - _Requirements: 14.4, 14.5, 14.6_
+    - _ADR: ADR-0019, ADR-0007_
+  - [ ] 16.4 搜尋字詞頁
+    - 字詞、分類、否定歷史、篩選
+    - _Requirements: 18.6_
+    - _ADR: ADR-0019_
+
+- [ ] 17. Monitor 熔斷
+  - [ ] 17.1 Monitor 規則評估
+    - `MonitorRuleSpec`、`evaluateMonitor()`、冷卻判斷；`monitor_rules`、`monitor_firings` schema
+    - table-driven 測試
+    - _Requirements: 12.1, 12.2, 12.4_
+    - _ADR: ADR-0017_
+  - [ ] 17.2 Monitor job
+    - 接在 `sync.snapshots` 後執行；觸發 → Tier 1 ChangeSet（feature=circuit_breaker / bid_auto_reduce）→ Executor
+    - 整合測試：觸發、冷卻、shadow
+    - _Requirements: 12.3_
+    - _ADR: ADR-0017, ADR-0013_
+  - [ ] 17.3 事後根因與通知
+    - `audit.explain` job：audit agent（`get_change_history`、`get_changesets`）產出原因；LLM 預算不足改模板；Notice 附 [Undo] [維持]
+    - 測試：模板降級
+    - _Requirements: 12.5_
+    - _ADR: ADR-0017, ADR-0023_
+  - [ ] 17.4 Monitor 設定頁
+    - 規則 CRUD、冷卻、動作
+    - _Requirements: 18.4_
+    - _ADR: ADR-0017_
+
+- [ ] 18. 追蹤審計與異常
+  - [ ] 18.1 轉換追蹤健康檢查
+    - conversion action 狀態、最後轉換時間、EC 診斷 → 健康判定純函式 + 測試
+    - _Requirements: 16.1, 16.2_
+    - _ADR: ADR-0021_
+  - [ ] 18.2 GA4 adapter 與落差
+    - `@google-analytics/data` 拉 `google / cpc` 轉換 → `ga4_daily`；落差偏移計算 + 測試
+    - _Requirements: 16.3_
+    - _ADR: ADR-0021_
+  - [ ] 18.3 異常偵測
+    - `robustZ()`、各指標偵測、`anomalies` schema；clicks↑ sessions↔ 規則
+    - 單元測試
+    - _Requirements: 16.4_
+    - _ADR: ADR-0021_
+  - [ ] 18.4 Audit agent 與模板
+    - audit agent tools（tracking health、GA4 gap、anomalies、change correlation ±48h）；`tracking_audit`、`anomaly_watch` 模板；Orchestrator 加入 `audit.asTool()`；追蹤健康頁
+    - eval：原因排序 case
+    - _Requirements: 16.5, 18.7, 11.1_
+    - _ADR: ADR-0021, ADR-0014, ADR-0016_
+
+## M4 — 優化與創作
+
+- [ ] 19. 預算與出價
+  - [ ] 19.1 Optimizer
+    - `allocate()` 貪婪邊際分配：總額守恆、|Δ| 上限、locked 排除
+    - 屬性測試：總額守恆、上限不違反
+    - _Requirements: 13.1, 13.2_
+    - _ADR: ADR-0018_
+  - [ ] 19.2 邊際函數輸入
+    - `fetchBudgetSimulations`、14 天曲線擬合、learning / 資料不足判定
+    - 單元測試：插值與退化路徑
+    - _Requirements: 13.1, 13.2_
+    - _ADR: ADR-0018_
+  - [ ] 19.3 budget_rebalance 模板
+    - `run_budget_optimizer` tool（回傳 result id）、`propose_budget_reallocation`（只接受 result id + 排除清單）、bidding agent 解釋；ChangeSet ≥ Tier 2
+    - 測試：agent 無法改數字
+    - _Requirements: 13.3, 13.4_
+    - _ADR: ADR-0018, ADR-0006_
+  - [ ] 19.4 tCPA / tROAS 微調
+    - 建議計算（±15% 上限、跳過 learning）→ `propose_bid_target`；受 BidTargetRange 驗證
+    - 測試
+    - _Requirements: 13.5_
+    - _ADR: ADR-0018, ADR-0008_
+
+- [ ] 20. Campaign agent
+  - [ ] 20.1 Task 與 brief 提交
+    - `campaign_tasks`、`campaign_drafts` schema；Web brief 表單 → enqueue `campaign.generate`；task 狀態頁
+    - _Requirements: 15.1, 15.8_
+    - _ADR: ADR-0020_
+  - [ ] 20.2 RSA / 結構 lint
+    - `lintRsa()`、`lintStructure()`（CJK 寬度、數量、重複、禁用詞）
+    - table-driven 測試
+    - _Requirements: 15.3_
+    - _ADR: ADR-0020_
+  - [ ] 20.3 Campaign agent
+    - structured output `CampaignDraft`；lint 失敗回饋修正 ≤ 2 次；Orchestrator `create_campaign_task`
+    - eval：lint 通過率
+    - _Requirements: 15.2, 15.3_
+    - _ADR: ADR-0020, ADR-0014_
+  - [ ] 20.4 Draft 編輯與局部重生
+    - Web 編輯器、版本、`campaign.regenerate(section)`
+    - _Requirements: 15.4, 18.5_
+    - _ADR: ADR-0020_
+  - [ ] 20.5 送出、建立與啟用
+    - `google.create_campaign_bundle`（PAUSED、temporary resource names、原子化）；Enable 按鈕 → 新 ChangeSet；每日同步 policy status
+    - contract test（測試帳戶）
+    - _Requirements: 15.5, 15.6, 15.7_
+    - _ADR: ADR-0020, ADR-0006_
+
+- [ ] 21. 關鍵字擴展與受眾
+  - [ ] 21.1 關鍵字擴展
+    - `generateKeywordIdeas` + search term 挖掘 → keyword agent `propose_keywords`（Tier 2）
+    - 測試：候選去重、已存在排除
+    - _Requirements: 14.7_
+    - _ADR: ADR-0019_
+  - [ ] 21.2 受眾分析
+    - 同步 audience metrics；audience agent `propose_audience_modifier` / exclusion（Tier 2）；不處理 PII
+    - 測試
+    - _Requirements: 17.1, 17.2, 17.3_
+    - _ADR: ADR-0022_
