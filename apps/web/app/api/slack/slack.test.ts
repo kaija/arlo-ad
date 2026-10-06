@@ -75,7 +75,7 @@ describe('Slack endpoints', () => {
     it('ignores bot messages and other events', async () => {
       await events(slackRequest('events', mention('Ev3', { bot_id: 'B1' })));
       await events(slackRequest('events', JSON.stringify({ type: 'event_callback', event_id: 'Ev4', event: { type: 'reaction_added' } })));
-      expect((await jobs(Jobs.chatMention.name)).map((j) => (j.data as { eventId: string }).eventId)).toEqual(['Ev1', 'Ev2']);
+      expect((await jobs(Jobs.chatMention.name)).map((j) => (j.data as { eventId: string }).eventId).sort()).toEqual(['Ev1', 'Ev2']);
     });
 
     it.each([

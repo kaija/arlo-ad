@@ -174,7 +174,7 @@
     - 單元測試：pacing 預測
     - _Requirements: 18.1_
     - _ADR: ADR-0003_
-  - [ ] 10.2 總覽與趨勢頁
+  - [x] 10.2 總覽與趨勢頁
     - 總覽卡片、campaign 表格、Recharts 趨勢圖疊加 change_event 標記
     - _Requirements: 18.1, 18.2_
     - _ADR: ADR-0003_

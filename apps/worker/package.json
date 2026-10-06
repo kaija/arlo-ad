@@ -9,7 +9,8 @@
     "dev": "tsx watch --clear-screen=false src/index.ts",
     "start": "node --import tsx src/index.ts",
     "migrate": "tsx src/migrate.ts",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "seed:demo": "tsx src/dev/seed-demo.ts"
   },
   "dependencies": {
     "@arlo/adapters": "workspace:*",
