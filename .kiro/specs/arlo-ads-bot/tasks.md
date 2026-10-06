@@ -130,7 +130,7 @@
     - _Requirements: 7.6_
     - _ADR: ADR-0005_
 
-- [-] 9. Agents 與對話
+- [x] 9. Agents 與對話
   - [x] 9.1 PgSession
     - 實作 SDK `Session` 介面；`agent_sessions`、`agent_session_items`；超過上限保留最近 N items + 摘要
     - 整合測試：add / get / pop / clear、截斷
@@ -163,7 +163,7 @@
     - 單元測試：成本計算、guard 判斷
     - _Requirements: 19.1, 19.2, 19.3, 19.4_
     - _ADR: ADR-0023, ADR-0024_
-  - [ ] 9.7 Agent eval harness
+  - [x] 9.7 Agent eval harness
     - `evals/` runner：golden set 格式、評分函式、CI 小樣本模式
     - _Requirements: 19.1_
     - _ADR: ADR-0026_

@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Nightly full agent eval (ADR-0026).
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      # Integration tests start postgres:18-alpine through Testcontainers (Docker is on the runner).
+      - run: pnpm test
+      - run: node scripts/gen-adr-index.mjs && git diff --exit-code docs/adr/README.md
+
+  eval:
+    needs: check
+    if: always() && (needs.check.result == 'success' || github.event_name == 'schedule')
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      MODEL_FLAGSHIP: ${{ vars.MODEL_FLAGSHIP }}
+      MODEL_SMALL: ${{ vars.MODEL_SMALL }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Agent eval (small sample)
+        if: env.OPENAI_API_KEY != '' && github.event_name != 'schedule'
+        run: pnpm eval --sample 3
+      - name: Agent eval (full)
+        if: env.OPENAI_API_KEY != '' && github.event_name == 'schedule'
+        run: pnpm eval
+      - uses: actions/upload-artifact@v4
+        if: always() && env.OPENAI_API_KEY != ''
+        with:
+          name: eval-reports
+          path: evals/reports/
+          if-no-files-found: ignore

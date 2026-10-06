@@ -19,6 +19,7 @@ pnpm vitest run packages/core/src/tier/tier.test.ts   # 單一測試檔
 pnpm vitest run --project @arlo/core                  # 單一 package
 pnpm build                    # turbo build（目前只有 apps/web）
 pnpm dev                      # turbo dev
+pnpm eval --sample 3          # agent eval（evals/cases/*.json；需 OPENAI_API_KEY、MODEL_*；CI 小樣本、nightly 全量）
 ```
 
 - Workspace package（`@arlo/*`）直接 export TypeScript 原始碼（`exports: ./src/index.ts`），沒有個別 build 步驟；`apps/web` 以 `transpilePackages` 編譯。新增被 web 使用的 package 時要加進 `apps/web/next.config.ts`。

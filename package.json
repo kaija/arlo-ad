@@ -12,7 +12,8 @@
     "typecheck": "tsc && turbo run typecheck",
     "lint": "eslint . --cache",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "eval": "pnpm --filter @arlo/evals eval"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
