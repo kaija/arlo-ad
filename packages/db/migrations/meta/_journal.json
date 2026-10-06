@@ -57,6 +57,20 @@
       "when": 1791300012047,
       "tag": "0007_llm_usage",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791301313344,
+      "tag": "0008_changesets",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791301313825,
+      "tag": "0009_audit_log_append_only",
+      "breakpoints": true
     }
   ]
 }

@@ -185,7 +185,7 @@
 
 ## M2 — 安全地改
 
-- [-] 11. ChangeSet 核心（純邏輯）
+- [x] 11. ChangeSet 核心（純邏輯）
   - [x] 11.1 型別與狀態機
     - `ChangeSet`、`Op`、`OpKind`、`transition()`；`classifyOp()`（protective / expansive / neutral）
     - 測試：所有合法 / 非法轉換、op 分類
@@ -201,7 +201,7 @@
     - 測試：保護性在門檻內為 1、擴張至少 2、超過 X%/$Y 為 3
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
     - _ADR: ADR-0007_
-  - [ ] 11.4 ChangeSet 持久化與稽核
+  - [x] 11.4 ChangeSet 持久化與稽核
     - `changesets`、`changeset_op_results`、`approval_messages`、`audit_log`（trigger 禁止 UPDATE/DELETE）、`rules`、`tier_thresholds`
     - CAS 狀態更新 repository；每次轉換寫 audit_log
     - 整合測試：並發 CAS 只有一個成功；audit_log 不可改
