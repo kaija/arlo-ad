@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import { DEFAULT_ORG_ID, jobRuns, scheduledJobs } from '../schema';
 import type { DbOrTx } from './upsert';
 
@@ -67,4 +67,14 @@ export function listJobRuns(db: DbOrTx, opts: { scheduledJobId?: string; limit?:
     .where(and(eq(jobRuns.orgId, DEFAULT_ORG_ID), opts.scheduledJobId ? eq(jobRuns.scheduledJobId, opts.scheduledJobId) : undefined))
     .orderBy(desc(jobRuns.startedAt), desc(jobRuns.id))
     .limit(opts.limit ?? 50);
+}
+
+/** Most recent run of each scheduled job. */
+export async function latestRunsByJob(db: DbOrTx): Promise<Map<string, JobRun>> {
+  const rows = await db
+    .selectDistinctOn([jobRuns.scheduledJobId])
+    .from(jobRuns)
+    .where(and(eq(jobRuns.orgId, DEFAULT_ORG_ID), isNotNull(jobRuns.scheduledJobId)))
+    .orderBy(jobRuns.scheduledJobId, desc(jobRuns.startedAt), desc(jobRuns.id));
+  return new Map(rows.map((r) => [r.scheduledJobId!, r]));
 }

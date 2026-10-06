@@ -22,7 +22,8 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "recharts": "^3.10.1",
-    "tailwindcss": "^4.3.3"
+    "tailwindcss": "^4.3.3",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

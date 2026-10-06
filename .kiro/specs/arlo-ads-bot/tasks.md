@@ -168,7 +168,7 @@
     - _Requirements: 19.1_
     - _ADR: ADR-0026_
 
-- [-] 10. Web 儀表板
+- [x] 10. Web 儀表板
   - [x] 10.1 指標查詢層
     - MTD 花費、pacing 預測（線性 + 星期係數）、campaign 表格聚合、IS / lost IS
     - 單元測試：pacing 預測
@@ -178,7 +178,7 @@
     - 總覽卡片、campaign 表格、Recharts 趨勢圖疊加 change_event 標記
     - _Requirements: 18.1, 18.2_
     - _ADR: ADR-0003_
-  - [ ] 10.3 排程設定頁
+  - [x] 10.3 排程設定頁
     - 建立 / 編輯 / 停用 / 手動觸發；目標 channel 選擇
     - _Requirements: 11.5, 18.4_
     - _ADR: ADR-0016_
