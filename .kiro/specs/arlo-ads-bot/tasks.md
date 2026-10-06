@@ -100,14 +100,14 @@
     - _Requirements: 2.1, 2.3, 2.4_
     - _ADR: ADR-0004_
 
-- [-] 7. Sync worker
+- [x] 7. Sync worker
   - [x] 7.1 Sync handlers
     - `sync.snapshots`（15m：entities + snapshots + change_events）、`sync.hourly`（當日 metrics）、`sync.daily`（D-3..D-1、search terms、conversion actions）
     - 冪等 upsert；`metrics_hourly` 14 天清理
     - 整合測試（Fake adapter）：重跑結果一致、回補覆寫
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
     - _ADR: ADR-0003_
-  - [ ] 7.2 失敗處理
+  - [x] 7.2 失敗處理
     - 連續失敗計數、≥ 3 次發 ops Notice（經 ChatAdapter）
     - 測試：計數與通知觸發
     - _Requirements: 2.6_

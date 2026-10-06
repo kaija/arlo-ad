@@ -129,3 +129,11 @@ export async function getAdAccount(db: DbOrTx, id: string): Promise<AdAccount | 
   const [row] = await db.select().from(adAccounts).where(eq(adAccounts.id, id));
   return row;
 }
+
+export async function getSyncState(db: DbOrTx, accountId: string, job: string): Promise<SyncState | undefined> {
+  const [row] = await db
+    .select()
+    .from(syncState)
+    .where(and(eq(syncState.accountId, accountId), eq(syncState.job, job)));
+  return row;
+}

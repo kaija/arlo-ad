@@ -165,7 +165,7 @@ describe('sync', () => {
   describe('jobs', () => {
     it('fans out one job per active account, then syncs and records each account', async () => {
       const sent: { name: string; data: unknown }[] = [];
-      const defs = syncJobs({ ...deps, enqueue: async (spec, data) => (sent.push({ name: spec.name, data }), 'id') });
+      const defs = syncJobs({ ...deps, notifyOps: async () => {}, enqueue: async (spec, data) => (sent.push({ name: spec.name, data }), 'id') });
       const hourly = defs.find((d) => d.name === Jobs.syncHourly.name)!;
       const ctx = { id: 'j', retryCount: 0, logger, signal: new AbortController().signal };
 
@@ -178,7 +178,7 @@ describe('sync', () => {
     });
 
     it('records failures and rethrows so pg-boss retries', async () => {
-      const defs = syncJobs({ ...deps, enqueue: async () => 'id' });
+      const defs = syncJobs({ ...deps, notifyOps: async () => {}, enqueue: async () => 'id' });
       const daily = defs.find((d) => d.name === Jobs.syncDaily.name)!;
       fake.failNext('fetchMetrics', Object.assign(new Error('quota'), { code: 'RESOURCE_EXHAUSTED' }));
       await expect(daily.handler({ accountId: account.id }, { id: 'j', retryCount: 0, logger, signal: new AbortController().signal })).rejects.toThrow('quota');

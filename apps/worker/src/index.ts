@@ -65,7 +65,15 @@ await boss.start();
 shutdown.register('pg-boss', () => boss.stop({ graceful: true, timeout: 8_000, close: true }));
 await registerJobs(
   boss,
-  jobDefinitions({ db, platform, logger, now: () => new Date(), enqueue: (spec, data) => enqueue(boss, spec, data) }),
+  jobDefinitions({
+    db,
+    platform,
+    logger,
+    now: () => new Date(),
+    enqueue: (spec, data) => enqueue(boss, spec, data),
+    // Replaced by the Slack ops channel once the ChatAdapter is wired (task 8.3).
+    notifyOps: async (notice) => logger.warn({ notice }, 'ops notice'),
+  }),
   { logger },
 );
 await applySystemSchedules(boss);
