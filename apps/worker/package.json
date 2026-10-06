@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "tsx watch --clear-screen=false src/index.ts",
     "start": "node --import tsx src/index.ts",
+    "migrate": "tsx src/migrate.ts",
     "typecheck": "tsc"
   },
   "dependencies": {

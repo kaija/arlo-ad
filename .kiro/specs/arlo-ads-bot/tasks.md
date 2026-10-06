@@ -36,7 +36,7 @@
     - `infra/caddy/Caddyfile`：`{$APP_DOMAIN}` 自動 TLS、反向代理 web、安全標頭
     - _Requirements: 20.1, 20.2, 20.3_
     - _ADR: ADR-0025_
-  - [ ] 2.2 部署與 migration 腳本
+  - [x] 2.2 部署與 migration 腳本
     - `scripts/migrate.ts`（drizzle migrate，可在 worker image 內執行）
     - `scripts/deploy.sh`：`git pull` → `compose build` → `compose run --rm worker migrate` → `compose up -d` → healthz 檢查，失敗時印出 log 並非零退出
     - _Requirements: 20.5_

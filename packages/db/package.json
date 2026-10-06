@@ -4,20 +4,24 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./migrate": "./src/migrate.ts",
     "./testing": "./src/testing.ts"
   },
   "scripts": {
+    "db:generate": "drizzle-kit generate",
     "typecheck": "tsc"
   },
   "dependencies": {
     "@arlo/config": "workspace:*",
     "@arlo/core": "workspace:*",
+    "drizzle-orm": "^0.45.3",
     "pg": "^8.23.1"
   },
   "devDependencies": {
     "@testcontainers/postgresql": "^12.2.0",
     "@types/node": "catalog:",
     "@types/pg": "^8.23.1",
+    "drizzle-kit": "^0.31.11",
     "typescript": "catalog:"
   }
 }

@@ -1,0 +1,3 @@
+#!/bin/sh
+# On PATH in the worker image so `docker compose run --rm worker migrate` works.
+exec node --import tsx /app/apps/worker/src/migrate.ts "$@"
