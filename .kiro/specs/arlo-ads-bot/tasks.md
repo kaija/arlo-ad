@@ -326,7 +326,7 @@
     - table-driven 測試
     - _Requirements: 12.1, 12.2, 12.4_
     - _ADR: ADR-0017_
-  - [ ] 17.2 Monitor job
+  - [x] 17.2 Monitor job
     - 接在 `sync.snapshots` 後執行；觸發 → Tier 1 ChangeSet（feature=circuit_breaker / bid_auto_reduce）→ Executor
     - 整合測試：觸發、冷卻、shadow
     - _Requirements: 12.3_

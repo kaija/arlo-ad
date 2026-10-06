@@ -1,7 +1,7 @@
 // Monitor rules and firings (ADR-0017).
 import { MonitorActionSchema, MonitorRuleSpecSchema, type MonitorAction, type MonitorRuleSpec } from '@arlo/core';
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
-import { DEFAULT_ORG_ID, monitorFirings, monitorRules } from '../schema';
+import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import { DEFAULT_ORG_ID, metricsDaily, metricsHourly, monitorFirings, monitorRules } from '../schema';
 import type { Db } from '../client';
 import { writeAudit, type Actor } from './changesets';
 import type { DbOrTx } from './upsert';
@@ -109,4 +109,45 @@ export async function firingCounts(db: DbOrTx, since: Date): Promise<Map<string,
     .where(sql`${monitorFirings.firedAt} >= ${since}`)
     .groupBy(monitorFirings.monitorRuleId);
   return new Map(rows.map((r) => [r.ruleId, r.n]));
+}
+
+export interface HourSlot {
+  date: string;
+  hour: number;
+}
+
+export interface EntityWindowTotals {
+  costMicros: number;
+  conversions: number;
+  convValue: number;
+}
+
+/** Hourly totals per entity over the given (date, hour) slots, from metrics_hourly. */
+export async function hourlyTotals(db: DbOrTx, accountId: string, level: 'campaign' | 'account', slots: readonly HourSlot[]): Promise<Map<string, EntityWindowTotals>> {
+  const out = new Map<string, EntityWindowTotals>();
+  if (slots.length === 0) return out;
+  const dates = [...new Set(slots.map((s) => s.date))].sort();
+  const wanted = new Set(slots.map((s) => `${s.date}:${s.hour}`));
+  const rows = await db
+    .select({ entityId: metricsHourly.entityId, date: metricsHourly.date, hour: metricsHourly.hour, cost: metricsHourly.costMicros, conv: metricsHourly.conversions, value: metricsHourly.convValue })
+    .from(metricsHourly)
+    .where(and(eq(metricsHourly.accountId, accountId), eq(metricsHourly.level, level), gte(metricsHourly.date, dates[0]!), lte(metricsHourly.date, dates.at(-1)!)));
+  for (const r of rows) {
+    if (!wanted.has(`${r.date}:${r.hour}`)) continue;
+    const t = out.get(r.entityId) ?? { costMicros: 0, conversions: 0, convValue: 0 };
+    t.costMicros += Number(r.cost);
+    t.conversions += Number(r.conv);
+    t.convValue += Number(r.value);
+    out.set(r.entityId, t);
+  }
+  return out;
+}
+
+/** Spend per entity on one day (metrics_daily, refreshed hourly for today). */
+export async function spendOn(db: DbOrTx, accountId: string, level: 'campaign' | 'account', date: string, entityIds?: readonly string[]): Promise<Map<string, number>> {
+  const rows = await db
+    .select({ entityId: metricsDaily.entityId, cost: metricsDaily.costMicros })
+    .from(metricsDaily)
+    .where(and(eq(metricsDaily.accountId, accountId), eq(metricsDaily.level, level), eq(metricsDaily.date, date), entityIds?.length ? inArray(metricsDaily.entityId, [...entityIds]) : undefined));
+  return new Map(rows.map((r) => [r.entityId, Number(r.cost)]));
 }

@@ -37,7 +37,14 @@ export function syncErrorCode(err: unknown): string {
 }
 
 export function syncJobs(deps: SyncJobDeps): JobDefinition[] {
-  const job = (spec: SyncSpec, work: (d: SyncDeps, a: AdAccount) => Promise<unknown>, fanOut: () => Promise<AdAccount[]>, after?: () => Promise<unknown>) =>
+  const job = (
+    spec: SyncSpec,
+    work: (d: SyncDeps, a: AdAccount) => Promise<unknown>,
+    fanOut: () => Promise<AdAccount[]>,
+    after?: () => Promise<unknown>,
+    /** Runs after a successful per-account sync, e.g. queueing the Monitor. */
+    then?: (a: AdAccount) => Promise<unknown>,
+  ) =>
     defineJob(spec, async ({ accountId }, ctx) => {
       if (!accountId) {
         const accounts = await fanOut();
@@ -67,6 +74,7 @@ export function syncJobs(deps: SyncJobDeps): JobDefinition[] {
       );
       await alertOps(spec.name, account, previous, state, ctx.logger);
       if (failure !== undefined) throw failure;
+      if (then) await then(account);
       return result;
     });
 
@@ -90,7 +98,8 @@ export function syncJobs(deps: SyncJobDeps): JobDefinition[] {
   const active = () => listActiveAccounts(deps.db, deps.platform.platform);
   return [
     // The 15-minute run also refreshes the account list from the manager account.
-    job(Jobs.syncSnapshots, syncSnapshots, () => syncAccounts(deps)),
+    // The Monitor evaluates fresh state right after each snapshot (ADR-0017).
+    job(Jobs.syncSnapshots, syncSnapshots, () => syncAccounts(deps), undefined, (a) => deps.enqueue(Jobs.monitorRun, { accountId: a.id })),
     job(Jobs.syncHourly, syncHourly, active),
     job(Jobs.syncDaily, syncDaily, active, () => cleanupHourlyMetrics(deps)),
   ];

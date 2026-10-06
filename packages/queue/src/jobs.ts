@@ -46,6 +46,8 @@ export const Jobs = {
   chatInteraction: jobSpec('chat.interaction', chatInteraction, { retryLimit: 2 }),
   // A failed run is recorded in job_runs and reported; retrying could post a report twice.
   schedulerRun: jobSpec('scheduler.run', schedulerRun, { retryLimit: 0 }),
+  // Deterministic Monitor for one account, queued after each snapshot sync (ADR-0017).
+  monitorRun: jobSpec('monitor.run', z.object({ accountId: z.uuid() }), { retryLimit: 1 }),
   // Validation → tier → auto-execute or approval request (ADR-0006). Idempotent per status.
   changesetProcess: jobSpec('changeset.process', changesetRef),
   // Cron: PENDING_APPROVAL past expires_at → EXPIRED, cards disabled (Requirement 6.2).

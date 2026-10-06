@@ -5,6 +5,7 @@ import { chatJobs, type ChatJobDeps } from './handlers/chat';
 import { createExecutor, executorJobs, type ExecutorDeps } from './handlers/executor';
 import { decisionJobs } from './handlers/decisions';
 import { interactionJobs } from './handlers/interaction';
+import { monitorJobs } from './handlers/monitor';
 import { syncJobs, type SyncJobDeps } from './handlers/sync';
 import { schedulerJobs, type SchedulerDeps } from './scheduler/scheduler';
 
@@ -12,5 +13,5 @@ export type WorkerDeps = SyncJobDeps & ChatJobDeps & SchedulerDeps & ExecutorDep
 
 export function jobDefinitions(deps: WorkerDeps): JobDefinition[] {
   const executor = createExecutor(deps);
-  return [...syncJobs(deps), ...chatJobs(deps), ...schedulerJobs(deps), ...executorJobs(executor), ...interactionJobs({ ...deps, executor }), ...decisionJobs({ ...deps, executor })];
+  return [...syncJobs(deps), ...chatJobs(deps), ...schedulerJobs(deps), ...executorJobs(executor), ...interactionJobs({ ...deps, executor }), ...decisionJobs({ ...deps, executor }), ...monitorJobs(deps)];
 }
