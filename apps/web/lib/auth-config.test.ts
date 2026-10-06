@@ -1,3 +1,4 @@
+import { FakeUserDirectory, type UserDirectory } from '@arlo/adapters/chat';
 import { createLogger } from '@arlo/config/logger';
 import { DEFAULT_ORG_ID, findUserByEmail, schema } from '@arlo/db';
 import { useTestDatabase } from '@arlo/db/testing';
@@ -18,7 +19,8 @@ type SignInArgs = Parameters<Callbacks['signIn']>[0];
 
 describe('Auth.js config', () => {
   const t = useTestDatabase();
-  const callbacks = () => buildAuthConfig(env, { db: t.db, logger }).callbacks as Callbacks;
+  let directory: UserDirectory = new FakeUserDirectory();
+  const callbacks = () => buildAuthConfig(env, { db: t.db, logger, directory }).callbacks as Callbacks;
 
   const signIn = (profile: Record<string, unknown>, provider = 'google') =>
     callbacks().signIn({
@@ -36,7 +38,7 @@ describe('Auth.js config', () => {
   });
 
   it('restricts Google account selection to the Workspace domain', () => {
-    const config = buildAuthConfig(env, { db: t.db, logger });
+    const config = buildAuthConfig(env, { db: t.db, logger, directory });
     const google = config.providers[0] as unknown as { options: { authorization: { params: Record<string, string> } } };
     expect(google.options.authorization.params).toMatchObject({ hd: 'example.com' });
   });
@@ -82,5 +84,38 @@ describe('Auth.js config', () => {
     expect(await signIn(profile('gone@example.com'))).toBe(false);
     const session = (await callbacks().session({ session: { expires: '' }, token: { uid: user!.id } } as never)) as Session;
     expect(session.arlo).toBeUndefined();
+  });
+
+  describe('Slack binding on first sign-in', () => {
+    it('binds the Slack user found by email and activates the user', async () => {
+      const fake = new FakeUserDirectory({ 'bound@example.com': 'U100' });
+      directory = fake;
+      expect(await signIn(profile('bound@example.com'))).toBe(true);
+      expect(await findUserByEmail(t.db, 'bound@example.com')).toMatchObject({ slackUserId: 'U100', status: 'active' });
+
+      // Already bound: later sign-ins do not query Slack again.
+      expect(await signIn(profile('bound@example.com'))).toBe(true);
+      expect(fake.lookups).toEqual(['bound@example.com']);
+    });
+
+    it('leaves the user unbound when Slack has no such email', async () => {
+      directory = new FakeUserDirectory();
+      expect(await signIn(profile('nobody@example.com'))).toBe(true);
+      expect(await findUserByEmail(t.db, 'nobody@example.com')).toMatchObject({ slackUserId: null, status: 'unbound' });
+    });
+
+    it('still signs in when Slack is unavailable', async () => {
+      directory = { lookupByEmail: () => Promise.reject(new Error('slack down')) };
+      expect(await signIn(profile('outage@example.com'))).toBe(true);
+      expect(await findUserByEmail(t.db, 'outage@example.com')).toMatchObject({ status: 'unbound' });
+    });
+
+    it('does not bind a Slack user already bound to someone else', async () => {
+      directory = new FakeUserDirectory({ 'first@example.com': 'U200', 'alias@example.com': 'U200' });
+      expect(await signIn(profile('first@example.com'))).toBe(true);
+      expect(await signIn(profile('alias@example.com'))).toBe(true);
+      expect(await findUserByEmail(t.db, 'first@example.com')).toMatchObject({ slackUserId: 'U200', status: 'active' });
+      expect(await findUserByEmail(t.db, 'alias@example.com')).toMatchObject({ slackUserId: null, status: 'unbound' });
+    });
   });
 });

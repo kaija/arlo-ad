@@ -2,7 +2,8 @@
 // can drive the callbacks against a test database without a Next.js request.
 import { checkWorkspaceProfile, type GoogleProfile } from '@arlo/core';
 import type { Logger } from '@arlo/config/logger';
-import { findUserByEmail, getUserWithBindings, upsertUserOnSignIn, type Db } from '@arlo/db';
+import type { UserDirectory } from '@arlo/adapters/chat';
+import { bindSlackUserByEmail, findUserByEmail, getUserWithBindings, upsertUserOnSignIn, type Db } from '@arlo/db';
 import type { NextAuthConfig } from 'next-auth';
 import Google from 'next-auth/providers/google';
 
@@ -16,6 +17,8 @@ export interface AuthEnv {
 export interface AuthDeps {
   db: Db;
   logger: Logger;
+  /** Slack directory for binding users on sign-in (Requirement 1.2). */
+  directory: UserDirectory;
 }
 
 /** The signed-in internal user, re-read from Postgres on every request so role changes apply at once. */
@@ -34,7 +37,7 @@ declare module 'next-auth' {
   }
 }
 
-export function buildAuthConfig(env: AuthEnv, { db, logger }: AuthDeps): NextAuthConfig {
+export function buildAuthConfig(env: AuthEnv, { db, logger, directory }: AuthDeps): NextAuthConfig {
   const domain = env.ALLOWED_WORKSPACE_DOMAIN;
   return {
     secret: env.AUTH_SECRET,
@@ -62,6 +65,15 @@ export function buildAuthConfig(env: AuthEnv, { db, logger }: AuthDeps): NextAut
         if (user.status === 'disabled') {
           logger.warn({ userId: user.id }, 'sign-in rejected: user disabled');
           return false;
+        }
+        if (user.status === 'unbound') {
+          // Binding is best effort: a Slack outage must not block Web sign-in.
+          try {
+            const outcome = await bindSlackUserByEmail(db, user, (email) => directory.lookupByEmail(email));
+            if (outcome !== 'bound') logger.warn({ userId: user.id, outcome }, 'slack binding left unbound');
+          } catch (err) {
+            logger.error({ err, userId: user.id }, 'slack lookup failed');
+          }
         }
         return true;
       },

@@ -66,7 +66,7 @@
     - 測試：非允許 domain 被拒
     - _Requirements: 1.1_
     - _ADR: ADR-0010_
-  - [ ] 4.2 Slack 身分綁定
+  - [x] 4.2 Slack 身分綁定
     - 首次登入呼叫 `users.lookupByEmail`；失敗標記 `unbound`
     - `resolveSlackUser(slackUserId)` 供 Slack 互動使用
     - 測試（fake Slack client）：綁定成功、找不到、重複綁定
