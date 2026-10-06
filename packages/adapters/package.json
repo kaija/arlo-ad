@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./analytics": "./src/analytics/index.ts",
     "./chat": "./src/chat/index.ts",
     "./platform": "./src/platform/index.ts",
     "./platform/google": "./src/platform/google/index.ts"
@@ -14,6 +15,7 @@
   "dependencies": {
     "@arlo/config": "workspace:*",
     "@arlo/core": "workspace:*",
+    "@google-analytics/data": "^7.2.1",
     "@slack/types": "^3.2.0",
     "@slack/web-api": "^8.2.0",
     "google-ads-api": "^25.1.0"

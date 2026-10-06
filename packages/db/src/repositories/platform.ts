@@ -14,6 +14,8 @@ import {
   metricsDaily,
   metricsHourly,
 } from '../schema';
+import { and, eq, gte, lte } from 'drizzle-orm';
+import { writeAudit, type Actor } from './changesets';
 import { inBatches, setExcluded, type DbOrTx, type Insert } from './upsert';
 
 const METRICS = [
@@ -164,4 +166,40 @@ export async function upsertGa4Daily(db: DbOrTx, rows: readonly Insert<typeof ga
       .returning({ propertyId: ga4Daily.propertyId }),
   );
   return written.length;
+}
+
+// --- GA4 (ADR-0021) ----------------------------------------------------------------------------
+
+/** Links (or with null, unlinks) the account's GA4 property; audited. */
+export async function setGa4Property(db: DbOrTx, accountId: string, propertyId: string | null, actor: Actor): Promise<void> {
+  if (propertyId !== null && !/^\d{4,20}$/.test(propertyId)) throw new Error('GA4 property id must be numeric');
+  await db.update(adAccounts).set({ ga4PropertyId: propertyId }).where(eq(adAccounts.id, accountId));
+  await writeAudit(db, { actor, entityKind: 'ad_account', entityId: accountId, action: 'set_ga4_property', payload: { propertyId } });
+}
+
+export interface ConversionGapDay {
+  date: string;
+  adsConversions: number;
+  ga4Conversions: number;
+  ga4Sessions: number;
+  adsClicks: number;
+}
+
+/** Account-level Ads conversions next to GA4 google / cpc key events per day. */
+export async function conversionGapSeries(db: DbOrTx, account: { id: string; ga4PropertyId: string | null }, from: string, to: string): Promise<ConversionGapDay[]> {
+  const ads = await db
+    .select({ date: metricsDaily.date, conv: metricsDaily.conversions, clicks: metricsDaily.clicks })
+    .from(metricsDaily)
+    .where(and(eq(metricsDaily.accountId, account.id), eq(metricsDaily.level, 'account'), gte(metricsDaily.date, from), lte(metricsDaily.date, to)));
+  const ga4 = account.ga4PropertyId
+    ? await db
+        .select({ date: ga4Daily.date, conv: ga4Daily.conversions, sessions: ga4Daily.sessions })
+        .from(ga4Daily)
+        .where(and(eq(ga4Daily.propertyId, account.ga4PropertyId), eq(ga4Daily.sourceMedium, 'google / cpc'), gte(ga4Daily.date, from), lte(ga4Daily.date, to)))
+    : [];
+  const byDate = new Map<string, ConversionGapDay>();
+  const day = (date: string) => byDate.get(date) ?? byDate.set(date, { date, adsConversions: 0, ga4Conversions: 0, ga4Sessions: 0, adsClicks: 0 }).get(date)!;
+  for (const r of ads) Object.assign(day(r.date), { adsConversions: Number(r.conv), adsClicks: Number(r.clicks) });
+  for (const r of ga4) Object.assign(day(r.date), { ga4Conversions: Number(r.conv), ga4Sessions: Number(r.sessions) });
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }

@@ -56,6 +56,8 @@ export const adAccounts = pgTable(
     currency: text('currency').notNull(),
     timezone: text('timezone').notNull(),
     active: boolean('active').notNull().default(true),
+    // GA4 property compared against this account's conversions (ADR-0021); set in the Web console.
+    ga4PropertyId: text('ga4_property_id'),
     ...timestamps,
   },
   (t) => [

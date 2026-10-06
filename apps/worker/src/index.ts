@@ -1,3 +1,4 @@
+import { createGa4Adapter } from '@arlo/adapters/analytics';
 import { SlackAdapter } from '@arlo/adapters/chat';
 import { createGoogleAdsClient, GoogleAdsAdapter } from '@arlo/adapters/platform/google';
 import { createAnalystAgent, createAuditAgent, createBiddingAgent, createKeywordAgent, createOrchestrator, createSearchTermClassifier, meteredModelFactory, modelNameFor, type AgentName } from '@arlo/agents';
@@ -44,6 +45,7 @@ const WorkerEnv = EnvSchema.pick({
   MODEL_FLAGSHIP: true,
   MODEL_SMALL: true,
   DAILY_LLM_BUDGET_USD: true,
+  GA4_SERVICE_ACCOUNT_JSON: true,
 });
 
 function loadEnv() {
@@ -74,6 +76,9 @@ const platform = new GoogleAdsAdapter(
   { loginCustomerId: env.GOOGLE_ADS_LOGIN_CUSTOMER_ID, writeAllowedCustomerIds: env.ADS_WRITE_ALLOWED_CUSTOMER_IDS },
 );
 
+// GA4 is optional: without credentials the tracking audit compares nothing (ADR-0021).
+const ga4 = env.GA4_SERVICE_ACCOUNT_JSON ? createGa4Adapter(env.GA4_SERVICE_ACCOUNT_JSON) : undefined;
+
 const chat = new SlackAdapter(new WebClient(env.SLACK_BOT_TOKEN));
 const opsChannel = { platform: 'slack' as const, channelId: env.SLACK_OPS_CHANNEL_ID };
 
@@ -97,6 +102,7 @@ await registerJobs(
   jobDefinitions({
     db,
     platform,
+    ga4,
     chat,
     orchestrator,
     agents: { analyst, audit, bidding, keyword, orchestrator, searchTermClassifier },

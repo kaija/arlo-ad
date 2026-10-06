@@ -203,6 +203,9 @@ importers:
       '@arlo/core':
         specifier: workspace:*
         version: link:../core
+      '@google-analytics/data':
+        specifier: ^7.2.1
+        version: 7.2.1
       '@slack/types':
         specifier: ^3.2.0
         version: 3.2.0
@@ -943,6 +946,10 @@ packages:
   '@eslint/plugin-kit@0.7.3':
     resolution: {integrity: sha512-IkO+/KEUvwbVpiURZg+P7zF74z5Jxe0UgJxVni+RtoHQ6IZieXaO02kmadomap/q+l6bc/jdPGGqTjhuZnuz1Q==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
+
+  '@google-analytics/data@7.2.1':
+    resolution: {integrity: sha512-8B77oWryizGeV2DbK135TbBaWwkww154+XNEw7QbEa0UKtWqefOherFCvBAp4yOGtpPQG7ka00ESHPFg/DT28Q==}
+    engines: {node: '>=22'}
 
   '@grpc/grpc-js@1.14.5':
     resolution: {integrity: sha512-7VZM+SVdEcUUqSQeNI3zM8Qs/BhQKZndPo2h5VkYkAM8Iz0wJIa8mKV5ekQGqG8UUsnkQ0NMxIxwkIHYvj0qOw==}
@@ -4099,6 +4106,12 @@ snapshots:
     dependencies:
       '@eslint/core': 1.2.1
       levn: 0.4.1
+
+  '@google-analytics/data@7.2.1':
+    dependencies:
+      google-gax: 6.10.0
+    transitivePeerDependencies:
+      - supports-color
 
   '@grpc/grpc-js@1.14.5':
     dependencies:

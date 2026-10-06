@@ -346,7 +346,7 @@
     - conversion action 狀態、最後轉換時間、EC 診斷 → 健康判定純函式 + 測試
     - _Requirements: 16.1, 16.2_
     - _ADR: ADR-0021_
-  - [ ] 18.2 GA4 adapter 與落差
+  - [x] 18.2 GA4 adapter 與落差
     - `@google-analytics/data` 拉 `google / cpc` 轉換 → `ga4_daily`；落差偏移計算 + 測試
     - _Requirements: 16.3_
     - _ADR: ADR-0021_

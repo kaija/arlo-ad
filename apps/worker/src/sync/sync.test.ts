@@ -1,6 +1,7 @@
 import { FakePlatformAdapter, type MetricRow } from '@arlo/adapters/platform';
 import { createLogger } from '@arlo/config/logger';
-import { listActiveAccounts, schema, type AdAccount } from '@arlo/db';
+import { FakeGa4Adapter } from '@arlo/adapters/analytics';
+import { conversionGapSeries, listActiveAccounts, schema, setGa4Property, type AdAccount } from '@arlo/db';
 import { useTestDatabase } from '@arlo/db/testing';
 import { Jobs } from '@arlo/queue';
 import { count, eq } from 'drizzle-orm';
@@ -145,6 +146,19 @@ describe('sync', () => {
       ]);
       expect(await rows(schema.gSearchTerms)).toBe(1);
       expect(await rows(schema.gConversionActions)).toBe(1);
+    });
+
+    it('pulls GA4 google / cpc for a linked property, best effort', async () => {
+      const ga4 = new FakeGa4Adapter().set('123456', [{ date: '2026-10-05', sourceMedium: 'google / cpc', sessions: 40, conversions: 3 }]);
+      expect((await syncDaily({ ...deps, ga4 }, account)).ga4).toBe('skipped');
+      await setGa4Property(t.db, account.id, '123456', { kind: 'system' });
+      const linked = (await listActiveAccounts(t.db, 'google_ads')).find((a) => a.id === account.id)!;
+      expect((await syncDaily({ ...deps, ga4 }, linked)).ga4).toBe(1);
+      expect(ga4.calls.at(-1)).toEqual({ propertyId: '123456', from: '2026-09-19', to: '2026-10-05' });
+      expect(await conversionGapSeries(t.db, linked, '2026-10-05', '2026-10-05')).toEqual([{ date: '2026-10-05', adsConversions: 2, adsClicks: 0, ga4Conversions: 3, ga4Sessions: 40 }]);
+
+      const broken = { fetchDaily: async () => Promise.reject(new Error('PERMISSION_DENIED')) };
+      expect((await syncDaily({ ...deps, ga4: broken }, linked)).ga4).toBe('failed');
     });
 
     it('drops hourly metrics older than 14 days', async () => {

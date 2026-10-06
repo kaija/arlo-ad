@@ -1,5 +1,6 @@
 // Pulls platform data into Postgres (ADR-0003, Requirements 2.1–2.5). Every step is an
 // idempotent upsert, so a retried or repeated run converges on the same rows.
+import type { Ga4Adapter } from '@arlo/adapters/analytics';
 import type { GoogleAdsPlatform, EntityRecord, MetricLevel } from '@arlo/adapters/platform';
 import type { Logger } from '@arlo/config/logger';
 import { addDays, dateInTimeZone, type EntityKind } from '@arlo/core';
@@ -17,6 +18,7 @@ import {
   upsertAdAccounts,
   upsertConversionActions,
   upsertEntities,
+  upsertGa4Daily,
   upsertMetricsDaily,
   upsertMetricsHourly,
   upsertSearchTerms,
@@ -27,6 +29,8 @@ import {
 export interface SyncDeps {
   db: Db;
   platform: GoogleAdsPlatform;
+  /** GA4 Data API, when GA4_SERVICE_ACCOUNT_JSON is configured (ADR-0021). */
+  ga4?: Ga4Adapter;
   logger: Logger;
   now: () => Date;
 }
@@ -213,9 +217,28 @@ export async function syncDaily(deps: SyncDeps, account: AdAccount) {
     actions.map((a) => ({ orgId, accountId: account.id, ...a })),
   );
 
-  const result = { range, metrics: metrics.written, searchTerms, conversionActions: actions.length, skipped: metrics.skipped + skippedTerms };
+  const ga4 = await syncGa4(deps, account, today);
+  const result = { range, metrics: metrics.written, searchTerms, conversionActions: actions.length, skipped: metrics.skipped + skippedTerms, ga4 };
   logger.info({ account: account.externalId, ...result }, 'daily sync done');
   return result;
+}
+
+/** Days of GA4 history kept fresh: the 14-day baseline plus the recent window (Requirement 16.3). */
+export const GA4_DAYS = 17;
+
+/** GA4 google / cpc for the account's linked property; best effort, never fails the Ads sync. */
+async function syncGa4(deps: SyncDeps, account: AdAccount, today: string): Promise<number | 'skipped' | 'failed'> {
+  if (!deps.ga4 || !account.ga4PropertyId) return 'skipped';
+  try {
+    const rows = await deps.ga4.fetchDaily(account.ga4PropertyId, { from: addDays(today, -GA4_DAYS), to: addDays(today, -1) });
+    return await upsertGa4Daily(
+      deps.db,
+      rows.map((r) => ({ orgId, propertyId: account.ga4PropertyId!, date: r.date, sourceMedium: r.sourceMedium, sessions: r.sessions, conversions: r.conversions })),
+    );
+  } catch (err) {
+    deps.logger.warn({ err, account: account.externalId }, 'GA4 sync failed');
+    return 'failed';
+  }
 }
 
 /** Drops hourly metrics older than the retention window (dates compared in UTC with a day of slack). */
