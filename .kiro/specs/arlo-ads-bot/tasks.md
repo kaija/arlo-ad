@@ -237,7 +237,7 @@
     - 測試：權限矩陣、冪等
     - _Requirements: 1.5, 1.6, 6.6_
     - _ADR: ADR-0010_
-  - [ ] 13.2 路由與鏡像
+  - [x] 13.2 路由與鏡像
     - 來源 thread / 排程目標 channel；不在 approval channel 時發鏡像（含 permalink）；`approval_messages` 同步更新
     - 測試：三種來源的路由
     - _Requirements: 7.1, 7.2, 7.3, 7.4_

@@ -17,6 +17,7 @@ import {
   type ChangeSetStatus,
   type ChangeSetView,
   type ChatMessage,
+  ConversationRefSchema,
   type ConversationRef,
   type Drift,
   type OpResult,
@@ -36,6 +37,7 @@ import {
   loadTierThresholds,
   loadValidationContext,
   recordOpResults,
+  scheduleTargetForRun,
   type Actor,
   type AdAccount,
   type Db,
@@ -96,9 +98,28 @@ export function createExecutor(deps: ExecutorDeps) {
     return acc;
   }
 
-  /** Where the ChangeSet's cards and notices go: the source thread, else the approval channel. */
-  function origin(cs: ChangeSet): ConversationRef {
-    return cs.source.ref ?? deps.approvalChannel;
+  /**
+   * Where the ChangeSet's card and notices go (ADR-0011, Requirements 7.1, 7.2): the source
+   * conversation; for schedules the job's target channel; otherwise the approval channel.
+   */
+  async function origin(cs: ChangeSet): Promise<ConversationRef> {
+    if (cs.source.ref) return cs.source.ref;
+    if (cs.source.kind === 'schedule' && cs.source.jobRunId) {
+      const target = ConversationRefSchema.safeParse(await scheduleTargetForRun(db, cs.source.jobRunId));
+      if (target.success) return target.data;
+    }
+    return deps.approvalChannel;
+  }
+
+  /** Link back to the source thread (or the origin card) for mirrors (Requirement 7.3). */
+  async function sourceLink(cs: ChangeSet, originCard: { channelId: string; messageId: string } | undefined): Promise<string | undefined> {
+    const ref = cs.source.ref;
+    const target = ref?.threadId ? { channelId: ref.channelId, messageId: ref.threadId } : originCard;
+    if (!target) return undefined;
+    return chat.permalink({ platform: 'slack', ...target }).catch((err: unknown) => {
+      logger.warn({ err, changeset_id: cs.id }, 'failed to get permalink');
+      return undefined;
+    });
   }
 
   async function view(cs: ChangeSet, acc: AdAccount, outcome?: Parameters<typeof changeSetView>[1]['outcome']) {
@@ -177,10 +198,12 @@ export function createExecutor(deps: ExecutorDeps) {
       ...(cs.statusReason ? { reason: cs.statusReason } : {}),
     };
     const v = await view(cs, acc, outcome);
-    for (const m of await listApprovalMessages(db, cs.id)) {
-      if (m.kind === 'notice') continue;
+    const cards = (await listApprovalMessages(db, cs.id)).filter((m) => m.kind !== 'notice');
+    const link = cards.some((m) => m.kind === 'mirror') ? await sourceLink(cs, cards.find((m) => m.kind === 'origin')) : undefined;
+    for (const m of cards) {
+      const changeset = m.kind === 'mirror' && link ? { ...v, sourceLink: link } : v;
       try {
-        await chat.update({ platform: 'slack', channelId: m.channelId, messageId: m.messageId, ...(m.threadId ? { threadId: m.threadId } : {}) }, { type: 'approval_request', changeset: v, mirror: m.kind === 'mirror' });
+        await chat.update({ platform: 'slack', channelId: m.channelId, messageId: m.messageId, ...(m.threadId ? { threadId: m.threadId } : {}) }, { type: 'approval_request', changeset, mirror: m.kind === 'mirror' });
       } catch (err) {
         logger.error({ err, changeset_id: cs.id, channel: m.channelId }, 'failed to update approval card');
       }
@@ -188,11 +211,17 @@ export function createExecutor(deps: ExecutorDeps) {
   }
 
   async function notify(cs: StoredChangeSet, level: 'info' | 'warn' | 'error', text: string) {
-    await post(cs, origin(cs), { type: 'notice', level, text, changesetId: cs.id }, 'notice');
+    await post(cs, await origin(cs), { type: 'notice', level, text, changesetId: cs.id }, 'notice');
   }
 
+  /** The card in the origin conversation, plus a mirror in the approval channel when elsewhere. */
   async function postApprovalRequest(cs: StoredChangeSet, acc: AdAccount) {
-    await post(cs, origin(cs), { type: 'approval_request', changeset: await view(cs, acc) }, 'origin');
+    const where = await origin(cs);
+    const v = await view(cs, acc);
+    const card = await post(cs, where, { type: 'approval_request', changeset: v }, 'origin');
+    if (where.channelId === deps.approvalChannel.channelId) return;
+    const link = await sourceLink(cs, card);
+    await post(cs, deps.approvalChannel, { type: 'approval_request', changeset: { ...v, ...(link ? { sourceLink: link } : {}) }, mirror: true }, 'mirror');
   }
 
   /**
@@ -224,7 +253,7 @@ export function createExecutor(deps: ExecutorDeps) {
       const moved = await move(cs, { type: 'block', violations }, SYSTEM, 'validator hard block');
       if (moved.ok) {
         log.info({ violations: violations.length }, 'ChangeSet blocked');
-        await post(moved.changeset, origin(cs), { type: 'notice', level: 'error', text: `變更已被擋下：${cs.summary}\n${violationText(violations.filter((v) => v.severity === 'HARD_BLOCK'))}`, changesetId: cs.id }, 'notice');
+        await post(moved.changeset, await origin(cs), { type: 'notice', level: 'error', text: `變更已被擋下：${cs.summary}\n${violationText(violations.filter((v) => v.severity === 'HARD_BLOCK'))}`, changesetId: cs.id }, 'notice');
       }
       return moved.ok ? moved.changeset : moved.current;
     }
@@ -242,7 +271,7 @@ export function createExecutor(deps: ExecutorDeps) {
     const drifts = await drift(cs);
     if (drifts.length) {
       const moved = await move(cs, { type: 'stale' }, SYSTEM, describeDrift(drifts), { drifts });
-      if (moved.ok) await post(moved.changeset, origin(cs), { type: 'notice', level: 'warn', text: `帳戶現況已變更，未執行：${cs.summary}\n${describeDrift(drifts)}`, changesetId: cs.id }, 'notice');
+      if (moved.ok) await post(moved.changeset, await origin(cs), { type: 'notice', level: 'warn', text: `帳戶現況已變更，未執行：${cs.summary}\n${describeDrift(drifts)}`, changesetId: cs.id }, 'notice');
       return moved.ok ? moved.changeset : moved.current;
     }
     const executing = await move(cs, { type: 'auto_execute', tier, violations }, SYSTEM);
@@ -251,7 +280,7 @@ export function createExecutor(deps: ExecutorDeps) {
     log.info({ status: done.status }, 'Tier 1 ChangeSet executed');
     await post(
       done,
-      origin(cs),
+      await origin(cs),
       done.status === 'EXECUTED'
         ? { type: 'notice', level: 'info', text: `已自動執行（Tier 1）：${cs.summary}\n${(await view(done, acc)).ops.map((o) => `• ${o.label}：${o.before} → ${o.after}`).join('\n')}`, changesetId: cs.id, actions: ['undo'] }
         : { type: 'notice', level: 'error', text: `自動執行失敗：${cs.summary}\n${done.statusReason ?? ''}`, changesetId: cs.id },

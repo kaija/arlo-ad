@@ -78,3 +78,13 @@ export async function latestRunsByJob(db: DbOrTx): Promise<Map<string, JobRun>> 
     .orderBy(jobRuns.scheduledJobId, desc(jobRuns.startedAt), desc(jobRuns.id));
   return new Map(rows.map((r) => [r.scheduledJobId!, r]));
 }
+
+/** The chat target of the scheduled job behind a run (ChangeSet routing, Requirement 7.2). */
+export async function scheduleTargetForRun(db: DbOrTx, jobRunId: string): Promise<unknown> {
+  const [row] = await db
+    .select({ target: scheduledJobs.target })
+    .from(jobRuns)
+    .innerJoin(scheduledJobs, eq(scheduledJobs.id, jobRuns.scheduledJobId))
+    .where(eq(jobRuns.id, jobRunId));
+  return row?.target;
+}

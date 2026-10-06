@@ -2,7 +2,7 @@ import { FakeChatAdapter } from '@arlo/adapters/chat';
 import { FakePlatformAdapter } from '@arlo/adapters/platform';
 import { createLogger } from '@arlo/config/logger';
 import type { ChangeSetSource, EntityKind, Op } from '@arlo/core';
-import { DEFAULT_ORG_ID, getChangeSet, insertChangeSet, listApprovalMessages, listAudit, listOpResults, schema, upsertUserOnSignIn, type AdAccount } from '@arlo/db';
+import { createScheduledJob, DEFAULT_ORG_ID, getChangeSet, startJobRun, insertChangeSet, listApprovalMessages, listAudit, listOpResults, schema, upsertUserOnSignIn, type AdAccount } from '@arlo/db';
 import { useTestDatabase } from '@arlo/db/testing';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { syncAccounts, syncSnapshots } from '../sync/sync';
@@ -67,7 +67,10 @@ describe('Executor.process', () => {
       type: 'approval_request',
       changeset: { id: cs.id, accountName: 'Arlo TW', tier: 2, status: 'PENDING_APPROVAL', requestedBy: 'Arlo', ops: [{ label: 'Brand · 每日預算', before: 'NT$1,000', after: 'NT$1,100' }] },
     });
-    expect(await listApprovalMessages(t.db, cs.id)).toMatchObject([{ channelId: 'CTEAM', messageId: card!.ref.messageId, kind: 'origin' }]);
+    expect(await listApprovalMessages(t.db, cs.id)).toMatchObject([
+      { channelId: 'CTEAM', messageId: card!.ref.messageId, kind: 'origin' },
+      { channelId: 'CAPPROVAL', kind: 'mirror' },
+    ]);
     expect(platform.applied).toEqual([]);
     expect((await listAudit(t.db, 'changeset', cs.id)).map((a) => a.action)).toEqual(['create', 'request_approval']);
   });
@@ -77,16 +80,17 @@ describe('Executor.process', () => {
     const executor = createExecutor(deps);
     await executor.process(cs.id);
     await executor.process(cs.id);
-    expect(chat.messages).toHaveLength(1);
+    expect(chat.messages).toHaveLength(2);
   });
 
   it('posts a missing approval card on retry', async () => {
     const cs = await propose([budget(1_100_000_000)]);
-    const failing = { ...deps, chat: { ...chat, post: async () => Promise.reject(new Error('slack down')) } as unknown as FakeChatAdapter };
+    const down = Object.assign(Object.create(chat) as FakeChatAdapter, { post: async () => Promise.reject(new Error('slack down')) });
+    const failing = { ...deps, chat: down };
     expect(await createExecutor(failing).process(cs.id)).toMatchObject({ status: 'PENDING_APPROVAL' });
     expect(chat.messages).toHaveLength(0);
     await createExecutor(deps).process(cs.id);
-    expect(chat.messages).toHaveLength(1);
+    expect(chat.messages).toHaveLength(2);
   });
 
   it('sends ChangeSets without a conversation to the approval channel with a shorter TTL for the circuit breaker', async () => {
@@ -163,6 +167,84 @@ describe('Executor.process', () => {
   });
 });
 
+describe('approval routing (Requirements 7.1–7.4)', () => {
+  const t = useTestDatabase();
+  let platform: FakePlatformAdapter;
+  let chat: FakeChatAdapter;
+  let account: AdAccount;
+  let deps: ExecutorDeps;
+  let approver: string;
+
+  beforeAll(async () => {
+    platform = seededPlatform();
+    const sync = { db: t.db, platform, logger, now: () => NOW };
+    account = (await syncAccounts(sync))[0]!;
+    await syncSnapshots(sync, account);
+    approver = (await upsertUserOnSignIn(t.db, { email: 'bob@example.com', displayName: 'Bob' })).id;
+  });
+
+  beforeEach(async () => {
+    platform = seededPlatform();
+    chat = new FakeChatAdapter();
+    deps = { db: t.db, platform, chat, logger, now: () => NOW, writeAllowedCustomerIds: [ACC], approvalChannel: APPROVAL };
+    await t.db.delete(schema.approvalMessages);
+  });
+
+  const raise: Op = { kind: 'set_budget', target: CAMPAIGN, field: 'budget_micros', before: 1_000_000_000, after: 1_100_000_000 };
+  const propose = async (source: ChangeSetSource) => {
+    const cs = await insertChangeSet(t.db, { accountId: account.id, source, ops: [raise], summary: 'raise', requestedBy: { kind: 'agent' } });
+    await createExecutor(deps).process(cs.id);
+    return cs;
+  };
+  const cards = () => chat.messages.filter((m) => m.message.type === 'approval_request');
+
+  it('chat in another channel: card in the thread, mirror with a link to the thread', async () => {
+    const cs = await propose({ kind: 'chat', ref: THREAD });
+    const [origin, mirror] = cards();
+    expect(origin?.ref).toMatchObject({ channelId: 'CTEAM', threadId: THREAD.threadId });
+    expect(mirror?.ref).toMatchObject({ channelId: 'CAPPROVAL' });
+    expect(mirror?.ref.threadId).toBeUndefined();
+    expect(mirror?.message).toMatchObject({ mirror: true, changeset: { sourceLink: 'https://slack.test/archives/CTEAM/p1700000000000100' } });
+
+    // Acting on either card updates both (Requirement 7.4).
+    await createExecutor(deps).approve(cs.id, approver);
+    for (const card of [origin, mirror]) expect(card?.message).toMatchObject({ changeset: { status: 'EXECUTED', outcome: { actor: 'Bob' } } });
+    expect(mirror?.message).toMatchObject({ mirror: true, changeset: { sourceLink: expect.stringContaining('CTEAM') } });
+  });
+
+  it('chat inside the approval channel: no mirror', async () => {
+    await propose({ kind: 'chat', ref: { platform: 'slack', channelId: 'CAPPROVAL', threadId: '1700000000.000200' } });
+    expect(cards().map((c) => c.ref.channelId)).toEqual(['CAPPROVAL']);
+  });
+
+  it("schedule: the job's target channel, mirrored to the approval channel", async () => {
+    const job = await createScheduledJob(t.db, {
+      name: 'sweep',
+      template: 'daily_report',
+      cron: '0 9 * * *',
+      tz: 'Asia/Taipei',
+      accountIds: null,
+      target: { platform: 'slack', channelId: 'CREPORTS' },
+      extraInstructions: null,
+      enabled: true,
+    });
+    const run = await startJobRun(t.db, { scheduledJobId: job.id, template: 'daily_report', trigger: 'schedule' });
+    await propose({ kind: 'schedule', jobRunId: run.id });
+    const [origin, mirror] = cards();
+    expect(origin?.ref.channelId).toBe('CREPORTS');
+    expect(mirror?.message).toMatchObject({ mirror: true, changeset: { sourceLink: expect.stringContaining('CREPORTS') } });
+  });
+
+  it('web and monitor: the approval channel only', async () => {
+    await propose({ kind: 'web' });
+    await propose({ kind: 'monitor', monitorRuleId: 'r' });
+    expect(cards().map((c) => [c.ref.channelId, (c.message as { mirror?: boolean }).mirror ?? false])).toEqual([
+      ['CAPPROVAL', false],
+      ['CAPPROVAL', false],
+    ]);
+  });
+});
+
 describe('Executor.approve / reject', () => {
   const t = useTestDatabase();
   let platform: FakePlatformAdapter;
@@ -223,8 +305,9 @@ describe('Executor.approve / reject', () => {
     const outcomes = [first.outcome, second.outcome].sort();
     expect(outcomes).toEqual(['executed', 'not_pending']);
     expect(platform.applied).toHaveLength(1);
+    const winner = first.outcome === 'executed' ? 'Bob' : 'Ann';
     const late = await executor.approve(cs.id, ann);
-    expect(late).toMatchObject({ outcome: 'not_pending', status: 'EXECUTED', handledBy: 'Bob' });
+    expect(late).toMatchObject({ outcome: 'not_pending', status: 'EXECUTED', handledBy: winner });
   });
 
   it('marks STALE when the target drifted since the proposal', async () => {
