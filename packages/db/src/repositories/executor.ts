@@ -2,6 +2,9 @@
 // spend, campaign states, today's executed ops and recent snapshots, all from synced data.
 import {
   addDays,
+  changeSetView,
+  type ChangeSet,
+  type ChangeSetView,
   dateInTimeZone,
   entityKey,
   zonedToInstant,
@@ -13,6 +16,7 @@ import {
 } from '@arlo/core';
 import { and, asc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { changesetOpResults, changesets, entities, entitySnapshots, metricsDaily } from '../schema';
+import { getUserWithBindings } from './identity';
 import { listCampaigns } from './reads';
 import type { AdAccount } from './sync';
 import type { DbOrTx } from './upsert';
@@ -152,4 +156,14 @@ export async function loadOpTargetNames(db: DbOrTx, account: AdAccount, ops: rea
     }
   }
   return out;
+}
+
+/** The card view of a ChangeSet: entity names, requester name, optional outcome. */
+export async function loadChangeSetView(db: DbOrTx, cs: ChangeSet, account: AdAccount, outcome?: ChangeSetView['outcome']): Promise<ChangeSetView> {
+  const [names, requester] = await Promise.all([
+    loadOpTargetNames(db, account, cs.ops),
+    cs.requestedBy.userId ? getUserWithBindings(db, cs.requestedBy.userId) : undefined,
+  ]);
+  const requestedBy = requester ? (requester.displayName ?? requester.googleEmail) : cs.requestedBy.kind === 'agent' ? 'Arlo' : cs.requestedBy.kind === 'system' ? '系統' : undefined;
+  return changeSetView(cs, { accountName: account.name, currency: account.currency, names, requestedBy, outcome });
 }

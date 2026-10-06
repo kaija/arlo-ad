@@ -242,7 +242,7 @@
     - 測試：三種來源的路由
     - _Requirements: 7.1, 7.2, 7.3, 7.4_
     - _ADR: ADR-0011_
-  - [ ] 13.3 Tier 3 確認與狀態通知
+  - [x] 13.3 Tier 3 確認與狀態通知
     - Tier 3 approve 開 confirm modal（顯示金額與比例）；STALE / EXPIRED / BLOCKED 通知來源
     - _Requirements: 4.4, 6.3, 5.3_
     - _ADR: ADR-0007, ADR-0009_

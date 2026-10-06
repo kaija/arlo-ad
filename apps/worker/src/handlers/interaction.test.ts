@@ -92,22 +92,41 @@ describe('Slack approve / reject interactions', () => {
     expect((await getChangeSet(t.db, id))?.status).toBe('PENDING_APPROVAL');
   });
 
-  it.each([
-    ['UAPPROVER', 1_100_000_000],
-    ['UADMIN', 1_100_000_000],
-    ['USENIOR', 2_000_000_000],
-  ] as const)('%s can approve', async (slackUser, after) => {
-    const id = await pending(after);
+  it.each([['UAPPROVER'], ['UADMIN']] as const)('%s can approve Tier 2 with the button', async (slackUser) => {
+    const id = await pending(1_100_000_000);
     await click(slackUser, 'approve', id);
     expect((await getChangeSet(t.db, id))?.status).toBe('EXECUTED');
     expect(lastEphemeral(slackUser)).toBeUndefined();
   });
 
-  it('enforces four-eyes on Tier 3', async () => {
+  const submit = (slackUser: string, changesetId: string, metadata: Record<string, unknown> = { changesetId, channelId: CHANNEL }) =>
+    handle({
+      type: 'view_submission',
+      userId: slackUser,
+      actions: [],
+      view: { callbackId: encodeAction({ kind: 'changeset', verb: 'confirm', changesetId }), privateMetadata: JSON.stringify(metadata), values: {} },
+    });
+
+  it('approves Tier 3 only through the confirm modal', async () => {
+    const id = await pending(2_000_000_000);
+    await click('USENIOR', 'approve', id);
+    expect((await getChangeSet(t.db, id))?.status).toBe('PENDING_APPROVAL');
+    expect(lastEphemeral('USENIOR')).toBeUndefined();
+
+    await submit('USENIOR', id, { changesetId: 'someone-else' });
+    expect((await getChangeSet(t.db, id))?.status).toBe('PENDING_APPROVAL');
+    await submit('USENIOR', id);
+    expect((await getChangeSet(t.db, id))?.status).toBe('EXECUTED');
+  });
+
+  it('enforces four-eyes on Tier 3, also on submit', async () => {
     const id = await pending(2_000_000_000, 'USENIOR');
     await click('USENIOR', 'approve', id);
     expect(lastEphemeral('USENIOR')).toBe(DENY_TEXT.four_eyes(3));
-    await click('UADMIN', 'approve', id);
+    await submit('USENIOR', id);
+    expect(chat.ephemerals.filter((e) => e.userId === 'USENIOR')).toHaveLength(2);
+    expect((await getChangeSet(t.db, id))?.status).toBe('PENDING_APPROVAL');
+    await submit('UADMIN', id);
     expect((await getChangeSet(t.db, id))?.status).toBe('EXECUTED');
   });
 

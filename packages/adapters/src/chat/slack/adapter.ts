@@ -1,8 +1,8 @@
 // ChatAdapter for Slack (ADR-0005) over @slack/web-api.
-import type { ChatMessage, ChatTurn, ConversationRef, MessageRef } from '@arlo/core';
+import type { ChangeSetView, ChatMessage, ChatTurn, ConversationRef, MessageRef } from '@arlo/core';
 import type { WebClient } from '@slack/web-api';
 import type { ChatAdapter, FetchContextOptions } from '../types';
-import { renderMessage } from './render';
+import { renderConfirmModal, renderMessage } from './render';
 
 interface SlackMessage {
   ts?: string;
@@ -102,5 +102,9 @@ export class SlackAdapter implements ChatAdapter {
       if (slackError(err) === 'already_reacted' || slackError(err) === 'no_reaction') return;
       throw err;
     }
+  }
+
+  async openConfirm(triggerId: string, changeset: ChangeSetView, where?: ConversationRef): Promise<void> {
+    await this.client.views.open({ trigger_id: triggerId, view: renderConfirmModal(changeset, where) });
   }
 }

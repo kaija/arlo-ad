@@ -1,6 +1,6 @@
 // Slack interactivity → Executor (ADR-0010, Requirements 1.5, 1.6, 6.6). The Slack user is
 // resolved to an internal user, `authorize` decides, the Executor's CAS makes clicks idempotent.
-import type { ChatAdapter } from '@arlo/adapters/chat';
+import type { ChatAdapter, ConfirmMetadata } from '@arlo/adapters/chat';
 import type { Logger } from '@arlo/config/logger';
 import { authorize, decodeAction, type ChangeSetStatus, type ChatAction, type ConversationRef, type DenyReason } from '@arlo/core';
 import { getChangeSet, resolveSlackUser, type Db, type UserWithBindings } from '@arlo/db';
@@ -46,18 +46,33 @@ export function alreadyHandled(status: ChangeSetStatus | null, by?: string | nul
   return by ? `這個變更已由 ${by} 處理（${what}）。` : `這個變更已處理（${what}）。`;
 }
 
+function confirmMetadata(raw: string): ConfirmMetadata | null {
+  try {
+    const m = JSON.parse(raw) as Partial<ConfirmMetadata>;
+    return typeof m?.changesetId === 'string' ? { changesetId: m.changesetId, channelId: typeof m.channelId === 'string' ? m.channelId : undefined, threadId: typeof m.threadId === 'string' ? m.threadId : undefined } : null;
+  } catch {
+    return null;
+  }
+}
+
 export function createInteractionHandler(deps: InteractionDeps) {
   const { db, chat, executor } = deps;
 
-  async function changesetAction(job: Interaction, user: UserWithBindings, action: Extract<ChatAction, { kind: 'changeset' }>, where: ConversationRef) {
-    const say = (text: string) => chat.ephemeral(where, job.userId, text);
+  async function changesetAction(job: Interaction, user: UserWithBindings, action: Extract<ChatAction, { kind: 'changeset' }>, where: ConversationRef | null) {
+    const say = async (text: string) => {
+      if (where) await chat.ephemeral(where, job.userId, text);
+      else deps.logger.info({ changeset_id: action.changesetId }, `no channel for feedback: ${text}`);
+    };
     const cs = await getChangeSet(db, action.changesetId);
     if (!cs) return say(DENY_TEXT.missing_target(null));
 
-    if (action.verb === 'approve' || action.verb === 'reject') {
-      const decision = authorize(user, action.verb, { accountId: cs.accountId, tier: cs.tier, requestedByUserId: cs.requestedBy.userId });
+    if (action.verb === 'approve' || action.verb === 'reject' || action.verb === 'confirm') {
+      const verb = action.verb === 'reject' ? 'reject' : 'approve';
+      const decision = authorize(user, verb, { accountId: cs.accountId, tier: cs.tier, requestedByUserId: cs.requestedBy.userId });
       if (!decision.allowed) return say(DENY_TEXT[decision.reason](cs.tier));
-      if (action.verb === 'approve') {
+      // Tier 3 is approved only through the confirm modal the web route opened (Requirement 4.4).
+      if (action.verb === 'approve' && cs.tier === 3 && cs.status === 'PENDING_APPROVAL') return;
+      if (verb === 'approve') {
         const result = await executor.approve(cs.id, user.id);
         if (result.outcome === 'not_pending' || result.outcome === 'not_found') return say(alreadyHandled(result.status, result.handledBy));
         if (result.outcome === 'expired') return say('這個變更已超過審核期限，未執行。');
@@ -71,14 +86,24 @@ export function createInteractionHandler(deps: InteractionDeps) {
   }
 
   return async function handleInteraction(job: Interaction): Promise<void> {
-    if (job.type !== 'block_actions' || !job.channelId) return;
-    const where: ConversationRef = { platform: 'slack', channelId: job.channelId, ...(job.threadTs ? { threadId: job.threadTs } : {}) };
-    const actions = (job.actions ?? []).map((a) => decodeAction(a.actionId)).filter((a): a is ChatAction => a !== null);
+    let where: ConversationRef | null = null;
+    let actions: ChatAction[] = [];
+    if (job.type === 'block_actions' && job.channelId) {
+      where = { platform: 'slack', channelId: job.channelId, ...(job.threadTs ? { threadId: job.threadTs } : {}) };
+      actions = (job.actions ?? []).map((a) => decodeAction(a.actionId)).filter((a): a is ChatAction => a !== null);
+    } else if (job.type === 'view_submission' && job.view) {
+      const confirm = decodeAction(job.view.callbackId);
+      if (confirm?.kind !== 'changeset' || confirm.verb !== 'confirm') return;
+      const meta = confirmMetadata(job.view.privateMetadata);
+      if (meta?.changesetId !== confirm.changesetId) return;
+      where = meta.channelId ? { platform: 'slack', channelId: meta.channelId, ...(meta.threadId ? { threadId: meta.threadId } : {}) } : null;
+      actions = [confirm];
+    }
     if (actions.length === 0) return;
 
     const resolved = await resolveSlackUser(db, job.userId);
     if (!resolved.ok) {
-      await chat.ephemeral(where, job.userId, resolved.reason === 'disabled' ? DISABLED : UNBOUND);
+      if (where) await chat.ephemeral(where, job.userId, resolved.reason === 'disabled' ? DISABLED : UNBOUND);
       return;
     }
     for (const action of actions) {

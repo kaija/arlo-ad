@@ -1,6 +1,6 @@
 import type { ChangeSetView } from '@arlo/core';
 import { describe, expect, it } from 'vitest';
-import { defuseBroadcasts, escape, renderMessage } from './render';
+import { defuseBroadcasts, escape, renderConfirmModal, renderMessage } from './render';
 
 const id = '0199b0c2-8f1e-7a3b-9c4d-123456789abc';
 const changeset: ChangeSetView = {
@@ -75,6 +75,13 @@ describe('Slack Block Kit renderer', () => {
       ],
     };
     expect(renderMessage({ type: 'approval_request', changeset: batch })).toMatchSnapshot();
+  });
+
+  it('renders the Tier 3 confirm modal with amounts and ratios', () => {
+    const modal = renderConfirmModal({ ...changeset, tier: 3 }, { platform: 'slack', channelId: 'C1', threadId: '1.2' });
+    expect(modal).toMatchObject({ type: 'modal', callback_id: `cs:confirm:${id}` });
+    expect(JSON.parse(modal.private_metadata!)).toEqual({ changesetId: id, channelId: 'C1', threadId: '1.2' });
+    expect(modal).toMatchSnapshot();
   });
 
   it('renders a shadow result with feedback buttons', () => {

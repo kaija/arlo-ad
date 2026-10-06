@@ -1,7 +1,7 @@
 // Block Kit rendering of semantic chat messages (ADR-0005). Slack limits: 50 blocks per
 // message, 3000 chars per section text, 10 fields per section, one table per message.
-import { encodeAction, type ChangeSetView, type ChatMessage, type OpView, type Section } from '@arlo/core';
-import type { ActionsBlock, ContextBlock, KnownBlock, SectionBlock } from '@slack/types';
+import { encodeAction, type ChangeSetView, type ChatMessage, type ConversationRef, type OpView, type Section } from '@arlo/core';
+import type { ActionsBlock, ContextBlock, KnownBlock, ModalView, SectionBlock } from '@slack/types';
 
 export interface SlackRendered {
   /** Notification / fallback text. */
@@ -198,4 +198,34 @@ export function renderMessage(msg: ChatMessage): SlackRendered {
       return { text: `Shadow：${cs.summary}`, blocks: blocks.slice(0, 50) };
     }
   }
+}
+
+/** Metadata the confirm modal carries back on submit: the ChangeSet and where it was clicked. */
+export interface ConfirmMetadata {
+  changesetId: string;
+  channelId?: string;
+  threadId?: string;
+}
+
+/** Tier 3 confirm modal: amounts and ratios of every op; submitting approves (cs:confirm). */
+export function renderConfirmModal(cs: ChangeSetView, where?: ConversationRef): ModalView {
+  const metadata: ConfirmMetadata = { changesetId: cs.id, ...(where ? { channelId: where.channelId, ...(where.threadId ? { threadId: where.threadId } : {}) } : {}) };
+  const lines = cs.ops.slice(0, MAX_OPS_LISTED).map(opLine);
+  if (cs.ops.length > MAX_OPS_LISTED) lines.push(`…另有 ${cs.ops.length - MAX_OPS_LISTED} 項`);
+  const blocks: KnownBlock[] = [
+    mrkdwn(`:warning: *這是 Tier 3 變更*，核准後會立即執行。\n*${escape(cs.summary)}*`),
+    { type: 'section', fields: [{ type: 'mrkdwn', text: `*帳戶*\n${escape(cs.accountName)}` }, ...(cs.requestedBy ? [{ type: 'mrkdwn' as const, text: `*提出者*\n${escape(cs.requestedBy)}` }] : [])] },
+    mrkdwn(lines.join('\n')),
+    ...cs.violations.map((v) => context(`${v.severity === 'HARD_BLOCK' ? ':no_entry:' : ':warning:'} ${escape(v.message)}`)),
+    context(`ChangeSet \`${cs.id}\``),
+  ];
+  return {
+    type: 'modal',
+    callback_id: encodeAction({ kind: 'changeset', verb: 'confirm', changesetId: cs.id }),
+    private_metadata: JSON.stringify(metadata),
+    title: { type: 'plain_text', text: '確認 Tier 3 變更' },
+    submit: { type: 'plain_text', text: '核准並執行' },
+    close: { type: 'plain_text', text: '取消' },
+    blocks,
+  };
 }

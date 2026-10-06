@@ -1,6 +1,6 @@
 // In-memory ChatAdapter for integration tests: records what was posted and serves seeded
 // conversation history.
-import type { ChatMessage, ChatTurn, ConversationRef, MessageRef } from '@arlo/core';
+import type { ChangeSetView, ChatMessage, ChatTurn, ConversationRef, MessageRef } from '@arlo/core';
 import type { ChatAdapter, FetchContextOptions } from './types';
 
 export interface FakeMessage {
@@ -17,6 +17,7 @@ interface StoredTurn extends ChatTurn {
 export class FakeChatAdapter implements ChatAdapter {
   readonly messages: FakeMessage[] = [];
   readonly ephemerals: { ref: ConversationRef; userId: string; text: string }[] = [];
+  readonly modals: { triggerId: string; changeset: ChangeSetView; where?: ConversationRef }[] = [];
   readonly reactions = new Map<string, Set<string>>();
   /** Every reaction call, e.g. "+hourglass_flowing_sand@C1:1.000001". */
   readonly reactionLog: string[] = [];
@@ -59,6 +60,10 @@ export class FakeChatAdapter implements ChatAdapter {
     if (!found) throw new Error(`message_not_found: ${ref.channelId}/${ref.messageId}`);
     found.message = next;
     found.history.push(next);
+  }
+
+  async openConfirm(triggerId: string, changeset: ChangeSetView, where?: ConversationRef): Promise<void> {
+    this.modals.push({ triggerId, changeset, where });
   }
 
   async ephemeral(ref: ConversationRef, userId: string, text: string): Promise<void> {

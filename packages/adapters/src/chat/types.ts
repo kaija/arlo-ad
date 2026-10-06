@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatTurn, ConversationRef, MessageRef } from '@arlo/core';
+import type { ChangeSetView, ChatMessage, ChatTurn, ConversationRef, MessageRef } from '@arlo/core';
 
 export interface FetchContextOptions {
   /** thread: replies of `ref.threadId` (root first); channel: main-line messages before `before`. */
@@ -21,4 +21,9 @@ export interface ChatAdapter {
   resolveUser(platformUserId: string): Promise<{ email?: string; displayName: string }>;
   permalink(msg: MessageRef): Promise<string>;
   react(msg: MessageRef, emoji: string, on: boolean): Promise<void>;
+  /**
+   * Tier 3 confirmation dialog (Requirement 4.4). `triggerId` comes from the click and is only
+   * valid for a few seconds, so this runs in the web request, not the worker.
+   */
+  openConfirm(triggerId: string, changeset: ChangeSetView, where?: ConversationRef): Promise<void>;
 }

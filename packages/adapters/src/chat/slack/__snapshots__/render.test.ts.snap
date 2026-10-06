@@ -510,6 +510,76 @@ Pat",
 }
 `;
 
+exports[`Slack Block Kit renderer > renders the Tier 3 confirm modal with amounts and ratios 1`] = `
+{
+  "blocks": [
+    {
+      "text": {
+        "text": ":warning: *這是 Tier 3 變更*，核准後會立即執行。
+*降低 Brand 每日預算 20%*",
+        "type": "mrkdwn",
+      },
+      "type": "section",
+    },
+    {
+      "fields": [
+        {
+          "text": "*帳戶*
+Arlo TW",
+          "type": "mrkdwn",
+        },
+        {
+          "text": "*提出者*
+Pat",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "section",
+    },
+    {
+      "text": {
+        "text": "• Brand · 每日預算：NT$3,000 → *NT$2,400* (-20%)",
+        "type": "mrkdwn",
+      },
+      "type": "section",
+    },
+    {
+      "elements": [
+        {
+          "text": ":warning: 超過單日變動上限 15%（MaxChangePct）",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "context",
+    },
+    {
+      "elements": [
+        {
+          "text": "ChangeSet \`0199b0c2-8f1e-7a3b-9c4d-123456789abc\`",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "context",
+    },
+  ],
+  "callback_id": "cs:confirm:0199b0c2-8f1e-7a3b-9c4d-123456789abc",
+  "close": {
+    "text": "取消",
+    "type": "plain_text",
+  },
+  "private_metadata": "{"changesetId":"0199b0c2-8f1e-7a3b-9c4d-123456789abc","channelId":"C1","threadId":"1.2"}",
+  "submit": {
+    "text": "核准並執行",
+    "type": "plain_text",
+  },
+  "title": {
+    "text": "確認 Tier 3 變更",
+    "type": "plain_text",
+  },
+  "type": "modal",
+}
+`;
+
 exports[`Slack Block Kit renderer > replaces buttons with the outcome once handled 1`] = `
 {
   "blocks": [

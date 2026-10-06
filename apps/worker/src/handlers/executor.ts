@@ -6,7 +6,6 @@ import type { PlatformAdapter } from '@arlo/adapters/platform';
 import { assertWriteAllowed, WriteNotAllowedError } from '@arlo/config';
 import type { Logger } from '@arlo/config/logger';
 import {
-  changeSetView,
   computeTier,
   diffCurrent,
   entityKey,
@@ -32,7 +31,7 @@ import {
   listApprovalMessages,
   listAudit,
   listExpiredPending,
-  loadOpTargetNames,
+  loadChangeSetView,
   loadRules,
   loadTierThresholds,
   loadValidationContext,
@@ -122,14 +121,7 @@ export function createExecutor(deps: ExecutorDeps) {
     });
   }
 
-  async function view(cs: ChangeSet, acc: AdAccount, outcome?: Parameters<typeof changeSetView>[1]['outcome']) {
-    const [names, requester] = await Promise.all([
-      loadOpTargetNames(db, acc, cs.ops),
-      cs.requestedBy.userId ? getUserWithBindings(db, cs.requestedBy.userId) : undefined,
-    ]);
-    const requestedBy = requester ? (requester.displayName ?? requester.googleEmail) : cs.requestedBy.kind === 'agent' ? 'Arlo' : cs.requestedBy.kind === 'system' ? '系統' : undefined;
-    return changeSetView(cs, { accountName: acc.name, currency: acc.currency, names, requestedBy, outcome });
-  }
+  const view = (cs: ChangeSet, acc: AdAccount, outcome?: ChangeSetView['outcome']) => loadChangeSetView(db, cs, acc, outcome);
 
   /** Chat is best effort: a Slack outage must not undo or repeat a state change. */
   async function post(cs: ChangeSet, ref: ConversationRef, msg: ChatMessage, kind?: 'origin' | 'mirror' | 'notice') {
