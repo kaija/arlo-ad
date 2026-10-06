@@ -164,6 +164,33 @@ describe('Slack approve / reject interactions', () => {
     expect((await getChangeSet(t.db, tier3))?.status).toBe('REVERTED');
   });
 
+  it('records shadow votes, one per user, and shows the totals on the card', async () => {
+    const cs = await insertChangeSet(t.db, {
+      accountId: account.id,
+      feature: 'circuit_breaker',
+      source: { kind: 'monitor' },
+      ops: [{ kind: 'set_budget', target: CAMPAIGN, field: 'budget_micros', before: 1_000_000_000, after: 900_000_000 }],
+      summary: '熔斷：降預算',
+      requestedBy: { kind: 'system' },
+    });
+    const deps = { db: t.db, platform, chat, logger, now: () => NOW, writeAllowedCustomerIds: [ACC], approvalChannel: { platform: 'slack' as const, channelId: CHANNEL } };
+    expect(await createExecutor(deps).process(cs.id)).toMatchObject({ status: 'SIMULATED' });
+    const vote = (slackUser: string, verdict: 'up' | 'down', id = cs.id) =>
+      handle({ type: 'block_actions', userId: slackUser, channelId: CHANNEL, actions: [{ actionId: encodeAction({ kind: 'shadow', verdict, changesetId: id }) }] });
+
+    await vote('UVIEWER', 'up');
+    await vote('UOPERATOR', 'down');
+    await vote('UOPERATOR', 'up');
+    const card = chat.postedTo(CHANNEL).find((m) => m.message.type === 'shadow_result')!;
+    expect(card.message).toMatchObject({ type: 'shadow_result', feedback: { up: 2, down: 0 } });
+
+    await vote('UOTHERACC', 'down');
+    expect(lastEphemeral('UOTHERACC')).toBe('你沒有這個廣告帳戶的權限。');
+    const pendingId = await pending(1_100_000_000);
+    await vote('UVIEWER', 'down', pendingId);
+    expect(lastEphemeral('UVIEWER')).toBe('這不是 shadow 模式的變更。');
+  });
+
   it('rejects', async () => {
     const id = await pending(1_100_000_000);
     await click('UAPPROVER', 'reject', id);

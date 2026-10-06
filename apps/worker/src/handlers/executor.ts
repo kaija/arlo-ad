@@ -227,6 +227,17 @@ export function createExecutor(deps: ExecutorDeps) {
     }
   }
 
+  /** Re-renders the ShadowResult card(s) with the current 👍/👎 totals (Requirement 9.4). */
+  async function refreshShadowCards(cs: StoredChangeSet, feedback: { up: number; down: number }) {
+    const v = await view(cs, await account(cs));
+    for (const m of await listApprovalMessages(db, cs.id)) {
+      if (m.kind === 'notice') continue;
+      await chat
+        .update({ platform: 'slack', channelId: m.channelId, messageId: m.messageId, ...(m.threadId ? { threadId: m.threadId } : {}) }, { type: 'shadow_result', changeset: v, feedback })
+        .catch((err: unknown) => logger.error({ err, changeset_id: cs.id }, 'failed to update shadow card'));
+    }
+  }
+
   async function notify(cs: StoredChangeSet, level: 'info' | 'warn' | 'error', text: string) {
     await post(cs, await origin(cs), { type: 'notice', level, text, changesetId: cs.id }, 'notice');
   }
@@ -505,7 +516,7 @@ export function createExecutor(deps: ExecutorDeps) {
     return { ok: true, revert: done };
   }
 
-  return { process: processChangeSet, approve, expireDue, remindSla, undo, reject, refreshCards, notify, drift, runOps, view, post, move, origin, account, handledBy, userName };
+  return { process: processChangeSet, approve, expireDue, remindSla, undo, refreshShadowCards, reject, refreshCards, notify, drift, runOps, view, post, move, origin, account, handledBy, userName };
 }
 
 export type Executor = ReturnType<typeof createExecutor>;

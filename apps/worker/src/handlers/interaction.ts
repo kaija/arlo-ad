@@ -2,8 +2,8 @@
 // resolved to an internal user, `authorize` decides, the Executor's CAS makes clicks idempotent.
 import type { ChatAdapter, ConfirmMetadata } from '@arlo/adapters/chat';
 import type { Logger } from '@arlo/config/logger';
-import { decodeAction, type ChatAction, type ConversationRef } from '@arlo/core';
-import { resolveSlackUser, type Db, type UserWithBindings } from '@arlo/db';
+import { authorize, decodeAction, type ChatAction, type ConversationRef } from '@arlo/core';
+import { getChangeSet, recordShadowFeedback, resolveSlackUser, type Db, type UserWithBindings } from '@arlo/db';
 import { defineJob, Jobs, type JobData } from '@arlo/queue';
 import { decide, DISABLED, UNBOUND } from './decisions';
 import type { Executor } from './executor';
@@ -37,6 +37,16 @@ export function createInteractionHandler(deps: InteractionDeps) {
     else deps.logger.info({ changeset_id: action.changesetId }, `no channel for feedback: ${message}`);
   }
 
+  /** 👍/👎 on a ShadowResult card from anyone who can see the account (Requirement 9.4). */
+  async function shadowVote(job: Interaction, user: UserWithBindings, action: Extract<ChatAction, { kind: 'shadow' }>, where: ConversationRef | null) {
+    const say = (text: string) => (where ? chat.ephemeral(where, job.userId, text) : Promise.resolve());
+    const cs = await getChangeSet(db, action.changesetId);
+    if (!cs || cs.status !== 'SIMULATED') return say('這不是 shadow 模式的變更。');
+    if (!authorize(user, 'view', { accountId: cs.accountId }).allowed) return say('你沒有這個廣告帳戶的權限。');
+    const totals = await recordShadowFeedback(db, cs.id, user.id, action.verdict);
+    await executor.refreshShadowCards(cs, totals);
+  }
+
   return async function handleInteraction(job: Interaction): Promise<void> {
     let where: ConversationRef | null = null;
     let actions: ChatAction[] = [];
@@ -60,6 +70,7 @@ export function createInteractionHandler(deps: InteractionDeps) {
     }
     for (const action of actions) {
       if (action.kind === 'changeset') await changesetAction(job, resolved.user, action, where);
+      if (action.kind === 'shadow') await shadowVote(job, resolved.user, action, where);
     }
   };
 }

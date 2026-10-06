@@ -1,6 +1,6 @@
 import { AUTOMATION_MODES } from '@arlo/core';
-import { pgEnum, pgTable, unique, uuid } from 'drizzle-orm/pg-core';
-import { automationFeature } from './changesets';
+import { index, pgEnum, pgTable, unique, uuid } from 'drizzle-orm/pg-core';
+import { automationFeature, changesets } from './changesets';
 import { id, timestamps } from './columns';
 import { orgs, users } from './identity';
 import { adAccounts } from './platform';
@@ -25,4 +25,27 @@ export const automationModes = pgTable(
     ...timestamps,
   },
   (t) => [unique('automation_modes_account_feature_key').on(t.accountId, t.feature)],
+);
+
+export const SHADOW_VERDICTS = ['up', 'down'] as const;
+export const shadowVerdict = pgEnum('shadow_verdict', SHADOW_VERDICTS);
+
+// 👍/👎 on SIMULATED ChangeSets (Requirement 9.4); one vote per user, the latest counts.
+export const shadowFeedback = pgTable(
+  'shadow_feedback',
+  {
+    id: id(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => orgs.id),
+    changesetId: uuid('changeset_id')
+      .notNull()
+      .references(() => changesets.id),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    verdict: shadowVerdict('verdict').notNull(),
+    ...timestamps,
+  },
+  (t) => [unique('shadow_feedback_changeset_user_key').on(t.changesetId, t.userId), index('shadow_feedback_changeset_idx').on(t.changesetId)],
 );
