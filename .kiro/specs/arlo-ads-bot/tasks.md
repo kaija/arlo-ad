@@ -168,8 +168,8 @@
     - _Requirements: 19.1_
     - _ADR: ADR-0026_
 
-- [ ] 10. Web 儀表板
-  - [ ] 10.1 指標查詢層
+- [-] 10. Web 儀表板
+  - [x] 10.1 指標查詢層
     - MTD 花費、pacing 預測（線性 + 星期係數）、campaign 表格聚合、IS / lost IS
     - 單元測試：pacing 預測
     - _Requirements: 18.1_
