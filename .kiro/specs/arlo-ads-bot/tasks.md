@@ -276,7 +276,7 @@
     - 使用者列表、未綁定處理、role bindings 編輯
     - _Requirements: 1.3, 1.4, 18.4_
     - _ADR: ADR-0010_
-  - [ ] 14.5 E2E 測試
+  - [x] 14.5 E2E 測試
     - Slack mention payload → propose → PENDING_APPROVAL → interactivity approve payload → EXECUTED（Fake adapters + 假 model）
     - _Requirements: 3.3, 6.3, 7.1_
     - _ADR: ADR-0026_
