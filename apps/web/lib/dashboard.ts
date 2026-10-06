@@ -4,6 +4,7 @@ import {
   dailySpend,
   listCampaigns,
   listChangeEvents,
+  listExecutedChangeSets,
   queryMetrics,
   resolveAccounts,
   type AdAccount,
@@ -121,6 +122,7 @@ export interface TrendMarker {
   kind: 'change_event' | 'changeset';
   label: string;
   actor: string | null;
+  changesetId?: string;
 }
 
 /** Daily series for an account or one campaign, with change markers (Requirement 18.2). */
@@ -148,15 +150,27 @@ export async function trend(db: Db, opts: { account: AdAccount; from: string; to
     resourceContains: opts.externalCampaignId,
     limit: 500,
   });
-  const markers = events
-    .map((e) => ({
+  const changesets = await listExecutedChangeSets(db, opts.account.id, new Date(`${addDays(opts.from, -1)}T00:00:00Z`), new Date(`${addDays(opts.to, 2)}T00:00:00Z`));
+  const markers: TrendMarker[] = [
+    ...events.map((e) => ({
       date: dateInTimeZone(e.changedAt, opts.account.timezone),
       at: e.changedAt.toISOString(),
       kind: 'change_event' as const,
       label: `${e.resourceType ?? 'CHANGE'} ${e.changedFields.join(', ')}`.trim(),
       actor: e.userEmail ?? e.clientType,
-    }))
+    })),
+    ...changesets
+      .filter((cs) => !opts.externalCampaignId || cs.ops.some((op) => op.target.kind === 'campaign' && op.target.id === opts.externalCampaignId))
+      .map((cs) => ({
+        date: dateInTimeZone(cs.executedAt!, opts.account.timezone),
+        at: cs.executedAt!.toISOString(),
+        kind: 'changeset' as const,
+        label: `ChangeSet：${cs.summary}`,
+        actor: cs.status === 'REVERTED' ? 'Arlo（已還原）' : 'Arlo',
+        changesetId: cs.id,
+      })),
+  ]
     .filter((m) => m.date >= opts.from && m.date <= opts.to)
-    .reverse();
+    .sort((a, b) => a.at.localeCompare(b.at));
   return { points, markers };
 }

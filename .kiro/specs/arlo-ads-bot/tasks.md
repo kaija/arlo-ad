@@ -264,7 +264,7 @@
     - 測試：before 正確、無 mutate 呼叫
     - _Requirements: 3.1, 3.2, 3.7_
     - _ADR: ADR-0006, ADR-0014_
-  - [ ] 14.2 審核佇列與稽核頁
+  - [x] 14.2 審核佇列與稽核頁
     - 列表（狀態 / tier / 帳戶篩選）、diff 檢視、violations、trace 連結、approve / reject / undo（同一 Executor 與 authorize）
     - _Requirements: 18.3, 18.8_
     - _ADR: ADR-0006, ADR-0010_

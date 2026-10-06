@@ -202,6 +202,16 @@ export async function listChangeSets(db: DbOrTx, f: ChangeSetFilter = {}): Promi
   return rows.map(stored);
 }
 
+/** ChangeSets of an account executed in [from, to) (trend markers, Requirement 18.2). */
+export async function listExecutedChangeSets(db: DbOrTx, accountId: string, from: Date, to: Date): Promise<StoredChangeSet[]> {
+  const rows = await db
+    .select()
+    .from(changesets)
+    .where(and(eq(changesets.accountId, accountId), sql`${changesets.executedAt} >= ${from}`, lt(changesets.executedAt, to)))
+    .orderBy(asc(changesets.executedAt));
+  return rows.map(stored);
+}
+
 /** PENDING_APPROVAL ChangeSets past their expiry. */
 export async function listExpiredPending(db: DbOrTx, now: Date): Promise<StoredChangeSet[]> {
   const rows = await db

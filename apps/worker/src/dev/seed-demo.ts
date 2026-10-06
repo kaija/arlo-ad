@@ -2,13 +2,16 @@
 // Refuses anything but a local database. Idempotent (upserts).
 import { EnvSchema, parseEnv } from '@arlo/config';
 import { createLogger } from '@arlo/config/logger';
-import { addDays, dateInTimeZone } from '@arlo/core';
+import { addDays, dateInTimeZone, type Op } from '@arlo/core';
 import {
+  applyTransition,
   createDb,
   createPool,
   DEFAULT_ORG_ID,
   insertChangeEvents,
+  insertChangeSet,
   insertEntitySnapshots,
+  recordOpResults,
   schema,
   setSlackBinding,
   upsertAdAccounts,
@@ -156,6 +159,32 @@ try {
           convValue: i === 2 ? 0 : 3000 * scale,
         })),
       ),
+    );
+  }
+
+  // Review queue demo: a few ChangeSets in different states for the TW account (once).
+  const tw = accounts.find((a) => a.externalId === '1234567890')!;
+  if ((await db.select({ id: schema.changesets.id }).from(schema.changesets).where(eq(schema.changesets.accountId, tw.id)).limit(1)).length === 0) {
+    const target = (id: string) => ({ platform: 'google_ads' as const, accountId: tw.externalId, kind: 'campaign' as const, id });
+    const budget = (id: string, before: number, after: number): Op => ({ kind: 'set_budget', target: target(id), field: 'budget_micros', before: before * M, after: after * M });
+    const system = { kind: 'system' as const };
+    const demo = async (summary: string, ops: Op[], steps: Parameters<typeof applyTransition>[2][], rationale?: string) => {
+      let cs = await insertChangeSet(db, { accountId: tw.id, source: { kind: 'web' }, ops, summary, rationale, requestedBy: { kind: 'agent' } });
+      for (const step of steps) {
+        const moved = await applyTransition(db, cs, step, system);
+        if (!moved.ok) break;
+        cs = moved.changeset;
+        if (step.type === 'auto_execute') await recordOpResults(db, cs.id, ops.map((_, index) => ({ index, ok: true })));
+      }
+    };
+    const expiresAt = new Date(Date.now() + 20 * 3_600_000);
+    await demo('Generic - Cameras 每日預算 NT$4,000 → NT$4,800', [budget('102', 4000, 4800)], [{ type: 'request_approval', tier: 2, expiresAt }], '預算受限流失 20% 曝光，ROAS 4.8 高於目標');
+    await demo('Doorbell - Search 每日預算 NT$2,000 → NT$4,000', [budget('104', 2000, 4000)], [{ type: 'request_approval', tier: 3, expiresAt }], '新品檔期');
+    await demo('Brand - Search 每日預算 NT$1,500 → NT$1,350', [budget('101', 1500, 1350)], [{ type: 'auto_execute', tier: 1 }, { type: 'executed', at: new Date() }]);
+    await demo(
+      'Generic - Cameras 每日預算 NT$4,000 → NT$12,000',
+      [budget('102', 4000, 12000)],
+      [{ type: 'block', violations: [{ ruleId: 'demo', ruleType: 'DailyBudgetCap', severity: 'HARD_BLOCK', opIndex: 0, message: '每日預算 TWD 12,000 超過上限 TWD 8,000' }] }],
     );
   }
 

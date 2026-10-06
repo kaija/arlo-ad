@@ -7,7 +7,8 @@ import { useTestDatabase } from '@arlo/db/testing';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { syncAccounts, syncSnapshots } from '../sync/sync';
 import { createExecutor } from './executor';
-import { alreadyHandled, createInteractionHandler, DENY_TEXT, undoRefusal } from './interaction';
+import { alreadyHandled, decisionJobs, DENY_TEXT, undoRefusal } from './decisions';
+import { createInteractionHandler } from './interaction';
 
 const logger = createLogger({ component: 'test', level: 'silent' });
 const ACC = '1234567890';
@@ -147,6 +148,20 @@ describe('Slack approve / reject interactions', () => {
     await click('UOPERATOR', 'undo', id);
     expect((await getChangeSet(t.db, id))?.status).toBe('REVERTED');
     expect(platform.entity(CAMPAIGN)?.state?.budgetMicros).toBe(1_000_000_000);
+  });
+
+  it('runs Web decisions through the same checks (changeset.decide)', async () => {
+    const deps = { db: t.db, platform, chat, logger, now: () => NOW, writeAllowedCustomerIds: [ACC], approvalChannel: { platform: 'slack' as const, channelId: CHANNEL } };
+    const [job] = decisionJobs({ db: t.db, logger, executor: createExecutor(deps) });
+    const run = (userId: string, verb: 'approve' | 'confirm' | 'reject' | 'undo', changesetId: string) =>
+      job!.handler({ changesetId, userId, verb, reason: null }, { id: 'j', retryCount: 0, logger, signal: new AbortController().signal });
+
+    const tier3 = await pending(2_000_000_000);
+    expect(await run(users.UAPPROVER!, 'confirm', tier3)).toEqual({ outcome: 'denied' });
+    expect(await run(users.USENIOR!, 'approve', tier3)).toEqual({ outcome: 'needs_confirm' });
+    expect(await run(users.USENIOR!, 'confirm', tier3)).toEqual({ outcome: 'executed' });
+    expect(await run(users.UOPERATOR!, 'undo', tier3)).toEqual({ outcome: 'reverted' });
+    expect((await getChangeSet(t.db, tier3))?.status).toBe('REVERTED');
   });
 
   it('rejects', async () => {

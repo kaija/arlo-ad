@@ -1,5 +1,5 @@
-import { addDays } from '@arlo/core';
-import { DEFAULT_ORG_ID, insertChangeEvents, insertEntitySnapshots, resolveAccounts, upsertAdAccounts, upsertEntities, upsertMetricsDaily } from '@arlo/db';
+import { addDays, type Op } from '@arlo/core';
+import { applyTransition, DEFAULT_ORG_ID, insertChangeEvents, insertChangeSet, insertEntitySnapshots, resolveAccounts, upsertAdAccounts, upsertEntities, upsertMetricsDaily } from '@arlo/db';
 import { useTestDatabase } from '@arlo/db/testing';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { accountOverviews, campaignTable, trend } from './dashboard';
@@ -117,5 +117,22 @@ describe('dashboard query layer', () => {
     const campaign = await trend(t.db, { account: account!, from: '2026-10-05', to: '2026-10-05', campaignId: brand, externalCampaignId: '111' });
     expect(campaign.points).toHaveLength(1);
     expect(campaign.points[0]).toMatchObject({ cpaMicros: 200 * M });
+  });
+
+  it('trend: executed ChangeSets are markers too, filtered by campaign', async () => {
+    const [account] = await resolveAccounts(t.db, { allowed: null });
+    const op = (id: string): Op => ({ kind: 'set_status', target: { platform: 'google_ads', accountId: '1234567890', kind: 'campaign', id }, field: 'status', before: 'ENABLED', after: 'PAUSED' });
+    for (const [id, summary] of [['111', 'pause Brand'], ['112', 'pause Idle']] as const) {
+      const cs = await insertChangeSet(t.db, { accountId: account!.id, source: { kind: 'monitor' }, ops: [op(id)], summary, requestedBy: { kind: 'system' } });
+      const running = await applyTransition(t.db, cs, { type: 'auto_execute', tier: 1 }, { kind: 'system' });
+      if (running.ok) await applyTransition(t.db, running.changeset, { type: 'executed', at: new Date('2026-10-04T02:00:00Z') }, { kind: 'system' });
+    }
+    const all = await trend(t.db, { account: account!, from: '2026-10-01', to: '2026-10-06' });
+    expect(all.markers.filter((m) => m.kind === 'changeset').map((m) => [m.date, m.label])).toEqual([
+      ['2026-10-04', 'ChangeSet：pause Brand'],
+      ['2026-10-04', 'ChangeSet：pause Idle'],
+    ]);
+    const brandOnly = await trend(t.db, { account: account!, from: '2026-10-01', to: '2026-10-06', campaignId: brand, externalCampaignId: '111' });
+    expect(brandOnly.markers.filter((m) => m.kind === 'changeset').map((m) => m.label)).toEqual(['ChangeSet：pause Brand']);
   });
 });

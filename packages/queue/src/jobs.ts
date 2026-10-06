@@ -52,6 +52,17 @@ export const Jobs = {
   changesetExpire: jobSpec('changeset.expire', z.object({})),
   // Cron: remind approvers once about ChangeSets pending past the SLA (Requirement 7.5).
   changesetRemind: jobSpec('changeset.remind', z.object({})),
+  // Approve / reject / undo from the Web console, through the same checks as Slack (Requirement 18.8).
+  changesetDecide: jobSpec(
+    'changeset.decide',
+    z.object({
+      changesetId: z.uuid(),
+      userId: z.uuid(),
+      verb: z.enum(['approve', 'confirm', 'reject', 'undo']),
+      reason: z.string().max(500).nullable().default(null),
+    }),
+    { retryLimit: 2 },
+  ),
   // Re-applies scheduled_jobs to pg-boss cron after a change in the Web console.
   schedulerSync: jobSpec('scheduler.sync', z.object({})),
 } satisfies Record<string, JobSpec>;

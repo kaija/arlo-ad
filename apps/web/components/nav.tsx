@@ -5,6 +5,7 @@ import { NavLink } from './ui';
 
 export const NAV_ITEMS = [
   { href: '/', label: '總覽' },
+  { href: '/changesets', label: '審核' },
   { href: '/schedules', label: '排程' },
 ] as const;
 
