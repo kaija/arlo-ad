@@ -75,3 +75,10 @@ export function authorize(user: AuthzUser, action: Action, target: AuthzTarget =
   }
   return { allowed: true };
 }
+
+/** Accounts the user may read: null when any grant covers every account. */
+export function readableAccountIds(user: AuthzUser): string[] | null {
+  if (user.status === 'disabled') return [];
+  if (user.bindings.some((g) => g.accountIds === null)) return null;
+  return [...new Set(user.bindings.flatMap((g) => g.accountIds ?? []))];
+}

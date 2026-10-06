@@ -146,7 +146,7 @@
     - eval case：路由到 analyst 的問題集
     - _Requirements: 10.5_
     - _ADR: ADR-0014_
-  - [ ] 9.4 Slack mention handler
+  - [x] 9.4 Slack mention handler
     - `chat.mention` job：reaction ⏳ → authorize(viewer) → 上下文規則（thread 首則 + 最後 20；主線前 10 並開 thread）→ 差量補入 session → run → 回覆 → 移除 reaction
     - 整合測試（Fake chat + 假 model）：thread / 主線 / 第二次 @ 差量
     - _Requirements: 10.1, 10.2, 10.4, 10.6, 1.5_

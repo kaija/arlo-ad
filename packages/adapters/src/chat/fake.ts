@@ -105,6 +105,8 @@ export class FakeChatAdapter implements ChatAdapter {
 
 function summarize(m: ChatMessage): string {
   switch (m.type) {
+    case 'reply':
+      return m.text;
     case 'report':
       return m.title;
     case 'notice':

@@ -63,6 +63,8 @@ export interface ChangeSetView {
 export type NoticeAction = 'undo' | 'keep';
 
 export type ChatMessage =
+  /** A conversational answer from the bot. */
+  | { type: 'reply'; text: string }
   | { type: 'report'; title: string; sections: Section[] }
   | { type: 'notice'; level: 'info' | 'warn' | 'error'; text: string; changesetId?: string; actions?: NoticeAction[] }
   | { type: 'approval_request'; changeset: ChangeSetView; mirror?: boolean }

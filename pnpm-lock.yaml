@@ -126,6 +126,9 @@ importers:
       '@arlo/queue':
         specifier: workspace:*
         version: link:../../packages/queue
+      '@openai/agents':
+        specifier: ^0.18.0
+        version: 0.18.0(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)
       '@slack/web-api':
         specifier: ^8.2.0
         version: 8.2.0

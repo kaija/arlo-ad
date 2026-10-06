@@ -140,6 +140,13 @@ function buttons(...elements: ActionsBlock['elements']): ActionsBlock {
 
 export function renderMessage(msg: ChatMessage): SlackRendered {
   switch (msg.type) {
+    case 'reply': {
+      // Long answers are split across sections (3000 chars each).
+      const text = defuseBroadcasts(msg.text);
+      const chunks = text.match(/[\s\S]{1,2900}/g) ?? [''];
+      return { text: truncate(text, 3000), blocks: chunks.slice(0, 20).map((c) => ({ type: 'section', text: { type: 'mrkdwn', text: c } })) };
+    }
+
     case 'report':
       return { text: msg.title, blocks: [header(msg.title), ...renderSections(msg.sections)].slice(0, 50) };
 

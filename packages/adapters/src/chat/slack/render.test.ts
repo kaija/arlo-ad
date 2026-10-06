@@ -33,6 +33,14 @@ describe('Slack Block Kit renderer', () => {
     ).toMatchSnapshot();
   });
 
+  it('renders a reply, splitting long text into sections', () => {
+    expect(renderMessage({ type: 'reply', text: '昨天花費 *NT$12,345*' })).toEqual({
+      text: '昨天花費 *NT$12,345*',
+      blocks: [{ type: 'section', text: { type: 'mrkdwn', text: '昨天花費 *NT$12,345*' } }],
+    });
+    expect(renderMessage({ type: 'reply', text: 'x'.repeat(7000) }).blocks).toHaveLength(3);
+  });
+
   it('renders a notice with Undo / keep actions', () => {
     expect(renderMessage({ type: 'notice', level: 'warn', text: '已暫停 Generic（熔斷：花費 pacing 180%）', changesetId: id, actions: ['undo', 'keep'] })).toMatchSnapshot();
   });

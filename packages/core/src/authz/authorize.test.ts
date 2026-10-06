@@ -121,3 +121,20 @@ describe('authorize', () => {
     });
   });
 });
+
+describe('readableAccountIds', () => {
+  it('unions scoped grants, is null with any all-account grant, empty when disabled', async () => {
+    const { readableAccountIds } = await import('./authorize');
+    const scoped = {
+      id: 'u',
+      status: 'active' as const,
+      bindings: [
+        { role: 'viewer' as const, accountIds: ['a', 'b'], maxTier: 0 },
+        { role: 'approver' as const, accountIds: ['b', 'c'], maxTier: 2 },
+      ],
+    };
+    expect(readableAccountIds(scoped)).toEqual(['a', 'b', 'c']);
+    expect(readableAccountIds({ ...scoped, bindings: [...scoped.bindings, { role: 'viewer', accountIds: null, maxTier: 0 }] })).toBeNull();
+    expect(readableAccountIds({ ...scoped, status: 'disabled' })).toEqual([]);
+  });
+});
