@@ -151,7 +151,7 @@
     - 整合測試（Fake chat + 假 model）：thread / 主線 / 第二次 @ 差量
     - _Requirements: 10.1, 10.2, 10.4, 10.6, 1.5_
     - _ADR: ADR-0015_
-  - [ ] 9.5 Scheduler 與 daily_report
+  - [x] 9.5 Scheduler 與 daily_report
     - `scheduled_jobs` schema；變更同步至 pg-boss schedule；`job_runs` 紀錄
     - `TemplateHandler` 介面與 `daily_report`（決定性彙整 + analyst 撰寫摘要 → Report）
     - 測試：schedule 同步、run 紀錄

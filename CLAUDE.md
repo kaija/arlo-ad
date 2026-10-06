@@ -34,6 +34,7 @@ pnpm dev                      # turbo dev
 - 部署（EC2 上）：`scripts/deploy.sh`（git pull → build → migrate → `up -d --wait`；失敗印 log 並非零退出）；`--no-pull` 部署目前工作目錄。
 - 備份 / 還原：`scripts/backup.sh`（cron 每日；`pg_dump -Fc` → gzip → 驗證 → S3，失敗發 `SLACK_OPS_WEBHOOK_URL`）、`scripts/restore.sh <key> [--yes]`（先還原到暫存 DB，成功才停 web/worker 並以 rename 交換，舊 DB 保留為 `<db>_pre_restore_<ts>`）。30 天保留靠 `infra/s3/backup-lifecycle.json` 的 S3 lifecycle rule。共用 helper 在 `scripts/lib/pg-ops.sh`（`PG_EXEC`、`AWS_CLI`、`ENV_FILE` 可覆寫，供 `tests/backup-restore.test.ts` 使用）。Shell script 以 `shellcheck -x` 檢查，並用 `set -Eeuo pipefail`（ERR trap 才會在函式內觸發）。
 - Queue（`@arlo/queue`，pg-boss 12）：job 的名稱與 payload zod schema 登記在 `packages/queue/src/jobs.ts` 的 `Jobs` catalog（`jobSpec(name, schema, queueOptions?)`）；worker 在 `apps/worker/src/jobs.ts` 以 `defineJob(spec, handler)` 註冊，web 以 `apps/web/lib/queue.ts` 的 `enqueueJob(spec, data)` 送出（送出前驗證）。預設 retry：指數退避、最多 5 次；payload 驗證失敗直接終止不重試。`migrate` 會安裝 pg-boss schema 並建立 catalog 中的所有 queue；web 只當 producer（不 migrate、不跑 cron）。測試需要 pg-boss schema 時先以 `createBoss({ role: 'migrator' })` start 一次。
+- 排程（ADR-0016）：`scheduled_jobs` 每列對應 pg-boss `scheduler.run` queue 上一個 schedule（key = job id），`syncSchedules()` 在 worker 啟動與 `scheduler.sync` job 時對齊；Web 修改排程後 enqueue `scheduler.sync`。模板在 `apps/worker/src/scheduler/templates/`（`TemplateHandler`），每次執行寫 `job_runs`，失敗不重試（避免重複發報告）。
 - 全套本機環境（postgres + web + worker，熱重載）：`docker compose up --build --watch`；環境變數範本在 `.env.example`（新增變數時同步更新）。
 
 ## Docker

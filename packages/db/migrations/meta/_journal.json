@@ -43,6 +43,13 @@
       "when": 1791299170774,
       "tag": "0005_agent_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791299775264,
+      "tag": "0006_scheduler",
+      "breakpoints": true
     }
   ]
 }

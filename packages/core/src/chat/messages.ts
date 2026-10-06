@@ -1,6 +1,8 @@
 // Semantic chat messages (ADR-0005, Requirement 7.6). Core modules, the Executor, the
 // Scheduler and the Monitor only produce these; a ChatAdapter renders them per platform.
 
+import { z } from 'zod';
+
 export type ChatPlatform = 'slack';
 
 /** Where a conversation happens. `threadId` is the thread root (Slack thread_ts). */
@@ -9,6 +11,12 @@ export interface ConversationRef {
   channelId: string;
   threadId?: string;
 }
+
+export const ConversationRefSchema = z.object({
+  platform: z.literal('slack'),
+  channelId: z.string().regex(/^[A-Z0-9]+$/, 'Slack channel id'),
+  threadId: z.string().optional(),
+});
 
 /** A posted message. `messageId` is the Slack ts. */
 export interface MessageRef {

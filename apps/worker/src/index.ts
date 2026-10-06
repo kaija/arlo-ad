@@ -9,6 +9,8 @@ import { setDefaultOpenAIKey } from '@openai/agents';
 import { WebClient } from '@slack/web-api';
 import { closeServer, startHealthServer } from './health-server';
 import { jobDefinitions } from './jobs';
+import { syncSchedules } from './scheduler/scheduler';
+import { TEMPLATES } from './scheduler/templates';
 import { applySystemSchedules } from './schedules';
 import { createShutdown } from './shutdown';
 
@@ -71,8 +73,8 @@ const chat = new SlackAdapter(new WebClient(env.SLACK_BOT_TOKEN));
 const opsChannel = { platform: 'slack' as const, channelId: env.SLACK_OPS_CHANNEL_ID };
 
 setDefaultOpenAIKey(env.OPENAI_API_KEY);
-const orchestrator = () =>
-  createOrchestrator({ model: env.MODEL_FLAGSHIP, specialists: { analyst: createAnalystAgent({ model: env.MODEL_FLAGSHIP }) } });
+const analyst = () => createAnalystAgent({ model: env.MODEL_FLAGSHIP });
+const orchestrator = () => createOrchestrator({ model: env.MODEL_FLAGSHIP, specialists: { analyst: analyst() } });
 
 const boss = createBoss({ connectionString: env.DATABASE_URL, logger, role: 'worker' });
 await boss.start();
@@ -85,6 +87,9 @@ await registerJobs(
     platform,
     chat,
     orchestrator,
+    agents: { analyst, orchestrator },
+    templates: TEMPLATES,
+    boss,
     logger,
     now: () => new Date(),
     enqueue: (spec, data) => enqueue(boss, spec, data),
@@ -93,6 +98,7 @@ await registerJobs(
   { logger },
 );
 await applySystemSchedules(boss);
+await syncSchedules({ boss, db, logger });
 
 const server = await startHealthServer({
   port: healthPort,
