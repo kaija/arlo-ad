@@ -55,6 +55,13 @@ export default defineConfig(
   tseslint.configs.recommended,
 
   {
+    rules: {
+      // `const { omitted, ...rest } = x` is the idiom for dropping keys.
+      '@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true, argsIgnorePattern: '^_' }],
+    },
+  },
+
+  {
     files: ['**/*.{js,mjs,cjs}', '*.config.{ts,mts}', 'scripts/**', 'tests/**'],
     languageOptions: { globals: globals.node },
   },

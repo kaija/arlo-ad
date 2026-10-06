@@ -1,9 +1,11 @@
+import { createGoogleAdsClient, GoogleAdsAdapter } from '@arlo/adapters/platform/google';
 import { EnvSchema, parseEnv } from '@arlo/config';
 import { createLogger } from '@arlo/config/logger';
-import { checkDatabase, createPool } from '@arlo/db';
-import { checkQueue, createBoss, registerJobs } from '@arlo/queue';
+import { checkDatabase, createDb, createPool } from '@arlo/db';
+import { checkQueue, createBoss, enqueue, registerJobs } from '@arlo/queue';
 import { closeServer, startHealthServer } from './health-server';
 import { jobDefinitions } from './jobs';
+import { applySystemSchedules } from './schedules';
 import { createShutdown } from './shutdown';
 
 const logger = createLogger({ component: 'worker' });
@@ -19,7 +21,15 @@ process.on('unhandledRejection', (err) => {
 });
 
 // Validate only the keys the worker uses so far; extend the pick as features land.
-const WorkerEnv = EnvSchema.pick({ DATABASE_URL: true, WORKER_HEALTH_PORT: true });
+const WorkerEnv = EnvSchema.pick({
+  DATABASE_URL: true,
+  WORKER_HEALTH_PORT: true,
+  GOOGLE_ADS_DEVELOPER_TOKEN: true,
+  GOOGLE_ADS_CLIENT_ID: true,
+  GOOGLE_ADS_CLIENT_SECRET: true,
+  GOOGLE_ADS_REFRESH_TOKEN: true,
+  GOOGLE_ADS_LOGIN_CUSTOMER_ID: true,
+});
 
 function loadEnv() {
   try {
@@ -36,11 +46,29 @@ const healthPort = env.WORKER_HEALTH_PORT;
 const pool = createPool({ connectionString: env.DATABASE_URL, logger });
 shutdown.register('postgres', () => pool.end());
 
+const db = createDb(pool);
+
+const platform = new GoogleAdsAdapter(
+  createGoogleAdsClient({
+    developerToken: env.GOOGLE_ADS_DEVELOPER_TOKEN,
+    clientId: env.GOOGLE_ADS_CLIENT_ID,
+    clientSecret: env.GOOGLE_ADS_CLIENT_SECRET,
+    refreshToken: env.GOOGLE_ADS_REFRESH_TOKEN,
+    loginCustomerId: env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
+  }),
+  { loginCustomerId: env.GOOGLE_ADS_LOGIN_CUSTOMER_ID },
+);
+
 const boss = createBoss({ connectionString: env.DATABASE_URL, logger, role: 'worker' });
 await boss.start();
 // Registered after postgres so it stops first: in-flight jobs finish while the pool is open.
 shutdown.register('pg-boss', () => boss.stop({ graceful: true, timeout: 8_000, close: true }));
-await registerJobs(boss, jobDefinitions(), { logger });
+await registerJobs(
+  boss,
+  jobDefinitions({ db, platform, logger, now: () => new Date(), enqueue: (spec, data) => enqueue(boss, spec, data) }),
+  { logger },
+);
+await applySystemSchedules(boss);
 
 const server = await startHealthServer({
   port: healthPort,

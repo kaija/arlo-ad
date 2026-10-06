@@ -100,8 +100,8 @@
     - _Requirements: 2.1, 2.3, 2.4_
     - _ADR: ADR-0004_
 
-- [ ] 7. Sync worker
-  - [ ] 7.1 Sync handlers
+- [-] 7. Sync worker
+  - [x] 7.1 Sync handlers
     - `sync.snapshots`（15m：entities + snapshots + change_events）、`sync.hourly`（當日 metrics）、`sync.daily`（D-3..D-1、search terms、conversion actions）
     - 冪等 upsert；`metrics_hourly` 14 天清理
     - 整合測試（Fake adapter）：重跑結果一致、回補覆寫
