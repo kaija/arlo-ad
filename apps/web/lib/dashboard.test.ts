@@ -1,5 +1,5 @@
 import { addDays, type Op } from '@arlo/core';
-import { applyTransition, DEFAULT_ORG_ID, insertChangeEvents, insertChangeSet, insertEntitySnapshots, resolveAccounts, upsertAdAccounts, upsertEntities, upsertMetricsDaily } from '@arlo/db';
+import { applyTransition, DEFAULT_ORG_ID, deleteRule, saveRule, insertChangeEvents, insertChangeSet, insertEntitySnapshots, resolveAccounts, upsertAdAccounts, upsertEntities, upsertMetricsDaily } from '@arlo/db';
 import { useTestDatabase } from '@arlo/db/testing';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { accountOverviews, campaignTable, trend } from './dashboard';
@@ -79,6 +79,17 @@ describe('dashboard query layer', () => {
     });
     expect(o!.budgetPace).toBeCloseTo(5400 / 6000);
     expect(await accountOverviews(t.db, { allowed: [], now })).toEqual([]);
+  });
+
+  it('overview: the monthly cap comes from the MonthlySpendCap rule in force', async () => {
+    const [account] = await resolveAccounts(t.db, { allowed: null });
+    const admin = { kind: 'system' as const };
+    const org = await saveRule(t.db, { scopeKind: 'org', accountId: null, campaignEntityId: null, spec: { type: 'MonthlySpendCap', maxMicros: 50_000 * M }, severity: 'HARD_BLOCK', enabled: true }, admin);
+    expect((await accountOverviews(t.db, { allowed: null, now }))[0]?.monthlyCapMicros).toBe(50_000 * M);
+    const own = await saveRule(t.db, { scopeKind: 'account', accountId: account!.id, campaignEntityId: null, spec: { type: 'MonthlySpendCap', maxMicros: 40_000 * M }, severity: 'WARN', enabled: true }, admin);
+    expect((await accountOverviews(t.db, { allowed: null, now }))[0]?.monthlyCapMicros).toBe(40_000 * M);
+    await deleteRule(t.db, own.id, admin);
+    await deleteRule(t.db, org.id, admin);
   });
 
   it('campaign table: every campaign with metrics, IS and lost IS, sorted by spend', async () => {

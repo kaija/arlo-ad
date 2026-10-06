@@ -268,7 +268,7 @@
     - 列表（狀態 / tier / 帳戶篩選）、diff 檢視、violations、trace 連結、approve / reject / undo（同一 Executor 與 authorize）
     - _Requirements: 18.3, 18.8_
     - _ADR: ADR-0006, ADR-0010_
-  - [ ] 14.3 規則與門檻設定頁
+  - [x] 14.3 規則與門檻設定頁
     - validator 規則 CRUD（依 RuleSpec 動態表單）、tier 門檻
     - _Requirements: 5.1, 5.2, 18.4_
     - _ADR: ADR-0008, ADR-0007_

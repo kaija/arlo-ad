@@ -7,6 +7,7 @@ export const NAV_ITEMS = [
   { href: '/', label: '總覽' },
   { href: '/changesets', label: '審核' },
   { href: '/schedules', label: '排程' },
+  { href: '/settings', label: '設定' },
 ] as const;
 
 export function Nav({ items }: { items: readonly { href: string; label: string }[] }) {

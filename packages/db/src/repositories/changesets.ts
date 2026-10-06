@@ -293,6 +293,67 @@ export function listAllRules(db: DbOrTx): Promise<RuleRow[]> {
   return db.select().from(rules).where(eq(rules.orgId, DEFAULT_ORG_ID)).orderBy(asc(rules.createdAt));
 }
 
+export async function getRule(db: DbOrTx, id: string): Promise<RuleRow | undefined> {
+  const [row] = await db.select().from(rules).where(and(eq(rules.orgId, DEFAULT_ORG_ID), eq(rules.id, id)));
+  return row;
+}
+
+export interface RuleWrite {
+  scopeKind: RuleRow['scopeKind'];
+  accountId: string | null;
+  campaignEntityId: string | null;
+  spec: unknown;
+  severity: RuleRow['severity'];
+  enabled: boolean;
+}
+
+/** Creates or updates a rule (spec validated against RuleSpecSchema) and audits it. */
+export async function saveRule(db: Db, input: RuleWrite & { id?: string }, actor: Actor): Promise<RuleRow> {
+  const spec = RuleSpecSchema.parse(input.spec);
+  return db.transaction(async (tx) => {
+    const values = { scopeKind: input.scopeKind, accountId: input.accountId, campaignEntityId: input.campaignEntityId, spec, severity: input.severity, enabled: input.enabled };
+    const [row] = input.id
+      ? await tx.update(rules).set(values).where(and(eq(rules.orgId, DEFAULT_ORG_ID), eq(rules.id, input.id))).returning()
+      : await tx.insert(rules).values({ ...values, orgId: DEFAULT_ORG_ID, createdBy: actor.id ?? null }).returning();
+    if (!row) throw new Error(`rule ${input.id} not found`);
+    await writeAudit(tx, { actor, entityKind: 'rule', entityId: row.id, action: input.id ? 'update' : 'create', payload: values });
+    return row;
+  });
+}
+
+export async function deleteRule(db: Db, id: string, actor: Actor): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx.delete(rules).where(and(eq(rules.orgId, DEFAULT_ORG_ID), eq(rules.id, id))).returning();
+    if (row) await writeAudit(tx, { actor, entityKind: 'rule', entityId: id, action: 'delete', payload: { spec: row.spec, scopeKind: row.scopeKind, accountId: row.accountId } });
+    return Boolean(row);
+  });
+}
+
+export type TierThresholdRow = typeof tierThresholds.$inferSelect;
+
+export function listTierThresholds(db: DbOrTx): Promise<TierThresholdRow[]> {
+  return db.select().from(tierThresholds).where(eq(tierThresholds.orgId, DEFAULT_ORG_ID)).orderBy(asc(tierThresholds.createdAt));
+}
+
+/** Sets the org default (accountId null) or an account override, audited. */
+export async function setTierThresholds(db: Db, accountId: string | null, t: TierThresholds, actor: Actor): Promise<void> {
+  await db.transaction(async (tx) => {
+    const values = { tier3Pct: t.tier3Pct, tier3AmountMicros: t.tier3AmountMicros, tier1MaxReducePct: t.tier1MaxReducePct };
+    const where = and(eq(tierThresholds.orgId, DEFAULT_ORG_ID), accountId ? eq(tierThresholds.accountId, accountId) : isNull(tierThresholds.accountId));
+    const updated = await tx.update(tierThresholds).set(values).where(where).returning({ id: tierThresholds.id });
+    const id = updated[0]?.id ?? (await tx.insert(tierThresholds).values({ ...values, orgId: DEFAULT_ORG_ID, accountId }).returning({ id: tierThresholds.id }))[0]!.id;
+    await writeAudit(tx, { actor, entityKind: 'tier_thresholds', entityId: id, action: 'set', payload: { accountId, ...values } });
+  });
+}
+
+/** Removes an account override so the org default applies again. */
+export async function clearTierThresholds(db: Db, accountId: string, actor: Actor): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [row] = await tx.delete(tierThresholds).where(and(eq(tierThresholds.orgId, DEFAULT_ORG_ID), eq(tierThresholds.accountId, accountId))).returning();
+    if (row) await writeAudit(tx, { actor, entityKind: 'tier_thresholds', entityId: row.id, action: 'clear', payload: { accountId } });
+  });
+}
+
 /** Account thresholds, else the org default, else the built-in default. */
 export async function loadTierThresholds(db: DbOrTx, accountId: string): Promise<TierThresholds> {
   const rows = await db

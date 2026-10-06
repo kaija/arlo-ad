@@ -1,10 +1,11 @@
 // Dashboard query layer (Requirement 18.1, 18.2): reads Postgres only (Requirement 2.8).
-import { addDays, dateInTimeZone, deriveMetrics, forecastMonthSpend, type DerivedMetrics } from '@arlo/core';
+import { addDays, dateInTimeZone, deriveMetrics, forecastMonthSpend, resolveRules, type DerivedMetrics } from '@arlo/core';
 import {
   dailySpend,
   listCampaigns,
   listChangeEvents,
   listExecutedChangeSets,
+  loadRules,
   queryMetrics,
   resolveAccounts,
   type AdAccount,
@@ -34,7 +35,9 @@ export async function accountOverviews(db: Db, opts: { allowed: readonly string[
   return Promise.all(
     accounts.map(async (account) => {
       const today = dateInTimeZone(opts.now, account.timezone);
-      const [history, campaigns] = await Promise.all([dailySpend(db, [account.id], addDays(today, -35), today), listCampaigns(db, [account.id])]);
+      const [history, campaigns, rules] = await Promise.all([dailySpend(db, [account.id], addDays(today, -35), today), listCampaigns(db, [account.id]), loadRules(db, account.id)]);
+      // The account-level MonthlySpendCap in force (account rule over org rule, Requirement 5.2).
+      const cap = resolveRules(rules, { accountId: account.id }).find((r) => r.spec.type === 'MonthlySpendCap');
       const enabledBudgetMicros = campaigns.filter((c) => c.status === 'ENABLED').reduce((s, c) => s + (c.budgetMicros ?? 0), 0);
       const f = forecastMonthSpend({ today, history, dailyBudgetMicros: enabledBudgetMicros || null });
       return {
@@ -47,7 +50,7 @@ export async function accountOverviews(db: Db, opts: { allowed: readonly string[
         dailyRateMicros: f.dailyRateMicros,
         enabledBudgetMicros,
         budgetPace: f.budgetPace,
-        monthlyCapMicros: null,
+        monthlyCapMicros: cap?.spec.type === 'MonthlySpendCap' ? cap.spec.maxMicros : null,
         daysElapsed: f.daysElapsed,
         daysInMonth: f.daysInMonth,
       };
