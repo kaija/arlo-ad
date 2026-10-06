@@ -1,0 +1,42 @@
+# syntax=docker/dockerfile:1
+# Build context: repo root. Targets: `dev` (docker-compose.yml, hot reload) and `runtime` (default).
+
+ARG NODE_VERSION=24
+FROM node:${NODE_VERSION}-slim AS base
+ARG PNPM_VERSION=11.22.0
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true
+RUN npm install -g pnpm@${PNPM_VERSION}
+WORKDIR /app
+
+# Reduce the monorepo to @arlo/worker and its workspace dependencies.
+FROM base AS prune
+ARG TURBO_VERSION=2.11.7
+COPY . .
+RUN pnpm dlx turbo@${TURBO_VERSION} prune @arlo/worker --docker
+
+FROM base AS deps
+COPY --from=prune /app/out/json/ .
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile
+
+FROM deps AS dev
+COPY --from=prune /app/out/full/ .
+COPY tsconfig.base.json ./
+WORKDIR /app/apps/worker
+CMD ["pnpm", "dev"]
+
+FROM base AS prod-deps
+COPY --from=prune /app/out/json/ .
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile --prod
+
+# Runs TypeScript source through tsx; workspace packages have no separate build step.
+# Files stay root-owned and read-only to the unprivileged `node` user.
+FROM node:${NODE_VERSION}-slim AS runtime
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=prod-deps /app/ .
+COPY --from=prune /app/out/full/ .
+COPY tsconfig.base.json ./
+WORKDIR /app/apps/worker
+USER node
+EXPOSE 9090
+CMD ["node", "--import", "tsx", "src/index.ts"]

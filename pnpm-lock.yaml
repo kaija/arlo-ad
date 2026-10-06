@@ -102,6 +102,9 @@ importers:
       '@arlo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
     devDependencies:
       '@testcontainers/postgresql':
         specifier: ^12.2.0
@@ -109,9 +112,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.1
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
       typescript:
         specifier: 'catalog:'
         version: 6.0.3

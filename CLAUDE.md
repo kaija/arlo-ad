@@ -29,6 +29,13 @@ pnpm dev                      # turbo dev
 - 整合測試以 Testcontainers 啟動 Postgres（`@arlo/db/testing` 的 `startTestPostgres()`，`postgres:18-alpine`），**需要 Docker daemon 在執行**。
 - 安裝腳本預設拒絕：新依賴若出現 `ERR_PNPM_IGNORED_BUILDS`，在 `pnpm-workspace.yaml` 的 `allowBuilds` 明確設 `true`/`false`（只有真的需要時才設 `true`）。
 - 本機執行 worker：`DATABASE_URL=... pnpm --filter @arlo/worker dev`（health 在 `WORKER_HEALTH_PORT`，預設 9090）。
+- 全套本機環境（postgres + web + worker，熱重載）：`docker compose up --build --watch`；環境變數範本在 `.env.example`（新增變數時同步更新）。
+
+## Docker
+
+- `infra/docker/Dockerfile.{web,worker}`，build context 為 repo 根目錄；target `dev`（compose 用）與 `runtime`（預設，non-root `node` 使用者）。
+- 兩者都以 `turbo prune --docker` 只帶入需要的 workspace package；prune 不含根目錄 `tsconfig.base.json`，Dockerfile 另外 COPY。新增根目錄共用檔案時要檢查是否也需要 COPY。
+- worker runtime 以 `node --import tsx` 直接跑 TS 原始碼（`tsx` 是 worker 的 production dependency）；web 用 Next.js `output: 'standalone'`。若之後新增 `apps/web/public/`，要在 Dockerfile.web runtime stage 補 COPY。
 
 ## 慣例
 

@@ -1,0 +1,16 @@
+# Build context is the repo root. Keep it small and free of host-built artifacts and secrets.
+**/node_modules
+**/.next
+**/.turbo
+**/dist
+**/coverage
+**/*.tsbuildinfo
+**/next-env.d.ts
+.git
+.claude
+.kiro
+docs
+.eslintcache
+.env
+.env.*
+!.env.example

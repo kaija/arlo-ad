@@ -1,0 +1,40 @@
+# syntax=docker/dockerfile:1
+# Build context: repo root. Targets: `dev` (docker-compose.yml, hot reload) and `runtime` (default).
+
+ARG NODE_VERSION=24
+FROM node:${NODE_VERSION}-slim AS base
+ARG PNPM_VERSION=11.22.0
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true NEXT_TELEMETRY_DISABLED=1
+RUN npm install -g pnpm@${PNPM_VERSION}
+WORKDIR /app
+
+# Reduce the monorepo to @arlo/web and its workspace dependencies.
+FROM base AS prune
+ARG TURBO_VERSION=2.11.7
+COPY . .
+RUN pnpm dlx turbo@${TURBO_VERSION} prune @arlo/web --docker
+
+FROM base AS deps
+COPY --from=prune /app/out/json/ .
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile
+
+FROM deps AS dev
+COPY --from=prune /app/out/full/ .
+COPY tsconfig.base.json ./
+WORKDIR /app/apps/web
+CMD ["pnpm", "dev"]
+
+FROM deps AS build
+COPY --from=prune /app/out/full/ .
+COPY tsconfig.base.json ./
+RUN pnpm --filter @arlo/web build
+
+# Next.js standalone server: only traced files, no pnpm or dev dependencies.
+FROM node:${NODE_VERSION}-slim AS runtime
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
+WORKDIR /app
+COPY --from=build /app/apps/web/.next/standalone/ .
+COPY --from=build /app/apps/web/.next/static/ ./apps/web/.next/static/
+USER node
+EXPOSE 3000
+CMD ["node", "apps/web/server.js"]

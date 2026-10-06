@@ -1,0 +1,59 @@
+# Local development. Start with hot reload:  docker compose up --build --watch
+# Production uses docker-compose.prod.yml (ADR-0025).
+
+x-app: &app
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    DATABASE_URL: postgres://arlo:arlo@postgres:5432/arlo
+  depends_on:
+    postgres:
+      condition: service_healthy
+  init: true
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: arlo
+      POSTGRES_PASSWORD: arlo
+      POSTGRES_DB: arlo
+    ports:
+      - 127.0.0.1:5432:5432
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U arlo -d arlo]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  web:
+    <<: *app
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.web
+      target: dev
+    ports:
+      - 127.0.0.1:3000:3000
+    develop:
+      watch:
+        - { action: sync, path: ., target: /app }
+        - { action: rebuild, path: pnpm-lock.yaml }
+
+  worker:
+    <<: *app
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.worker
+      target: dev
+    ports:
+      - 127.0.0.1:9090:9090
+    develop:
+      watch:
+        - { action: sync, path: ., target: /app }
+        - { action: rebuild, path: pnpm-lock.yaml }
+
+volumes:
+  pgdata:

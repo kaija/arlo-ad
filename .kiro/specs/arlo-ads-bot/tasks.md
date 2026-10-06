@@ -18,7 +18,7 @@
     - 測試：healthz 回應 DB 狀態
     - _Requirements: 20.8_
     - _ADR: ADR-0002_
-  - [ ] 1.3 Dockerfile 與本機 compose
+  - [x] 1.3 Dockerfile 與本機 compose
     - `infra/docker/Dockerfile.web`、`Dockerfile.worker`（multi-stage、non-root）
     - `docker-compose.yml`：postgres、web、worker（dev 熱重載）
     - `.env.example` 列出所有變數
