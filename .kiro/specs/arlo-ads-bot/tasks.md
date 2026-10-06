@@ -30,8 +30,8 @@
     - _Requirements: 20.6, 20.9_
     - _ADR: ADR-0026_
 
-- [ ] 2. EC2 部署腳本
-  - [ ] 2.1 Production compose 與 Caddy
+- [-] 2. EC2 部署腳本
+  - [x] 2.1 Production compose 與 Caddy
     - `docker-compose.prod.yml`：caddy、web、worker、postgres（volume 掛 `/data/pg`）、restart policy、logging driver 限制大小
     - `infra/caddy/Caddyfile`：`{$APP_DOMAIN}` 自動 TLS、反向代理 web、安全標頭
     - _Requirements: 20.1, 20.2, 20.3_

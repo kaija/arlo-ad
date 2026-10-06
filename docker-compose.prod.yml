@@ -1,0 +1,90 @@
+# Production on a single EC2 host (ADR-0025). Deploy with scripts/deploy.sh.
+# Reads .env from the repo root (chmod 600). Only Caddy publishes ports.
+
+name: arlo
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "5"
+
+x-app: &app
+  env_file: .env
+  environment:
+    # POSTGRES_PASSWORD is embedded in a URL: generate it URL-safe (openssl rand -hex 32).
+    DATABASE_URL: postgres://arlo:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/arlo
+  restart: unless-stopped
+  logging: *logging
+  init: true
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      POSTGRES_USER: arlo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: arlo
+    volumes:
+      # Dedicated EBS volume mounted at /data/pg on the host (Requirement 20.3).
+      - ${PG_DATA_DIR:-/data/pg}:/var/lib/postgresql
+    shm_size: 256mb
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U arlo -d arlo]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  web:
+    <<: *app
+    image: arlo-web:latest
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.web
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/api/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  worker:
+    <<: *app
+    image: arlo-worker:latest
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.worker
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:9090/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  caddy:
+    image: caddy:2.11-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN in .env}
+    ports:
+      - 80:80
+      - 443:443
+      - 443:443/udp
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+
+volumes:
+  # Holds issued TLS certificates; keep it to avoid Let's Encrypt rate limits on redeploy.
+  caddy_data:
+  caddy_config:

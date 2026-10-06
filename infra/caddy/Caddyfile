@@ -1,0 +1,19 @@
+# Automatic HTTPS for APP_DOMAIN (Let's Encrypt), reverse proxy to web (ADR-0025).
+# HTTP requests are redirected to HTTPS by Caddy automatically.
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		-Server
+		-X-Powered-By
+	}
+
+	reverse_proxy web:3000
+}

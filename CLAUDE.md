@@ -35,6 +35,7 @@ pnpm dev                      # turbo dev
 
 - `infra/docker/Dockerfile.{web,worker}`，build context 為 repo 根目錄；target `dev`（compose 用）與 `runtime`（預設，non-root `node` 使用者）。
 - 兩者都以 `turbo prune --docker` 只帶入需要的 workspace package；prune 不含根目錄 `tsconfig.base.json`，Dockerfile 另外 COPY。新增根目錄共用檔案時要檢查是否也需要 COPY。
+- Production：`docker-compose.prod.yml`（project name `arlo`；caddy、web、worker、postgres）。只有 Caddy 對外開 80/443；`DATABASE_URL` 由 compose 以 `POSTGRES_PASSWORD` 組成（需 URL-safe）；Postgres 資料在 `${PG_DATA_DIR:-/data/pg}`。本機驗證可用 `APP_DOMAIN=localhost`（Caddy 內部 CA）與 scratch 目錄的 `PG_DATA_DIR`。
 - worker runtime 以 `node --import tsx` 直接跑 TS 原始碼（`tsx` 是 worker 的 production dependency）；web 用 Next.js `output: 'standalone'`。若之後新增 `apps/web/public/`，要在 Dockerfile.web runtime stage 補 COPY。
 
 ## 慣例
