@@ -19,6 +19,10 @@ export interface TemplateContext {
   run: JobRun;
   /** The job's accounts that are still active. */
   accounts: AdAccount[];
+  /** Trace of this run, recorded on ChangeSets it proposes. */
+  traceId?: string | null;
+  /** Stores a ChangeSet and queues it for the Executor (propose_* tools only, ADR-0006). */
+  propose?: AgentContext['propose'];
 }
 
 export interface TemplateResult {

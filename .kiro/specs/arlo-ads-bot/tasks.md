@@ -257,7 +257,7 @@
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
     - _ADR: ADR-0012_
 
-- [-] 14. Propose tools 與 Web 審核
+- [x] 14. Propose tools 與 Web 審核
   - [x] 14.1 propose tools
     - `propose_budget`、`propose_status`、`propose_bid_target`：從最新 snapshot 帶 `before`、建立 ChangeSet、enqueue、回傳 id
     - bidding agent 骨架掛上 tools，Orchestrator 加入 `bidding.asTool()` 與 `get_changeset_status`
@@ -280,7 +280,7 @@
     - Slack mention payload → propose → PENDING_APPROVAL → interactivity approve payload → EXECUTED（Fake adapters + 假 model）
     - _Requirements: 3.3, 6.3, 7.1_
     - _ADR: ADR-0026_
-  - [ ] 14.6 custom_prompt 排程模板
+  - [x] 14.6 custom_prompt 排程模板
     - 以 Orchestrator 執行 `extra_instructions`；輸出限定 Report 或經 propose tools 產生的 ChangeSet
     - 測試：tool 清單中不含任何 mutate 能力、輸出 schema 驗證
     - _Requirements: 11.1, 11.3_

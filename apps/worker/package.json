@@ -21,7 +21,8 @@
     "@arlo/queue": "workspace:*",
     "@openai/agents": "^0.18.0",
     "@slack/web-api": "^8.2.0",
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

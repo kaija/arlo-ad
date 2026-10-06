@@ -14,7 +14,7 @@ import {
   type JobRun,
 } from '@arlo/db';
 import { defineJob, Jobs, type JobData, type PgBoss } from '@arlo/queue';
-import type { AgentFactories, TemplateHandler } from './types';
+import type { AgentFactories, TemplateContext, TemplateHandler } from './types';
 
 export interface SchedulerDeps {
   db: Db;
@@ -26,6 +26,8 @@ export interface SchedulerDeps {
   /** DAILY_LLM_BUDGET_USD (the daily_llm_budget_usd setting overrides it). */
   llmBudgetUsd: number;
   notifyOps: (notice: { level: 'info' | 'warn' | 'error'; text: string }) => Promise<void>;
+  /** Proposer for templates that may suggest changes (custom_prompt, sweeps). */
+  propose?: TemplateContext['propose'];
 }
 
 /** Makes pg-boss cron match scheduled_jobs: enabled jobs scheduled, everything else removed. */
@@ -96,7 +98,7 @@ export async function runScheduledJob(deps: SchedulerDeps, data: JobData<typeof 
   try {
     const tracked = await trackedRun(
       { db, name: `job.${job.template}`, ref: { kind: 'job_run', id: run.id }, metadata: { scheduled_job_id: job.id }, now: deps.now },
-      () => handler.run({ db, logger: log, now: deps.now, agents: deps.agents, job, run, accounts }),
+      (traceId) => handler.run({ db, logger: log, now: deps.now, agents: deps.agents, job, run, accounts, traceId, propose: deps.propose }),
     );
     const result = tracked.result;
     const posted: ChatMessage[] = [];
