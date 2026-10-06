@@ -57,3 +57,21 @@ export function withExample(profile: BusinessProfile, example: ProfileExample): 
   const key = normalize(example.term);
   return { ...profile, examples: [...profile.examples.filter((e) => normalize(e.term) !== key), example].slice(-500) };
 }
+
+// --- search term labels (Requirements 14.2, 14.3) -------------------------------------------
+
+export const SEARCH_INTENTS = ['purchase', 'research', 'support', 'navigational', 'competitor', 'jobs', 'free_or_diy', 'unrelated'] as const;
+export type SearchIntent = (typeof SEARCH_INTENTS)[number];
+
+export interface SearchTermLabel {
+  intent: SearchIntent;
+  /** Worth paying for given the Business Profile. */
+  relevant: boolean;
+  confidence: number;
+  reason: string;
+}
+
+/** Normalized form used for caching and de-duplication. */
+export function normalizeSearchTerm(term: string): string {
+  return term.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+}

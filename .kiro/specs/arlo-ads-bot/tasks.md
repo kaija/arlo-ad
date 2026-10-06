@@ -304,7 +304,7 @@
     - `business_profiles`（版本化）schema、`get_business_profile` tool、Web 編輯器
     - _Requirements: 14.1_
     - _ADR: ADR-0019_
-  - [ ] 16.2 搜尋字詞分類器
+  - [x] 16.2 搜尋字詞分類器
     - 小模型批次 100、structured output（intent / relevant / confidence / reason）、`g_search_term_labels` 快取
     - eval golden set：auto 門檻 precision ≥ 0.98
     - _Requirements: 14.2, 14.3_

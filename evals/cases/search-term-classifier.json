@@ -1,0 +1,515 @@
+{
+  "suite": "search_term_classifier",
+  "description": "搜尋字詞分類器對照 Business Profile 判斷相關性；自動排除門檻（confidence ≥ 0.9）的 precision 需 ≥ 0.98（Requirement 14.4，ADR-0019）。",
+  "agent": "search_term_classifier",
+  "minPassRate": 0.85,
+  "precisionAt": {
+    "threshold": 0.9,
+    "min": 0.98
+  },
+  "fixture": {
+    "profile": {
+      "offerings": [
+        "家用無線監視器",
+        "戶外防水監視攝影機",
+        "視訊門鈴 Video Doorbell",
+        "居家安全監控訂閱方案"
+      ],
+      "targetIntents": [
+        "購買",
+        "價格比較",
+        "型號比較",
+        "評測推薦",
+        "安裝需求"
+      ],
+      "excludedIntents": [
+        "免費",
+        "破解",
+        "求職",
+        "二手",
+        "DIY 自製",
+        "維修教學"
+      ],
+      "brandTerms": [
+        "arlo"
+      ],
+      "competitorPolicy": "exclude",
+      "examples": [
+        {
+          "term": "arlo 客服電話",
+          "relevant": true,
+          "note": "既有客戶支援，保留"
+        },
+        {
+          "term": "監視器 app 免費下載",
+          "relevant": false,
+          "note": null
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "free-cctv-software",
+      "input": {
+        "term": "免費監視器軟體"
+      },
+      "expect": {
+        "output": {
+          "relevant": false
+        }
+      },
+      "tags": [
+        "irrelevant"
+      ]
+    },
+    {
+      "id": "crack-app",
+      "input": {
+        "term": "監視器 app 破解版"
+      },
+      "expect": {
+        "output": {
+          "relevant": false
+        }
+      },
+      "tags": [
+        "irrelevant"
+      ]
+    },
+    {
+      "id": "jobs-security",
+      "input": {
+        "term": "保全公司徵人"
+      },
+      "expect": {
+        "output": {
+          "relevant": false
+        }
+      },
+      "tags": [
+        "irrelevant"
+      ]
+    },
+    {
+      "id": "jobs-installer",
+      "input": {
+        "term": "監視器安裝工程師 職缺"
+      },
+      "expect": {
+        "output": {
+          "relevant": false
+        }
+      },
+      "tags": [
+        "irrelevant"
+      ]
+    },
+    {
+      "id": "used-camera",
+      "input": {
+        "term": "二手監視器 便宜賣"
+      },
+      "expect": {
+        "output": {
+          "relevant": false
+        }
+      },
+      "tags": [
+        "irrelevant"
+      ]
+    },
+    {
+      "id": "diy-raspberry",
+      "input": {
+        "term": "樹莓派 自製監視器 教學"
+      },
+      "expect": {
+        "output": {
+          "relevant": false
+        }
+      },
+      "tags": [
+        "irrelevant"
+      ]
+    },
+    {
+      "id": "repair-tutorial",
+      "input": {
+        "term": "監視器沒畫面 維修教學"
+      },
+      "expect": {
+        "output": {
+          "relevant": false
+        }
+      },
+      "tags": [
+        "irrelevant"
+      ]
+    },
+    {
+      "id": "competitor-ring",
+      "input": {
+        "term": "ring 門鈴 價格"
+      },
+      "expect": {
+        "output": {
+          "relevant": false
+        }
+      },
+      "tags": [
+        "irrelevant"
+      ]
+    },
+    {
+      "id": "competitor-eufy",
+      "input": {
+        "term": "eufy 監視器 推薦"
+      },
+      "expect": {
+        "output": {
+          "relevant": false
+        }
+      },
+      "tags": [
+        "irrelevant"
+      ]
+    },
+    {
+      "id": "competitor-tplink",
+      "input": {
+        "term": "tp-link tapo c200"
+      },
+      "expect": {
+        "output": {
+          "relevant": false
+        }
+      },
+      "tags": [
+        "irrelevant"
+      ]
+    },
+    {
+      "id": "unrelated-baby",
+      "input": {
+        "term": "嬰兒推車 推薦"
+      },
+      "expect": {
+        "output": {
+          "relevant": false
+        }
+      },
+      "tags": [
+        "irrelevant"
+      ]
+    },
+    {
+      "id": "unrelated-movie",
+      "input": {
+        "term": "監視器 電影 線上看"
+      },
+      "expect": {
+        "output": {
+          "relevant": false
+        }
+      },
+      "tags": [
+        "irrelevant"
+      ]
+    },
+    {
+      "id": "unrelated-game",
+      "input": {
+        "term": "監視器 遊戲 攻略"
+      },
+      "expect": {
+        "output": {
+          "relevant": false
+        }
+      },
+      "tags": [
+        "irrelevant"
+      ]
+    },
+    {
+      "id": "unrelated-medical",
+      "input": {
+        "term": "醫院 生理監視器"
+      },
+      "expect": {
+        "output": {
+          "relevant": false
+        }
+      },
+      "tags": [
+        "irrelevant"
+      ]
+    },
+    {
+      "id": "free-trial-hack",
+      "input": {
+        "term": "雲端錄影 免費 無限"
+      },
+      "expect": {
+        "output": {
+          "relevant": false
+        }
+      },
+      "tags": [
+        "irrelevant"
+      ]
+    },
+    {
+      "id": "unrelated-car",
+      "input": {
+        "term": "行車記錄器 推薦"
+      },
+      "expect": {
+        "output": {
+          "relevant": false
+        }
+      },
+      "tags": [
+        "irrelevant"
+      ]
+    },
+    {
+      "id": "unrelated-pc",
+      "input": {
+        "term": "電腦螢幕 監視器 27吋"
+      },
+      "expect": {
+        "output": {
+          "relevant": false
+        }
+      },
+      "tags": [
+        "irrelevant"
+      ]
+    },
+    {
+      "id": "free-download",
+      "input": {
+        "term": "攝影機 驅動程式 免費下載"
+      },
+      "expect": {
+        "output": {
+          "relevant": false
+        }
+      },
+      "tags": [
+        "irrelevant"
+      ]
+    },
+    {
+      "id": "brand-buy",
+      "input": {
+        "term": "arlo pro 5 價格"
+      },
+      "expect": {
+        "output": {
+          "relevant": true
+        }
+      },
+      "tags": [
+        "relevant"
+      ]
+    },
+    {
+      "id": "brand-doorbell",
+      "input": {
+        "term": "arlo 視訊門鈴"
+      },
+      "expect": {
+        "output": {
+          "relevant": true
+        }
+      },
+      "tags": [
+        "relevant"
+      ]
+    },
+    {
+      "id": "brand-login",
+      "input": {
+        "term": "arlo 登入"
+      },
+      "expect": {
+        "output": {
+          "relevant": true
+        }
+      },
+      "tags": [
+        "relevant"
+      ]
+    },
+    {
+      "id": "generic-outdoor",
+      "input": {
+        "term": "戶外監視器 推薦"
+      },
+      "expect": {
+        "output": {
+          "relevant": true
+        }
+      },
+      "tags": [
+        "relevant"
+      ]
+    },
+    {
+      "id": "generic-wireless",
+      "input": {
+        "term": "無線監視器 哪個牌子好"
+      },
+      "expect": {
+        "output": {
+          "relevant": true
+        }
+      },
+      "tags": [
+        "relevant"
+      ]
+    },
+    {
+      "id": "generic-doorbell",
+      "input": {
+        "term": "視訊門鈴 推薦 2026"
+      },
+      "expect": {
+        "output": {
+          "relevant": true
+        }
+      },
+      "tags": [
+        "relevant"
+      ]
+    },
+    {
+      "id": "generic-price",
+      "input": {
+        "term": "家用監視器 價格"
+      },
+      "expect": {
+        "output": {
+          "relevant": true
+        }
+      },
+      "tags": [
+        "relevant"
+      ]
+    },
+    {
+      "id": "generic-compare",
+      "input": {
+        "term": "監視器 比較 無線 有線"
+      },
+      "expect": {
+        "output": {
+          "relevant": true
+        }
+      },
+      "tags": [
+        "relevant"
+      ]
+    },
+    {
+      "id": "generic-waterproof",
+      "input": {
+        "term": "防水 監視攝影機"
+      },
+      "expect": {
+        "output": {
+          "relevant": true
+        }
+      },
+      "tags": [
+        "relevant"
+      ]
+    },
+    {
+      "id": "generic-install",
+      "input": {
+        "term": "居家監視器 安裝 費用"
+      },
+      "expect": {
+        "output": {
+          "relevant": true
+        }
+      },
+      "tags": [
+        "relevant"
+      ]
+    },
+    {
+      "id": "generic-pet",
+      "input": {
+        "term": "寵物監視器 推薦"
+      },
+      "expect": {
+        "output": {
+          "relevant": true
+        }
+      },
+      "tags": [
+        "relevant"
+      ]
+    },
+    {
+      "id": "generic-review",
+      "input": {
+        "term": "家用監視器 評測"
+      },
+      "expect": {
+        "output": {
+          "relevant": true
+        }
+      },
+      "tags": [
+        "relevant"
+      ]
+    },
+    {
+      "id": "generic-subscription",
+      "input": {
+        "term": "監視器 雲端 訂閱 方案 比較"
+      },
+      "expect": {
+        "output": {
+          "relevant": true
+        }
+      },
+      "tags": [
+        "relevant"
+      ]
+    },
+    {
+      "id": "generic-english",
+      "input": {
+        "term": "best outdoor security camera"
+      },
+      "expect": {
+        "output": {
+          "relevant": true
+        }
+      },
+      "tags": [
+        "relevant"
+      ]
+    },
+    {
+      "id": "generic-buy-english",
+      "input": {
+        "term": "wireless security camera price"
+      },
+      "expect": {
+        "output": {
+          "relevant": true
+        }
+      },
+      "tags": [
+        "relevant"
+      ]
+    }
+  ]
+}

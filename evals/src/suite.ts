@@ -29,6 +29,13 @@ export const SuiteSchema = z.object({
   agent: z.string().min(1),
   /** Pass rate below which the suite fails (default 0.9). */
   minPassRate: z.number().min(0).max(1).optional(),
+  /** Shared data the agent factory reads, e.g. the Business Profile for classifier cases. */
+  fixture: z.record(z.string(), z.unknown()).optional(),
+  /**
+   * Classification gate: precision of positive predictions (output.relevant = false) with
+   * confidence ≥ threshold must reach min (Requirement 14.4: 0.98 at 0.9).
+   */
+  precisionAt: z.object({ threshold: z.number().min(0).max(1), min: z.number().min(0).max(1) }).optional(),
   cases: z.array(CaseSchema).min(1),
 });
 

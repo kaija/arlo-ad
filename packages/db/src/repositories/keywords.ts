@@ -1,10 +1,11 @@
 // Business Profiles (ADR-0019). Saving inserts the next version; reads take the latest.
-import { BusinessProfileSchema, withExample, type BusinessProfile, type ProfileExample } from '@arlo/core';
-import { and, desc, eq, sql } from 'drizzle-orm';
-import { businessProfiles, DEFAULT_ORG_ID } from '../schema';
+import { createHash } from 'node:crypto';
+import { BusinessProfileSchema, normalizeSearchTerm, withExample, type BusinessProfile, type ProfileExample, type SearchTermLabel } from '@arlo/core';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { businessProfiles, DEFAULT_ORG_ID, gSearchTermLabels } from '../schema';
 import type { Db } from '../client';
 import { writeAudit, type Actor } from './changesets';
-import type { DbOrTx } from './upsert';
+import { inBatches, type DbOrTx } from './upsert';
 
 export interface StoredProfile {
   accountId: string;
@@ -65,4 +66,54 @@ export async function addProfileExample(db: Db, accountId: string, example: Prof
   const current = await getBusinessProfile(db, accountId);
   const base: BusinessProfile = current?.profile ?? { offerings: [], targetIntents: [], excludedIntents: [], brandTerms: [], competitorPolicy: 'review', examples: [] };
   return saveBusinessProfile(db, accountId, withExample(base, example), actor);
+}
+
+// --- classifier cache (Requirement 14.3) ----------------------------------------------------
+
+export const searchTermHash = (term: string) => createHash('sha256').update(normalizeSearchTerm(term)).digest('hex');
+
+/** Cached labels for `terms` under a profile version, keyed by normalized term. */
+export async function getSearchTermLabels(db: DbOrTx, accountId: string, profileVersion: number, terms: readonly string[]): Promise<Map<string, SearchTermLabel>> {
+  const out = new Map<string, SearchTermLabel>();
+  const hashes = [...new Set(terms.map(searchTermHash))];
+  for (let i = 0; i < hashes.length; i += 5000) {
+    const rows = await db
+      .select()
+      .from(gSearchTermLabels)
+      .where(and(eq(gSearchTermLabels.accountId, accountId), eq(gSearchTermLabels.profileVersion, profileVersion), inArray(gSearchTermLabels.termHash, hashes.slice(i, i + 5000))));
+    for (const r of rows) out.set(normalizeSearchTerm(r.term), { intent: r.intent, relevant: r.relevant, confidence: r.confidence, reason: r.reason });
+  }
+  return out;
+}
+
+export async function saveSearchTermLabels(
+  db: DbOrTx,
+  accountId: string,
+  profileVersion: number,
+  labels: readonly (SearchTermLabel & { term: string })[],
+  model: string | null,
+): Promise<void> {
+  const byHash = new Map(labels.map((l) => [searchTermHash(l.term), l]));
+  const rows = [...byHash].map(([termHash, l]) => ({
+    orgId: DEFAULT_ORG_ID,
+    accountId,
+    termHash,
+    term: normalizeSearchTerm(l.term),
+    profileVersion,
+    intent: l.intent,
+    relevant: l.relevant,
+    confidence: Math.min(1, Math.max(0, Math.round(l.confidence * 1000) / 1000)),
+    reason: l.reason.slice(0, 500),
+    model,
+  }));
+  await inBatches(gSearchTermLabels, rows, (batch) =>
+    db
+      .insert(gSearchTermLabels)
+      .values(batch)
+      .onConflictDoUpdate({
+        target: [gSearchTermLabels.accountId, gSearchTermLabels.termHash, gSearchTermLabels.profileVersion],
+        set: { intent: sql`excluded.intent`, relevant: sql`excluded.relevant`, confidence: sql`excluded.confidence`, reason: sql`excluded.reason`, model: sql`excluded.model`, updatedAt: sql`now()` },
+      })
+      .returning({ id: gSearchTermLabels.id }),
+  );
 }

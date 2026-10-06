@@ -2,6 +2,7 @@ import { createAnalystAgent, createOrchestrator } from '@arlo/agents';
 import { callTool, say, ScriptedModel, toolResultText } from '@arlo/agents/testing';
 import { setTracingDisabled } from '@openai/agents';
 import { describe, expect, it } from 'vitest';
+import { agentFactory } from './agents';
 import { formatReport, runSuite } from './runner';
 import { loadSuites } from './suite';
 
@@ -34,5 +35,38 @@ describe('runSuite', () => {
     });
     expect(result.passed).toBe(false);
     expect(formatReport([result])).toMatch(/✗ .+: missing tool analyst/);
+  });
+});
+
+describe('classifier suite precision gate', () => {
+  const termOf = (req: { input: unknown }) => {
+    const items = req.input as { content?: unknown }[] | string;
+    const text = typeof items === 'string' ? items : (items.at(-1)!.content as { text?: string }[] | string);
+    const raw = typeof text === 'string' ? text : text[0]!.text!;
+    return (JSON.parse(raw) as { terms: { term: string }[] }).terms[0]!.term;
+  };
+
+  async function run(misjudge: string | null) {
+    const suite = (await loadSuites()).find((s) => s.suite === 'search_term_classifier')!;
+    const irrelevant = new Set(suite.cases.filter((c) => c.expect.output?.relevant === false).map((c) => (c.input as { term: string }).term));
+    const model = new ScriptedModel((req) => {
+      const term = termOf(req);
+      const relevant = term === misjudge ? false : !irrelevant.has(term);
+      return [say(JSON.stringify({ labels: [{ index: 0, intent: relevant ? 'purchase' : 'unrelated', relevant, confidence: 0.95, reason: 'scripted' }] }))];
+    });
+    return runSuite(suite, agentFactory({ flagship: model, small: model }), { concurrency: 4 });
+  }
+
+  it('passes when confident exclusions are all correct', async () => {
+    const result = await run(null);
+    expect(result).toMatchObject({ passed: true, passRate: 1, precision: { value: 1, threshold: 0.9, min: 0.98 } });
+    expect(formatReport([result])).toContain('precision@0.9: 100.0%');
+  });
+
+  it('fails on a single confident wrong exclusion even with a high pass rate', async () => {
+    const result = await run('arlo 登入');
+    expect(result.passRate).toBeGreaterThan(0.95);
+    expect(result.passed).toBe(false);
+    expect(result.precision!.value).toBeLessThan(0.98);
   });
 });

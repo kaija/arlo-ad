@@ -1,6 +1,7 @@
 // Agents under evaluation. Specialists behind the Orchestrator are stubs answering canned text,
 // so routing suites measure the Orchestrator's choice without paying for nested runs.
-import { createOrchestrator, type AgentContext } from '@arlo/agents';
+import { classifierInput, createOrchestrator, createSearchTermClassifier, type AgentContext } from '@arlo/agents';
+import { BusinessProfileSchema } from '@arlo/core';
 import { say, ScriptedModel } from '@arlo/agents/testing';
 import { Agent, type Model } from '@openai/agents';
 import type { AgentFactory } from './runner';
@@ -27,6 +28,15 @@ export function agentFactory(models: { flagship: string | Model; small: string |
           }),
           context: { db: undefined, allowedAccountIds: null, now: () => new Date() },
         };
+      case 'search_term_classifier': {
+        // One term per case against the suite's profile; the batch label is scored.
+        const profile = BusinessProfileSchema.parse(suite.fixture?.profile);
+        return {
+          agent: createSearchTermClassifier({ model: models.small }),
+          formatInput: (input) => classifierInput(profile, [String((input as { term?: unknown }).term ?? input)]),
+          project: (output) => (output as { labels?: unknown[] } | undefined)?.labels?.[0],
+        };
+      }
       default:
         throw new Error(`no eval agent registered for "${suite.agent}"`);
     }
