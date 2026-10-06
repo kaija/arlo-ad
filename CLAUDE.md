@@ -19,6 +19,7 @@ pnpm vitest run packages/core/src/tier/tier.test.ts   # 單一測試檔
 pnpm vitest run --project @arlo/core                  # 單一 package
 pnpm build                    # turbo build（目前只有 apps/web）
 pnpm dev                      # turbo dev
+pnpm test:contract            # Google Ads 測試帳戶 contract test（手動；只寫 ADS_WRITE_ALLOWED_CUSTOMER_IDS 第一個帳戶）
 pnpm eval --sample 3          # agent eval（evals/cases/*.json；需 OPENAI_API_KEY、MODEL_*；CI 小樣本、nightly 全量）
 ```
 

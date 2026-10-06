@@ -17,6 +17,9 @@ function recordingClient(byResource: Record<string, unknown[] | ((gaql: string) 
     customer: () => {
       throw new Error('not used');
     },
+    mutate: () => {
+      throw new Error('not used');
+    },
     async query(customerId, gaql) {
       queries.push({ customerId, gaql: gaql.replace(/\s+/g, ' ').trim() });
       const from = /FROM (\w+)/.exec(gaql)?.[1] ?? '';
@@ -30,20 +33,20 @@ function recordingClient(byResource: Record<string, unknown[] | ((gaql: string) 
 describe('GoogleAdsAdapter (reads)', () => {
   it('queries client accounts through the login customer', async () => {
     const { client, queries } = recordingClient({ customer_client: [] });
-    await new GoogleAdsAdapter(client, { loginCustomerId: '111-222-3333' }).listAccounts();
+    await new GoogleAdsAdapter(client, { loginCustomerId: '111-222-3333', writeAllowedCustomerIds: [] }).listAccounts();
     expect(queries[0]).toMatchObject({ customerId: '1112223333', gaql: expect.stringContaining('FROM customer_client') });
   });
 
   it('fetches entities of the requested kinds once each', async () => {
     const { client, queries } = recordingClient({ campaign: campaigns, keyword_view: keywords });
-    const entities = await new GoogleAdsAdapter(client, { loginCustomerId: ACC }).fetchEntities(ACC, ['campaign', 'keyword', 'campaign']);
+    const entities = await new GoogleAdsAdapter(client, { loginCustomerId: ACC, writeAllowedCustomerIds: [] }).fetchEntities(ACC, ['campaign', 'keyword', 'campaign']);
     expect(entities.map((e) => `${e.kind}:${e.externalId}`)).toEqual(['campaign:111', 'campaign:112', 'campaign:113', 'keyword:221~3001', 'keyword:221~3002']);
     expect(queries.map((q) => /FROM (\w+)/.exec(q.gaql)?.[1])).toEqual(['campaign', 'keyword_view']);
   });
 
   it('builds metric queries per level and validates the range', async () => {
     const { client, queries } = recordingClient({});
-    const adapter = new GoogleAdsAdapter(client, { loginCustomerId: ACC });
+    const adapter = new GoogleAdsAdapter(client, { loginCustomerId: ACC, writeAllowedCustomerIds: [] });
     await adapter.fetchMetrics({ accountId: ACC, level: 'keyword', range: { from: '2026-10-06', to: '2026-10-06' }, hourly: true });
     expect(queries[0]!.gaql).toContain("segments.hour");
     expect(queries[0]!.gaql).toContain("FROM keyword_view WHERE segments.date BETWEEN '2026-10-06' AND '2026-10-06'");
@@ -56,7 +59,7 @@ describe('GoogleAdsAdapter (reads)', () => {
   it('queries change history in the account timezone within the 30-day window', async () => {
     const { client, queries } = recordingClient({ customer, change_event: changeEvents });
     const now = new Date('2026-10-06T04:00:00Z');
-    const adapter = new GoogleAdsAdapter(client, { loginCustomerId: ACC, now: () => now });
+    const adapter = new GoogleAdsAdapter(client, { loginCustomerId: ACC, writeAllowedCustomerIds: [], now: () => now });
     const events = await adapter.fetchChangeHistory(ACC, new Date('2026-01-01T00:00:00Z'));
     expect(events).toHaveLength(1);
     const gaql = queries.find((q) => q.gaql.includes('FROM change_event'))!.gaql;
@@ -72,7 +75,7 @@ describe('GoogleAdsAdapter (reads)', () => {
       ad_group_criterion: keywords,
     });
     const ref = (kind: 'campaign' | 'keyword', id: string) => ({ platform: 'google_ads' as const, accountId: ACC, kind, id });
-    const current = await new GoogleAdsAdapter(client, { loginCustomerId: ACC }).fetchCurrent([ref('campaign', '111'), ref('keyword', '221~3002')]);
+    const current = await new GoogleAdsAdapter(client, { loginCustomerId: ACC, writeAllowedCustomerIds: [] }).fetchCurrent([ref('campaign', '111'), ref('keyword', '221~3002')]);
     expect(current.get(entityKey(ref('campaign', '111')))).toMatchObject({ status: 'ENABLED', budget_micros: 3_000_000_000, target_cpa_micros: 250_000_000 });
     expect(current.get(entityKey(ref('keyword', '221~3002')))).toEqual({ status: 'PAUSED' });
     expect(current.has(entityKey(ref('keyword', '221~3001')))).toBe(false);
@@ -82,7 +85,7 @@ describe('GoogleAdsAdapter (reads)', () => {
   it('rejects non-numeric ids before building GAQL', async () => {
     const { client } = recordingClient({});
     await expect(
-      new GoogleAdsAdapter(client, { loginCustomerId: ACC }).fetchCurrent([{ platform: 'google_ads', accountId: ACC, kind: 'campaign', id: '1) OR (1=1' }]),
+      new GoogleAdsAdapter(client, { loginCustomerId: ACC, writeAllowedCustomerIds: [] }).fetchCurrent([{ platform: 'google_ads', accountId: ACC, kind: 'campaign', id: '1) OR (1=1' }]),
     ).rejects.toThrow('invalid Google Ads id');
   });
 
@@ -93,6 +96,6 @@ describe('GoogleAdsAdapter (reads)', () => {
       offline_conversion_upload_conversion_action_summary: () => { throw new Error('PERMISSION_DENIED');
       },
     });
-    await expect(new GoogleAdsAdapter(client, { loginCustomerId: ACC }).fetchConversionActions(ACC)).resolves.toEqual([]);
+    await expect(new GoogleAdsAdapter(client, { loginCustomerId: ACC, writeAllowedCustomerIds: [] }).fetchConversionActions(ACC)).resolves.toEqual([]);
   });
 });

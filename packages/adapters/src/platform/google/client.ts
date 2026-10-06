@@ -1,5 +1,5 @@
 // Thin seam over google-ads-api so the adapter can be tested with recorded rows.
-import { GoogleAdsApi, type Customer } from 'google-ads-api';
+import { GoogleAdsApi, type Customer, type MutateOperation, type services } from 'google-ads-api';
 import type { Row } from './mappers';
 
 export interface GoogleAdsCredentials {
@@ -13,6 +13,8 @@ export interface GoogleAdsCredentials {
 
 export interface GoogleAdsClient {
   query(customerId: string, gaql: string): Promise<Row[]>;
+  /** One atomic mutate request (partial_failure off, design.md「錯誤處理」). */
+  mutate(customerId: string, operations: MutateOperation<Record<string, unknown>>[]): Promise<services.IMutateGoogleAdsResponse>;
   customer(customerId: string): Customer;
 }
 
@@ -38,5 +40,6 @@ export function createGoogleAdsClient(creds: GoogleAdsCredentials): GoogleAdsCli
   return {
     customer,
     query: (customerId, gaql) => customer(customerId).query(gaql),
+    mutate: (customerId, operations) => customer(customerId).mutateResources(operations, { partial_failure: false }),
   };
 }

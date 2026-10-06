@@ -13,6 +13,7 @@
     "lint": "eslint . --cache",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:contract": "vitest run --config vitest.contract.config.ts",
     "eval": "pnpm --filter @arlo/evals eval"
   },
   "devDependencies": {

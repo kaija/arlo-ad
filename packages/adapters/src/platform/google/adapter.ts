@@ -1,5 +1,17 @@
-// GoogleAdsAdapter (ADR-0004): reads through GAQL (queries.ts), maps rows (mappers.ts).
-import { addDays, dateInTimeZone, dateTimeInTimeZone, entityKey, type CurrentState, type EntityKind, type EntityRef, type OpResult } from '@arlo/core';
+// GoogleAdsAdapter (ADR-0004): reads through GAQL (queries.ts), maps rows (mappers.ts),
+// writes one mutate request per op (mutations.ts) behind the write allowlist (ADR-0026).
+import { assertWriteAllowed, normalizeCustomerId } from '@arlo/config';
+import {
+  addDays,
+  dateInTimeZone,
+  dateTimeInTimeZone,
+  entityKey,
+  type CurrentState,
+  type EntityKind,
+  type EntityRef,
+  type Op,
+  type OpResult,
+} from '@arlo/core';
 import { currentFromRecord } from '../current';
 import type {
   AccountInfo,
@@ -17,10 +29,13 @@ import type {
 } from '../types';
 import type { GoogleAdsClient } from './client';
 import * as M from './mappers';
+import { buildMutation, campaignsNeedingContext, mapCampaignWriteContext, mutateErrorMessage, resultResourceName, type CampaignWriteContext } from './mutations';
 import * as Q from './queries';
 
 export interface GoogleAdsAdapterOptions {
   loginCustomerId: string;
+  /** ADS_WRITE_ALLOWED_CUSTOMER_IDS; empty means applyOps refuses every account. */
+  writeAllowedCustomerIds: readonly string[];
   now?: () => Date;
 }
 
@@ -31,6 +46,7 @@ const CHANGE_EVENT_PAGE = 10_000;
 export class GoogleAdsAdapter implements GoogleAdsPlatform {
   readonly platform = 'google_ads' as const;
   private readonly loginCustomerId: string;
+  private readonly writeAllowed: readonly string[];
   private readonly now: () => Date;
   private readonly timeZones = new Map<string, string>();
 
@@ -39,6 +55,7 @@ export class GoogleAdsAdapter implements GoogleAdsPlatform {
     opts: GoogleAdsAdapterOptions,
   ) {
     this.loginCustomerId = opts.loginCustomerId.replace(/-/g, '');
+    this.writeAllowed = opts.writeAllowedCustomerIds.map(normalizeCustomerId);
     this.now = opts.now ?? (() => new Date());
   }
 
@@ -133,8 +150,40 @@ export class GoogleAdsAdapter implements GoogleAdsPlatform {
     return out;
   }
 
-  async applyOps(): Promise<OpResult[]> {
-    throw new Error('GoogleAdsAdapter writes are not implemented yet (task 12.1)');
+  /**
+   * Applies ops in order, one mutate request each, so a failure leaves earlier ops applied and
+   * reports per-op results (Requirement 3.5). Throws WriteNotAllowedError before any request when
+   * the account is not on the allowlist.
+   */
+  async applyOps(accountId: string, ops: Op[]): Promise<OpResult[]> {
+    const customerId = normalizeCustomerId(accountId);
+    assertWriteAllowed(this.writeAllowed, customerId);
+
+    let campaigns = new Map<string, CampaignWriteContext>();
+    // Invalid ids are left out here and rejected per op by buildMutation.
+    const needed = campaignsNeedingContext(ops.filter((op) => op.target.kind === 'campaign')).filter((id) => /^\d+$/.test(id));
+    if (needed.length) {
+      try {
+        campaigns = mapCampaignWriteContext(await this.client.query(customerId, Q.campaignWriteContext(needed)));
+      } catch (err) {
+        const error = `CONTEXT_LOOKUP_FAILED: ${mutateErrorMessage(err)}`;
+        return ops.map((_, index) => ({ index, ok: false, error }));
+      }
+    }
+
+    const results: OpResult[] = [];
+    for (const [index, op] of ops.entries()) {
+      try {
+        if (normalizeCustomerId(op.target.accountId) !== customerId) throw new Error('ACCOUNT_MISMATCH: op target is in another account');
+        const mutation = buildMutation(customerId, op, campaigns);
+        assertWriteAllowed(this.writeAllowed, customerId);
+        const response = await this.client.mutate(customerId, [mutation]);
+        results.push({ index, ok: true, resourceName: resultResourceName(response.mutate_operation_responses?.[0]) });
+      } catch (err) {
+        results.push({ index, ok: false, error: mutateErrorMessage(err) });
+      }
+    }
+    return results;
   }
 
   async fetchSearchTerms(accountId: string, range: DateRange): Promise<SearchTermRow[]> {

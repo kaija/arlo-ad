@@ -108,6 +108,15 @@ export function currentCampaigns(campaignIds: readonly string[]): string {
   WHERE campaign.id IN (${ids(campaignIds)})`;
 }
 
+/** What applyOps needs to write budgets and bid targets (shared budget, portfolio strategy). */
+export function campaignWriteContext(campaignIds: readonly string[]): string {
+  return `
+  SELECT campaign.id, campaign.campaign_budget, campaign.bidding_strategy, campaign.bidding_strategy_type,
+         campaign_budget.explicitly_shared
+  FROM campaign
+  WHERE campaign.id IN (${ids(campaignIds)})`;
+}
+
 export function currentAdGroups(adGroupIds: readonly string[]): string {
   return `
   SELECT ad_group.id, ad_group.status

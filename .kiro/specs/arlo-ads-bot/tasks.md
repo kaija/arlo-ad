@@ -208,8 +208,8 @@
     - _Requirements: 3.4, 3.6, 3.7, 6.6_
     - _ADR: ADR-0006_
 
-- [ ] 12. Executor
-  - [ ] 12.1 GoogleAdsAdapter 寫入
+- [-] 12. Executor
+  - [x] 12.1 GoogleAdsAdapter 寫入
     - `applyOps()`：set_budget、set_status、set_bid_target、add_negative_keyword（shared set）、add_keyword；mutate 前 `assertWriteAllowed`
     - contract test（測試帳戶，手動觸發）
     - _Requirements: 3.1, 20.9_

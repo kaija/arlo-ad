@@ -35,6 +35,7 @@ const WorkerEnv = EnvSchema.pick({
   GOOGLE_ADS_CLIENT_SECRET: true,
   GOOGLE_ADS_REFRESH_TOKEN: true,
   GOOGLE_ADS_LOGIN_CUSTOMER_ID: true,
+  ADS_WRITE_ALLOWED_CUSTOMER_IDS: true,
   SLACK_BOT_TOKEN: true,
   SLACK_OPS_CHANNEL_ID: true,
   OPENAI_API_KEY: true,
@@ -68,7 +69,7 @@ const platform = new GoogleAdsAdapter(
     refreshToken: env.GOOGLE_ADS_REFRESH_TOKEN,
     loginCustomerId: env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
   }),
-  { loginCustomerId: env.GOOGLE_ADS_LOGIN_CUSTOMER_ID },
+  { loginCustomerId: env.GOOGLE_ADS_LOGIN_CUSTOMER_ID, writeAllowedCustomerIds: env.ADS_WRITE_ALLOWED_CUSTOMER_IDS },
 );
 
 const chat = new SlackAdapter(new WebClient(env.SLACK_BOT_TOKEN));
