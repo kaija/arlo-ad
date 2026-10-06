@@ -1,5 +1,5 @@
 import { FakeChatAdapter } from '@arlo/adapters/chat';
-import { createAnalystAgent, createOrchestrator } from '@arlo/agents';
+import { createAnalystAgent, createOrchestrator, MeteredModel } from '@arlo/agents';
 import { say, ScriptedModel } from '@arlo/agents/testing';
 import { createLogger } from '@arlo/config/logger';
 import {
@@ -7,6 +7,8 @@ import {
   deleteScheduledJob,
   DEFAULT_ORG_ID,
   listJobRuns,
+  schema,
+  setSetting,
   updateScheduledJob,
   upsertAdAccounts,
   upsertEntities,
@@ -15,6 +17,7 @@ import {
 import { useTestDatabase } from '@arlo/db/testing';
 import { ALL_JOBS, createBoss, ensureQueues, Jobs, type PgBoss } from '@arlo/queue';
 import { setTracingDisabled } from '@openai/agents';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { runScheduledJob, syncSchedules, type SchedulerDeps } from './scheduler';
 import { TEMPLATES } from './templates';
@@ -31,7 +34,8 @@ describe('scheduler', () => {
   let chat: FakeChatAdapter;
   let deps: SchedulerDeps;
   let account: { id: string };
-  const analystModel = new ScriptedModel(() => [say('- 昨日花費較前日增加，Brand 貢獻最多轉換。')]);
+  const opsNotices: string[] = [];
+  const analystModel = new MeteredModel(new ScriptedModel(() => [say('- 昨日花費較前日增加，Brand 貢獻最多轉換。')]), 'analyst', 'gpt-5');
 
   beforeAll(async () => {
     boss = createBoss({ connectionString: t.url, logger, role: 'migrator' });
@@ -47,6 +51,8 @@ describe('scheduler', () => {
       now: () => new Date('2026-10-06T01:00:00Z'), // 09:00 Taipei
       agents: { analyst, orchestrator: () => createOrchestrator({ model: analystModel, specialists: { analyst: analyst() } }) },
       templates: TEMPLATES,
+      llmBudgetUsd: 30,
+      notifyOps: async (n) => void opsNotices.push(n.text),
     };
 
     account = (await upsertAdAccounts(t.db, [
@@ -135,6 +141,29 @@ describe('scheduler', () => {
       });
       expect(report.sections[2]).toMatchObject({ kind: 'table', rows: [['Brand', 'NT$1,200', '6.0', 'NT$200', '10.00', '—']] });
       expect(run!.output).toMatchObject({ changesetIds: [], messages: [{ type: 'report' }] });
+      // ScriptedModel reports 100 input / 20 output tokens: 100 × 1.25 + 20 × 10 per 1M on gpt-5.
+      expect(run!.costUsd).toBeCloseTo(0.000325, 6);
+      const usage = await t.db.select().from(schema.llmUsage).where(eq(schema.llmUsage.refId, run!.id));
+      expect(usage).toEqual([expect.objectContaining({ agent: 'analyst', refKind: 'job_run', requests: 1, inputTokens: 100, outputTokens: 20 })]);
+    });
+
+    it('pauses non-critical templates once the daily LLM budget is spent, alerting ops once', async () => {
+      await setSetting(t.db, 'daily_llm_budget_usd', 0.0001);
+      try {
+        const j = await job({ name: 'over budget' });
+        const first = await runScheduledJob(deps, { scheduledJobId: j.id, trigger: 'schedule' }, logger);
+        const second = await runScheduledJob(deps, { scheduledJobId: j.id, trigger: 'schedule' }, logger);
+        expect([first?.status, second?.status]).toEqual(['skipped', 'skipped']);
+        expect(first!.output).toMatchObject({ run: false, reason: 'llm_budget_exceeded' });
+        expect(opsNotices).toEqual([expect.stringContaining('非關鍵排程')]);
+
+        const critical: TemplateHandler = { critical: true, run: async () => ({ messages: [], changesetIds: [] }) };
+        expect(await runScheduledJob({ ...deps, templates: { daily_report: critical } }, { scheduledJobId: j.id, trigger: 'schedule' }, logger)).toMatchObject({
+          status: 'succeeded',
+        });
+      } finally {
+        await setSetting(t.db, 'daily_llm_budget_usd', 30);
+      }
     });
 
     it('still sends the numbers when the summary cannot be written', async () => {

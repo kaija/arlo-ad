@@ -1,11 +1,11 @@
 import { SlackAdapter } from '@arlo/adapters/chat';
 import { createGoogleAdsClient, GoogleAdsAdapter } from '@arlo/adapters/platform/google';
-import { createAnalystAgent, createOrchestrator } from '@arlo/agents';
+import { createAnalystAgent, createOrchestrator, meteredModelFactory, modelNameFor, type AgentName } from '@arlo/agents';
 import { EnvSchema, parseEnv } from '@arlo/config';
 import { createLogger } from '@arlo/config/logger';
 import { checkDatabase, createDb, createPool } from '@arlo/db';
 import { checkQueue, createBoss, enqueue, registerJobs } from '@arlo/queue';
-import { setDefaultOpenAIKey } from '@openai/agents';
+import { OpenAIProvider, setDefaultOpenAIKey } from '@openai/agents';
 import { WebClient } from '@slack/web-api';
 import { closeServer, startHealthServer } from './health-server';
 import { jobDefinitions } from './jobs';
@@ -39,6 +39,8 @@ const WorkerEnv = EnvSchema.pick({
   SLACK_OPS_CHANNEL_ID: true,
   OPENAI_API_KEY: true,
   MODEL_FLAGSHIP: true,
+  MODEL_SMALL: true,
+  DAILY_LLM_BUDGET_USD: true,
 });
 
 function loadEnv() {
@@ -73,8 +75,11 @@ const chat = new SlackAdapter(new WebClient(env.SLACK_BOT_TOKEN));
 const opsChannel = { platform: 'slack' as const, channelId: env.SLACK_OPS_CHANNEL_ID };
 
 setDefaultOpenAIKey(env.OPENAI_API_KEY);
-const analyst = () => createAnalystAgent({ model: env.MODEL_FLAGSHIP });
-const orchestrator = () => createOrchestrator({ model: env.MODEL_FLAGSHIP, specialists: { analyst: analyst() } });
+// Models per agent from config/models.ts; every call's usage is metered (ADR-0023).
+const metered = meteredModelFactory(new OpenAIProvider());
+const model = (agent: AgentName) => metered(agent, modelNameFor(agent, env));
+const analyst = () => createAnalystAgent({ model: model('analyst') });
+const orchestrator = () => createOrchestrator({ model: model('orchestrator'), specialists: { analyst: analyst() } });
 
 const boss = createBoss({ connectionString: env.DATABASE_URL, logger, role: 'worker' });
 await boss.start();
@@ -89,6 +94,7 @@ await registerJobs(
     orchestrator,
     agents: { analyst, orchestrator },
     templates: TEMPLATES,
+    llmBudgetUsd: env.DAILY_LLM_BUDGET_USD,
     boss,
     logger,
     now: () => new Date(),

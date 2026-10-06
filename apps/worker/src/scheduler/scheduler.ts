@@ -1,6 +1,7 @@
 // Scheduled jobs (ADR-0016, Requirement 11): scheduled_jobs rows drive pg-boss cron entries on
 // the scheduler.run queue (one schedule key per job); every execution writes a job_run.
 import type { ChatAdapter } from '@arlo/adapters/chat';
+import { runGuard, trackedRun } from '@arlo/agents';
 import type { Logger } from '@arlo/config/logger';
 import { ConversationRefSchema, type ChatMessage } from '@arlo/core';
 import {
@@ -22,6 +23,9 @@ export interface SchedulerDeps {
   now: () => Date;
   agents: AgentFactories;
   templates: Partial<Record<JobRun['template'], TemplateHandler>>;
+  /** DAILY_LLM_BUDGET_USD (the daily_llm_budget_usd setting overrides it). */
+  llmBudgetUsd: number;
+  notifyOps: (notice: { level: 'info' | 'warn' | 'error'; text: string }) => Promise<void>;
 }
 
 /** Makes pg-boss cron match scheduled_jobs: enabled jobs scheduled, everything else removed. */
@@ -71,10 +75,30 @@ export async function runScheduledJob(deps: SchedulerDeps, data: JobData<typeof 
     return finishJobRun(db, run.id, { status: 'failed', error: `template ${job.template} is not available`, finishedAt: deps.now() });
   }
 
+  // Non-critical templates pause once today's LLM budget is spent (Requirement 19.3).
+  const budget = await runGuard({
+    db,
+    defaultBudgetUsd: deps.llmBudgetUsd,
+    critical: handler.critical,
+    now: deps.now,
+    notify: (d) =>
+      deps.notifyOps({
+        level: 'warn',
+        text: `今日 LLM 成本 US$${d.spentUsd.toFixed(2)} 已達預算 US$${d.budgetUsd.toFixed(2)}，非關鍵排程（報告、擴展類、custom_prompt）暫停至明日；Monitor 與 Executor 不受影響。`,
+      }),
+  });
+  if (!budget.run) {
+    return finishJobRun(db, run.id, { status: 'skipped', output: budget, finishedAt: deps.now() });
+  }
+
   const active = await listActiveAccounts(db, 'google_ads');
   const accounts = job.accountIds ? active.filter((a) => job.accountIds!.includes(a.id)) : active;
   try {
-    const result = await handler.run({ db, logger: log, now: deps.now, agents: deps.agents, job, run, accounts });
+    const tracked = await trackedRun(
+      { db, name: `job.${job.template}`, ref: { kind: 'job_run', id: run.id }, metadata: { scheduled_job_id: job.id }, now: deps.now },
+      () => handler.run({ db, logger: log, now: deps.now, agents: deps.agents, job, run, accounts }),
+    );
+    const result = tracked.result;
     const posted: ChatMessage[] = [];
     for (const message of result.messages) {
       await chat.post(target.data, message);
@@ -83,8 +107,8 @@ export async function runScheduledJob(deps: SchedulerDeps, data: JobData<typeof 
     return await finishJobRun(db, run.id, {
       status: 'succeeded',
       output: { messages: posted, changesetIds: result.changesetIds },
-      traceId: result.traceId ?? null,
-      costUsd: result.costUsd ?? null,
+      traceId: tracked.traceId,
+      costUsd: tracked.costUsd,
       finishedAt: deps.now(),
     });
   } catch (err) {

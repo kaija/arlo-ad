@@ -6,6 +6,7 @@ export * from './repositories/reads';
 export * from './repositories/scheduler';
 export * from './repositories/slack';
 export * from './repositories/sync';
+export * from './repositories/usage';
 export type { DbOrTx, Insert } from './repositories/upsert';
 export * as schema from './schema';
 export { DEFAULT_ORG_ID, ENTITY_KINDS, JOB_TEMPLATES, PLATFORMS, ROLES, SYNC_JOBS, USER_STATUSES } from './schema';

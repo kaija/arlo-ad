@@ -1,6 +1,6 @@
 // Slack @mention → Orchestrator (design.md flow 1, ADR-0015, Requirements 10.1–10.6, 1.5).
 import type { ChatAdapter } from '@arlo/adapters/chat';
-import { PgSession, slackSessionId, type AgentContext } from '@arlo/agents';
+import { PgSession, slackSessionId, trackedRun, type AgentContext } from '@arlo/agents';
 import type { Logger } from '@arlo/config/logger';
 import { authorize, readableAccountIds, type ChatTurn, type ConversationRef } from '@arlo/core';
 import { resolveSlackUser, type Db } from '@arlo/db';
@@ -69,7 +69,8 @@ export async function handleMention(deps: ChatJobDeps, job: JobData<typeof Jobs.
       return;
     }
 
-    const session = new PgSession({ db, sessionId: slackSessionId(job.channelId, threadTs) });
+    const sessionId = slackSessionId(job.channelId, threadTs);
+    const session = new PgSession({ db, sessionId });
     const since = await session.getLastSlackTs();
     let turns: ChatTurn[];
     if (since) {
@@ -92,11 +93,15 @@ export async function handleMention(deps: ChatJobDeps, job: JobData<typeof Jobs.
     const question = stripMentions(job.text) || '（使用者只標記了你，沒有其他內容）';
     let answer: string;
     try {
-      const result = await run(deps.orchestrator(), `[發問者 ${user.displayName ?? user.googleEmail}]\n${question}`, {
-        session,
-        context,
-        maxTurns: MAX_TURNS,
-      });
+      const { result } = await trackedRun(
+        { db, name: 'chat.mention', ref: { kind: 'session', id: sessionId }, metadata: { user_id: user.id }, now: deps.now },
+        () =>
+          run(deps.orchestrator(), `[發問者 ${user.displayName ?? user.googleEmail}]\n${question}`, {
+            session,
+            context,
+            maxTurns: MAX_TURNS,
+          }),
+      );
       answer = String(result.finalOutput ?? '').trim() || '（沒有產生回覆）';
     } catch (err) {
       logger.error({ err }, 'orchestrator run failed');

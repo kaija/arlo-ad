@@ -157,7 +157,7 @@
     - 測試：schedule 同步、run 紀錄
     - _Requirements: 11.1, 11.2, 11.4_
     - _ADR: ADR-0016_
-  - [ ] 9.6 模型設定、用量與 tracing
+  - [x] 9.6 模型設定、用量與 tracing
     - `config/models.ts`；每次 run 以 `withTrace` 帶 metadata、寫 `llm_usage` 與 `trace_id`
     - `runGuard()`：超過 `daily_llm_budget_usd` skip 非關鍵 job 並通知
     - 單元測試：成本計算、guard 判斷

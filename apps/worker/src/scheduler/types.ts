@@ -23,8 +23,6 @@ export interface TemplateContext {
 export interface TemplateResult {
   messages: ChatMessage[];
   changesetIds: string[];
-  traceId?: string | null;
-  costUsd?: number | null;
 }
 
 /** One handler per job template (ADR-0016). */

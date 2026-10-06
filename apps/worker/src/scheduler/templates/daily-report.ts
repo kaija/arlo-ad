@@ -102,7 +102,7 @@ export function summaryInput(reports: AccountDayReport[]): string {
   );
 }
 
-async function writeSummary(ctx: TemplateContext, reports: AccountDayReport[]): Promise<{ text: string | null; traceId: string | null }> {
+async function writeSummary(ctx: TemplateContext, reports: AccountDayReport[]): Promise<string | null> {
   const prompt = [
     '以下是排程每日報告的數據（JSON，金額為帳戶幣別單位，cpcMicros / cpaMicros 為 micros）。',
     '請寫 3–5 點繁體中文重點摘要：花費與轉換的明顯變化、需要注意的 campaign、pacing 風險。數字只能取自資料，不要逐項重述表格。',
@@ -116,10 +116,10 @@ async function writeSummary(ctx: TemplateContext, reports: AccountDayReport[]): 
   const context: AgentContext = { db: ctx.db, allowedAccountIds: reports.map((r) => r.account.id), now: ctx.now };
   try {
     const result = await run(ctx.agents.analyst(), prompt, { context, maxTurns: 6 });
-    return { text: String(result.finalOutput ?? '').trim() || null, traceId: null };
+    return String(result.finalOutput ?? '').trim() || null;
   } catch (err) {
     ctx.logger.warn({ err }, 'daily report summary failed; sending numbers only');
-    return { text: null, traceId: null };
+    return null;
   }
 }
 
@@ -136,10 +136,10 @@ export const dailyReport: TemplateHandler = {
       type: 'report',
       title: `每日報告 · ${reports[0]!.date}`,
       sections: [
-        { kind: 'text', text: summary.text ?? '_（摘要暫時無法產生，以下為數據）_' },
+        { kind: 'text', text: summary ?? '_（摘要暫時無法產生，以下為數據）_' },
         ...reports.flatMap(accountSections),
       ],
     };
-    return { messages: [message], changesetIds: [], traceId: summary.traceId };
+    return { messages: [message], changesetIds: [] };
   },
 };
