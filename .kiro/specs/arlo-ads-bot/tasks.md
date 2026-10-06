@@ -331,7 +331,7 @@
     - 整合測試：觸發、冷卻、shadow
     - _Requirements: 12.3_
     - _ADR: ADR-0017, ADR-0013_
-  - [ ] 17.3 事後根因與通知
+  - [x] 17.3 事後根因與通知
     - `audit.explain` job：audit agent（`get_change_history`、`get_changesets`）產出原因；LLM 預算不足改模板；Notice 附 [Undo] [維持]
     - 測試：模板降級
     - _Requirements: 12.5_

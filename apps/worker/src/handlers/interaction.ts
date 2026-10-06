@@ -30,7 +30,6 @@ export function createInteractionHandler(deps: InteractionDeps) {
   const { db, chat, executor } = deps;
 
   async function changesetAction(job: Interaction, user: UserWithBindings, action: Extract<ChatAction, { kind: 'changeset' }>, where: ConversationRef | null) {
-    if (action.verb === 'keep') return;
     const { message } = await decide({ db, executor }, user, action.verb, action.changesetId);
     if (!message) return;
     if (where) await chat.ephemeral(where, job.userId, message);

@@ -48,6 +48,8 @@ export const Jobs = {
   schedulerRun: jobSpec('scheduler.run', schedulerRun, { retryLimit: 0 }),
   // Deterministic Monitor for one account, queued after each snapshot sync (ADR-0017).
   monitorRun: jobSpec('monitor.run', z.object({ accountId: z.uuid() }), { retryLimit: 1 }),
+  // Root cause of a Monitor ChangeSet, posted with [Undo] [維持] (ADR-0017, Requirement 12.5).
+  auditExplain: jobSpec('audit.explain', changesetRef, { retryLimit: 1 }),
   // Validation → tier → auto-execute or approval request (ADR-0006). Idempotent per status.
   changesetProcess: jobSpec('changeset.process', changesetRef),
   // Cron: PENDING_APPROVAL past expires_at → EXPIRED, cards disabled (Requirement 6.2).

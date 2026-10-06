@@ -5,6 +5,7 @@ import {
   dailySpend,
   findEntities,
   listCampaigns,
+  listChangeSets,
   listChangeEvents,
   queryMetrics,
   resolveAccounts,
@@ -191,6 +192,34 @@ export async function runGetChangeHistory(ctx: AgentContext, p: z.infer<typeof G
   };
 }
 
+// --- get_changesets --------------------------------------------------------------------
+
+export const GetChangeSetsParams = z.object({
+  account: accountParam,
+  days: z.number().int().min(1).max(30).nullable().describe('最近幾天，預設 3'),
+  limit: z.number().int().min(1).max(50).nullable(),
+});
+
+export async function runGetChangeSets(ctx: AgentContext, p: z.infer<typeof GetChangeSetsParams>) {
+  const accounts = await accountsFor(ctx, p.account);
+  const since = new Date(ctx.now().getTime() - (p.days ?? 3) * 86_400_000);
+  const names = new Map(accounts.map((a) => [a.id, a.name]));
+  const rows = (await listChangeSets(ctx.db, { accountIds: accounts.map((a) => a.id), limit: 200 })).filter((cs) => cs.createdAt >= since).slice(0, p.limit ?? 20);
+  return {
+    changesets: rows.map((cs) => ({
+      id: cs.id,
+      account: names.get(cs.accountId),
+      createdAt: cs.createdAt.toISOString(),
+      executedAt: cs.executedAt?.toISOString() ?? null,
+      status: cs.status,
+      source: cs.source.kind,
+      feature: cs.feature ?? null,
+      summary: cs.summary,
+      ops: cs.ops.map((op) => ({ kind: op.kind, target: `${op.target.kind} ${op.target.id}`, field: op.field ?? null, before: clip(op.before), after: clip(op.after) })),
+    })),
+  };
+}
+
 // --- tool definitions ------------------------------------------------------------------
 
 export const queryMetricsTool = tool({
@@ -219,6 +248,13 @@ export const getChangeHistoryTool = tool({
   description: '查詢 Google Ads 變更紀錄（誰在何時改了什麼），用於解釋成效變化。',
   parameters: GetChangeHistoryParams,
   execute: (p, rc?: RunContext<AgentContext>) => runGetChangeHistory(ctxOf(rc), p),
+});
+
+export const getChangeSetsTool = tool({
+  name: 'get_changesets',
+  description: '列出 Arlo 最近提出或執行的變更（ChangeSet），含來源（對話、排程、Monitor）、狀態與前後值。',
+  parameters: GetChangeSetsParams,
+  execute: (p, rc?: RunContext<AgentContext>) => runGetChangeSets(ctxOf(rc), p),
 });
 
 export const analystTools = [queryMetricsTool, listCampaignsTool, getPacingTool, getChangeHistoryTool];

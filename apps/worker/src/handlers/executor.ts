@@ -50,7 +50,7 @@ import {
   type Db,
   type StoredChangeSet,
 } from '@arlo/db';
-import { defineJob, Jobs } from '@arlo/queue';
+import { defineJob, Jobs, type JobData, type JobSpec } from '@arlo/queue';
 
 export interface ExecutorDeps {
   db: Db;
@@ -62,6 +62,8 @@ export interface ExecutorDeps {
   writeAllowedCustomerIds: readonly string[];
   /** SLACK_APPROVAL_CHANNEL_ID: where non-conversation ChangeSets are reviewed. */
   approvalChannel: ConversationRef;
+  /** Queues follow-up jobs (audit.explain for Monitor ChangeSets). */
+  enqueue?: <J extends JobSpec>(spec: J, data: JobData<J>) => Promise<string>;
 }
 
 /** Approval SLA before approvers are reminded (Requirement 7.5); setting `approval_sla_minutes`. */
@@ -233,6 +235,12 @@ export function createExecutor(deps: ExecutorDeps) {
     }
   }
 
+  /** Monitor ChangeSets get a root-cause notice afterwards (Requirement 12.5). */
+  async function explainLater(cs: ChangeSet) {
+    if (cs.source.kind !== 'monitor' || !deps.enqueue) return;
+    await deps.enqueue(Jobs.auditExplain, { changesetId: cs.id }).catch((err: unknown) => logger.error({ err, changeset_id: cs.id }, 'failed to queue audit.explain'));
+  }
+
   /** Re-renders pending approval cards, e.g. after an op was ticked or unticked. */
   async function refreshPendingCards(cs: StoredChangeSet) {
     const v = await view(cs, await account(cs));
@@ -335,6 +343,7 @@ export function createExecutor(deps: ExecutorDeps) {
       if (!simulated.ok) return simulated.current;
       log.info({ feature: cs.feature }, 'ChangeSet simulated (shadow)');
       await post(simulated.changeset, await origin(cs), { type: 'shadow_result', changeset: await view(simulated.changeset, acc) }, 'origin');
+      await explainLater(simulated.changeset);
       return simulated.changeset;
     }
 
@@ -342,6 +351,7 @@ export function createExecutor(deps: ExecutorDeps) {
     if (!executing.ok) return executing.current;
     const done = await runOps(executing.changeset, acc, SYSTEM);
     log.info({ status: done.status }, 'Tier 1 ChangeSet executed');
+    if (done.status === 'EXECUTED') await explainLater(done);
     await post(
       done,
       await origin(cs),

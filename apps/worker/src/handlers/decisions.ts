@@ -1,7 +1,7 @@
 // One decision path for Slack and Web (Requirement 18.8): authorize the user against the
 // ChangeSet, then call the Executor. Returns what to tell the user, if anything.
 import { authorize, type ChangeSetStatus, type ChangeSetVerb, type DenyReason } from '@arlo/core';
-import { getChangeSet, getUserWithBindings, type Db, type UserWithBindings } from '@arlo/db';
+import { getChangeSet, getUserWithBindings, writeAudit, type Db, type UserWithBindings } from '@arlo/db';
 import { defineJob, Jobs } from '@arlo/queue';
 import type { Logger } from '@arlo/config/logger';
 import type { Executor, UndoResult } from './executor';
@@ -93,6 +93,12 @@ export async function decide(
     }
     const result = await deps.executor.reject(cs.id, user.id, opts.reason);
     return result.ok ? { message: null, outcome: 'rejected' } : { message: alreadyHandled(result.status, result.handledBy), outcome: 'not_pending' };
+  }
+  if (verb === 'keep') {
+    // Acknowledges an automatic change (Requirement 12.5); recorded for the audit trail.
+    if (!authorize(user, 'undo', { accountId: cs.accountId }).allowed) return { message: DENY_TEXT.role(cs.tier), outcome: 'denied' };
+    await writeAudit(deps.db, { actor: { kind: 'user', id: user.id }, entityKind: 'changeset', entityId: cs.id, action: 'keep' });
+    return { message: '已記錄：維持這個變更。', outcome: 'kept' };
   }
   if (verb === 'undo') {
     const result = await deps.executor.undo(cs.id, user.id);

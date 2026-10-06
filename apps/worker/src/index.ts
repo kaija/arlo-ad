@@ -1,6 +1,6 @@
 import { SlackAdapter } from '@arlo/adapters/chat';
 import { createGoogleAdsClient, GoogleAdsAdapter } from '@arlo/adapters/platform/google';
-import { createAnalystAgent, createBiddingAgent, createKeywordAgent, createOrchestrator, createSearchTermClassifier, meteredModelFactory, modelNameFor, type AgentName } from '@arlo/agents';
+import { createAnalystAgent, createAuditAgent, createBiddingAgent, createKeywordAgent, createOrchestrator, createSearchTermClassifier, meteredModelFactory, modelNameFor, type AgentName } from '@arlo/agents';
 import { EnvSchema, parseEnv } from '@arlo/config';
 import { createLogger } from '@arlo/config/logger';
 import { checkDatabase, createDb, createPool } from '@arlo/db';
@@ -84,8 +84,9 @@ const model = (agent: AgentName) => metered(agent, modelNameFor(agent, env));
 const analyst = () => createAnalystAgent({ model: model('analyst') });
 const bidding = () => createBiddingAgent({ model: model('bidding') });
 const keyword = () => createKeywordAgent({ model: model('keyword') });
+const audit = () => createAuditAgent({ model: model('audit') });
 const searchTermClassifier = () => createSearchTermClassifier({ model: model('search_term_classifier') });
-const orchestrator = () => createOrchestrator({ model: model('orchestrator'), specialists: { analyst: analyst(), bidding: bidding(), keyword: keyword() } });
+const orchestrator = () => createOrchestrator({ model: model('orchestrator'), specialists: { analyst: analyst(), bidding: bidding(), keyword: keyword(), audit: audit() } });
 
 const boss = createBoss({ connectionString: env.DATABASE_URL, logger, role: 'worker' });
 await boss.start();
@@ -98,7 +99,7 @@ await registerJobs(
     platform,
     chat,
     orchestrator,
-    agents: { analyst, bidding, keyword, orchestrator, searchTermClassifier },
+    agents: { analyst, audit, bidding, keyword, orchestrator, searchTermClassifier },
     propose: createProposer(db, boss),
     templates: TEMPLATES,
     llmBudgetUsd: env.DAILY_LLM_BUDGET_USD,

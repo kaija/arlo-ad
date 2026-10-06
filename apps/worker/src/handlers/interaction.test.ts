@@ -76,7 +76,7 @@ describe('Slack approve / reject interactions', () => {
     return cs.id;
   }
 
-  const click = (slackUser: string, verb: 'approve' | 'reject' | 'undo', changesetId: string) =>
+  const click = (slackUser: string, verb: 'approve' | 'reject' | 'undo' | 'keep', changesetId: string) =>
     handle({ type: 'block_actions', userId: slackUser, channelId: CHANNEL, messageTs: '1.0', actions: [{ actionId: encodeAction({ kind: 'changeset', verb, changesetId }) }] });
   const lastEphemeral = (slackUser: string) => chat.ephemerals.filter((e) => e.userId === slackUser).at(-1)?.text;
 
@@ -189,6 +189,16 @@ describe('Slack approve / reject interactions', () => {
     const pendingId = await pending(1_100_000_000);
     await vote('UVIEWER', 'down', pendingId);
     expect(lastEphemeral('UVIEWER')).toBe('這不是 shadow 模式的變更。');
+  });
+
+  it('records Keep from operators and refuses viewers', async () => {
+    const id = await pending(1_100_000_000);
+    await click('UADMIN', 'approve', id);
+    await click('UVIEWER', 'keep', id);
+    expect(lastEphemeral('UVIEWER')).toBe(DENY_TEXT.role(2));
+    await click('UOPERATOR', 'keep', id);
+    expect(lastEphemeral('UOPERATOR')).toBe('已記錄：維持這個變更。');
+    expect((await getChangeSet(t.db, id))?.status).toBe('EXECUTED');
   });
 
   it('rejects', async () => {

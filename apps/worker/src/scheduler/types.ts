@@ -8,6 +8,7 @@ export interface AgentFactories {
   analyst: () => Agent<AgentContext>;
   bidding?: () => Agent<AgentContext>;
   keyword?: () => Agent<AgentContext>;
+  audit?: () => Agent<AgentContext>;
   orchestrator: () => Agent<AgentContext>;
   /** Small-model search term classifier (ADR-0019, ADR-0023). */
   searchTermClassifier?: () => Agent<unknown, typeof SearchTermLabelsSchema>;

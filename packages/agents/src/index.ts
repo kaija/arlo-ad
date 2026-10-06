@@ -1,4 +1,5 @@
 export * from './agents/analyst';
+export * from './agents/audit';
 export * from './agents/bidding';
 export * from './agents/keyword';
 export * from './agents/orchestrator';
