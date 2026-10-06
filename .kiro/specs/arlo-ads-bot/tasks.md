@@ -60,7 +60,7 @@
     - _Requirements: 2.5, 2.7_
     - _ADR: ADR-0003, ADR-0004_
 
-- [-] 4. 身分與 RBAC
+- [x] 4. 身分與 RBAC
   - [x] 4.1 Google Workspace SSO
     - Auth.js Google provider、`hd` 限制、session callback 帶入內部 user + bindings
     - 測試：非允許 domain 被拒
@@ -72,7 +72,7 @@
     - 測試（fake Slack client）：綁定成功、找不到、重複綁定
     - _Requirements: 1.2, 1.3, 1.5_
     - _ADR: ADR-0010_
-  - [ ] 4.3 `authorize()` 純函式
+  - [x] 4.3 `authorize()` 純函式
     - 角色層級、account scope、`max_tier`、Tier 3 四眼
     - table-driven 單元測試覆蓋所有角色 × action × tier
     - _Requirements: 1.4, 1.5, 1.6_

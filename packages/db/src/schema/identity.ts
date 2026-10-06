@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { check, index, jsonb, pgEnum, pgTable, primaryKey, smallint, text, unique, uuid } from 'drizzle-orm/pg-core';
+import { ROLES } from '@arlo/core';
 import { id, timestamps } from './columns';
 
 // v1 is a single internal org (ADR-0001); every table still carries org_id (Requirement 1.7).
@@ -44,8 +45,8 @@ export const users = pgTable(
   ],
 );
 
-// Ordered by privilege (ADR-0010).
-export const ROLES = ['viewer', 'operator', 'approver', 'admin'] as const;
+// Ordered by privilege (ADR-0010); defined with authorize() in @arlo/core.
+export { ROLES };
 export const role = pgEnum('role', ROLES);
 
 export const roleBindings = pgTable(
