@@ -30,7 +30,7 @@
     - _Requirements: 20.6, 20.9_
     - _ADR: ADR-0026_
 
-- [-] 2. EC2 部署腳本
+- [x] 2. EC2 部署腳本
   - [x] 2.1 Production compose 與 Caddy
     - `docker-compose.prod.yml`：caddy、web、worker、postgres（volume 掛 `/data/pg`）、restart policy、logging driver 限制大小
     - `infra/caddy/Caddyfile`：`{$APP_DOMAIN}` 自動 TLS、反向代理 web、安全標頭
@@ -41,7 +41,7 @@
     - `scripts/deploy.sh`：`git pull` → `compose build` → `compose run --rm worker migrate` → `compose up -d` → healthz 檢查，失敗時印出 log 並非零退出
     - _Requirements: 20.5_
     - _ADR: ADR-0025_
-  - [ ] 2.3 備份與還原
+  - [x] 2.3 備份與還原
     - `scripts/backup.sh`：`pg_dump -Fc` → gzip → `aws s3 cp`，失敗發送 Slack ops webhook
     - `scripts/restore.sh`：從 S3 下載指定 dump 還原
     - 整合測試：Testcontainers 上 dump → restore → 資料一致

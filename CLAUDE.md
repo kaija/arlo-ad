@@ -31,6 +31,7 @@ pnpm dev                      # turbo dev
 - 本機執行 worker：`DATABASE_URL=... pnpm --filter @arlo/worker dev`（health 在 `WORKER_HEALTH_PORT`，預設 9090）。
 - DB migration：schema 在 `packages/db/src/schema/`，產生 migration 用 `pnpm --filter @arlo/db db:generate`（輸出到 `packages/db/migrations/`），套用用 `DATABASE_URL=... pnpm --filter @arlo/worker migrate`；在 image 內為 `docker compose -f docker-compose.prod.yml run --rm worker migrate`。`runMigrations` 從 `@arlo/db/migrate` 匯入（不在 `@arlo/db` 主入口，避免 web bundle 進 migrations 目錄）。
 - 部署（EC2 上）：`scripts/deploy.sh`（git pull → build → migrate → `up -d --wait`；失敗印 log 並非零退出）；`--no-pull` 部署目前工作目錄。
+- 備份 / 還原：`scripts/backup.sh`（cron 每日；`pg_dump -Fc` → gzip → 驗證 → S3，失敗發 `SLACK_OPS_WEBHOOK_URL`）、`scripts/restore.sh <key> [--yes]`（先還原到暫存 DB，成功才停 web/worker 並以 rename 交換，舊 DB 保留為 `<db>_pre_restore_<ts>`）。30 天保留靠 `infra/s3/backup-lifecycle.json` 的 S3 lifecycle rule。共用 helper 在 `scripts/lib/pg-ops.sh`（`PG_EXEC`、`AWS_CLI`、`ENV_FILE` 可覆寫，供 `tests/backup-restore.test.ts` 使用）。Shell script 以 `shellcheck -x` 檢查，並用 `set -Eeuo pipefail`（ERR trap 才會在函式內觸發）。
 - 全套本機環境（postgres + web + worker，熱重載）：`docker compose up --build --watch`；環境變數範本在 `.env.example`（新增變數時同步更新）。
 
 ## Docker

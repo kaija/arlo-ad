@@ -127,7 +127,8 @@ describe('ADS_WRITE_ALLOWED_CUSTOMER_IDS', () => {
 
 describe('.env.example', () => {
   // Keys consumed outside the app schema.
-  const NON_APP_KEYS = ['APP_DOMAIN', 'LOG_LEVEL', 'POSTGRES_PASSWORD']; // Caddy, logger, prod compose
+  // Caddy, logger, prod compose, backup script
+  const NON_APP_KEYS = ['APP_DOMAIN', 'LOG_LEVEL', 'POSTGRES_PASSWORD', 'SLACK_OPS_WEBHOOK_URL'];
 
   it('lists exactly the schema keys plus infrastructure keys', () => {
     const example = readFileSync(new URL('../../../.env.example', import.meta.url), 'utf8');

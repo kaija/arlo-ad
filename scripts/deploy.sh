@@ -6,7 +6,7 @@
 # Usage: scripts/deploy.sh [--no-pull]
 #   --no-pull   deploy the working tree as-is (e.g. after a manual checkout)
 
-set -euo pipefail
+set -Eeuo pipefail
 
 cd "$(dirname "$0")/.."
 
@@ -32,6 +32,8 @@ step() { printf '\n==> %s\n' "$*"; }
 
 on_error() {
   local code=$?
+  # errtrace (-E) also fires this in $(...) subshells; report once, from the main shell.
+  ((BASH_SUBSHELL == 0)) || exit "$code"
   step "Deploy FAILED (exit $code)"
   "${COMPOSE[@]}" ps -a || true
   "${COMPOSE[@]}" logs --no-color --tail=100 || true

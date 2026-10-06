@@ -20,7 +20,7 @@
     "tsx": "^4.23.15"
   },
   "devDependencies": {
-    "@testcontainers/postgresql": "^12.2.0",
+    "@testcontainers/postgresql": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   }
