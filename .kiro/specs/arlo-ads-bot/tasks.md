@@ -141,7 +141,7 @@
     - tool 單元測試（Testcontainers seed 資料）
     - _Requirements: 2.8, 10.5_
     - _ADR: ADR-0014_
-  - [ ] 9.3 Orchestrator
+  - [x] 9.3 Orchestrator
     - analyst `.asTool()`；系統 prompt 定義角色、不可信內容處理原則
     - eval case：路由到 analyst 的問題集
     - _Requirements: 10.5_
