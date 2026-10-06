@@ -219,7 +219,7 @@
     - 整合測試（Fake adapters）：每個分支
     - _Requirements: 3.3, 4.6, 5.3, 6.1_
     - _ADR: ADR-0006, ADR-0007_
-  - [ ] 12.3 approve / reject 與重驗
+  - [x] 12.3 approve / reject 與重驗
     - approve：CAS → fetchCurrent → `diffCurrent` → STALE / revalidate → mutate → op results → EXECUTED / FAILED
     - reject：REJECTED + 原因
     - 整合測試：drift → STALE、revalidate 失敗 → BLOCKED、部分失敗 → FAILED

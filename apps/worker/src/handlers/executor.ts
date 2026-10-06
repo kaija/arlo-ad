@@ -14,6 +14,8 @@ import {
   validate,
   type ChangeSet,
   type ChangeSetEvent,
+  type ChangeSetStatus,
+  type ChangeSetView,
   type ChatMessage,
   type ConversationRef,
   type Drift,
@@ -27,6 +29,7 @@ import {
   getChangeSet,
   getUserWithBindings,
   listApprovalMessages,
+  listAudit,
   loadOpTargetNames,
   loadRules,
   loadTierThresholds,
@@ -70,6 +73,18 @@ function failureReason(results: readonly OpResult[]): string {
   const failed = results.filter((r) => !r.ok);
   return `${failed.length}/${results.length} 個變更失敗：${failed.map((r) => `op ${r.index + 1} ${r.error ?? ''}`.trim()).join('；')}`;
 }
+
+export type ApproveOutcome = 'executed' | 'failed' | 'stale' | 'blocked' | 'expired' | 'not_pending' | 'not_found';
+
+export interface ApproveResult {
+  outcome: ApproveOutcome;
+  status: ChangeSetStatus | null;
+  changeset?: StoredChangeSet;
+  /** Who handled it first, for "already handled by @x" (Requirement 6.6). */
+  handledBy?: string | null;
+}
+
+export type RejectResult = { ok: true; changeset: StoredChangeSet } | { ok: false; status: ChangeSetStatus | null; handledBy?: string | null; changeset?: StoredChangeSet };
 
 export function createExecutor(deps: ExecutorDeps) {
   const { db, chat, logger } = deps;
@@ -137,6 +152,42 @@ export function createExecutor(deps: ExecutorDeps) {
     const moved = await move(cs, event, actor, ok ? null : failureReason(results), { results: results.map((r) => ({ index: r.index, ok: r.ok, error: r.error ?? null })) });
     if (!moved.ok) throw new Error(`ChangeSet ${cs.id} left EXECUTING concurrently`);
     return moved.changeset;
+  }
+
+  async function userName(userId: string | null | undefined): Promise<string | undefined> {
+    if (!userId) return undefined;
+    const u = await getUserWithBindings(db, userId);
+    return u ? (u.displayName ?? u.googleEmail) : undefined;
+  }
+
+  /** Who moved the ChangeSet to its current status, from the audit trail. */
+  async function handledBy(cs: StoredChangeSet): Promise<string | null> {
+    if (cs.approvedBy) return (await userName(cs.approvedBy)) ?? null;
+    const last = (await listAudit(db, 'changeset', cs.id)).filter((a) => a.toStatus === cs.status).at(-1);
+    return last?.actorKind === 'user' ? ((await userName(last.actorId)) ?? null) : last ? '系統' : null;
+  }
+
+  /** Updates every approval card of the ChangeSet with its outcome (Requirement 7.4). */
+  async function refreshCards(cs: StoredChangeSet, acc: AdAccount, actor?: string | null) {
+    const outcome: ChangeSetView['outcome'] = {
+      status: cs.status,
+      ...(actor ? { actor } : {}),
+      at: (cs.executedAt ?? cs.updatedAt).toISOString(),
+      ...(cs.statusReason ? { reason: cs.statusReason } : {}),
+    };
+    const v = await view(cs, acc, outcome);
+    for (const m of await listApprovalMessages(db, cs.id)) {
+      if (m.kind === 'notice') continue;
+      try {
+        await chat.update({ platform: 'slack', channelId: m.channelId, messageId: m.messageId, ...(m.threadId ? { threadId: m.threadId } : {}) }, { type: 'approval_request', changeset: v, mirror: m.kind === 'mirror' });
+      } catch (err) {
+        logger.error({ err, changeset_id: cs.id, channel: m.channelId }, 'failed to update approval card');
+      }
+    }
+  }
+
+  async function notify(cs: StoredChangeSet, level: 'info' | 'warn' | 'error', text: string) {
+    await post(cs, origin(cs), { type: 'notice', level, text, changesetId: cs.id }, 'notice');
   }
 
   async function postApprovalRequest(cs: StoredChangeSet, acc: AdAccount) {
@@ -208,7 +259,79 @@ export function createExecutor(deps: ExecutorDeps) {
     return done;
   }
 
-  return { process: processChangeSet, drift, runOps, view, post, move, origin, account };
+  /**
+   * Approve (ADR-0009): CAS PENDING_APPROVAL → APPROVED, then re-fetch and diff (→ STALE),
+   * re-validate with fresh context (→ BLOCKED), mutate (→ EXECUTED / FAILED). Authorization is
+   * the caller's job; a second click finds the ChangeSet no longer pending.
+   */
+  async function approve(changesetId: string, userId: string): Promise<ApproveResult> {
+    const cs = await getChangeSet(db, changesetId);
+    if (!cs) return { outcome: 'not_found', status: null };
+    if (cs.status !== 'PENDING_APPROVAL') return { outcome: 'not_pending', status: cs.status, changeset: cs, handledBy: await handledBy(cs) };
+    const acc = await account(cs);
+    const actor: Actor = { kind: 'user', id: userId };
+    const log = logger.child({ changeset_id: cs.id });
+
+    if (cs.expiresAt && cs.expiresAt <= deps.now()) {
+      const expired = await move(cs, { type: 'expire' }, SYSTEM, '已超過審核期限');
+      if (!expired.ok) return { outcome: 'not_pending', status: expired.current?.status ?? null, changeset: expired.current };
+      await refreshCards(expired.changeset, acc, '系統');
+      return { outcome: 'expired', status: 'EXPIRED', changeset: expired.changeset };
+    }
+
+    const approved = await move(cs, { type: 'approve', by: userId }, actor);
+    if (!approved.ok) {
+      const current = approved.current;
+      return { outcome: 'not_pending', status: current?.status ?? null, changeset: current, handledBy: current ? await handledBy(current) : null };
+    }
+    const approver = await userName(userId);
+    let current = approved.changeset;
+
+    const drifts = await drift(current);
+    if (drifts.length) {
+      const stale = await move(current, { type: 'stale' }, SYSTEM, describeDrift(drifts), { drifts });
+      if (!stale.ok) throw new Error(`ChangeSet ${cs.id} left APPROVED concurrently`);
+      log.info({ drifts: drifts.length }, 'ChangeSet stale at approval');
+      await refreshCards(stale.changeset, acc, approver);
+      await notify(stale.changeset, 'warn', `帳戶現況已在提議後變更，未執行，請重新提議：${cs.summary}\n${describeDrift(drifts)}`);
+      return { outcome: 'stale', status: 'STALE', changeset: stale.changeset };
+    }
+
+    const [ctx, rules] = await Promise.all([loadValidationContext(db, acc, current.ops, deps.now()), loadRules(db, acc.id)]);
+    const violations = validate(current, ctx, rules);
+    if (hasHardBlock(violations)) {
+      const blocked = await move(current, { type: 'block', violations }, SYSTEM, '執行前重驗未通過');
+      if (!blocked.ok) throw new Error(`ChangeSet ${cs.id} left APPROVED concurrently`);
+      await refreshCards(blocked.changeset, acc, approver);
+      await notify(blocked.changeset, 'error', `執行前重驗未通過，未執行：${cs.summary}\n${violationText(violations.filter((v) => v.severity === 'HARD_BLOCK'))}`);
+      return { outcome: 'blocked', status: 'BLOCKED', changeset: blocked.changeset };
+    }
+
+    const executing = await move(current, { type: 'execute' }, actor);
+    if (!executing.ok) throw new Error(`ChangeSet ${cs.id} left APPROVED concurrently`);
+    current = await runOps(executing.changeset, acc, actor);
+    log.info({ status: current.status }, 'approved ChangeSet executed');
+    await refreshCards(current, acc, approver);
+    if (current.status === 'FAILED') await notify(current, 'error', `執行失敗：${cs.summary}\n${current.statusReason ?? ''}`);
+    return { outcome: current.status === 'EXECUTED' ? 'executed' : 'failed', status: current.status, changeset: current };
+  }
+
+  /** Reject with an optional reason (Requirement 6.5). Idempotent like approve. */
+  async function reject(changesetId: string, userId: string, reason?: string | null): Promise<RejectResult> {
+    const cs = await getChangeSet(db, changesetId);
+    if (!cs) return { ok: false, status: null };
+    if (cs.status !== 'PENDING_APPROVAL') return { ok: false, status: cs.status, changeset: cs, handledBy: await handledBy(cs) };
+    const text = reason?.trim() || null;
+    const moved = await move(cs, { type: 'reject', by: userId, reason: text ?? undefined }, { kind: 'user', id: userId }, text);
+    if (!moved.ok) {
+      const current = moved.current;
+      return { ok: false, status: current?.status ?? null, changeset: current, handledBy: current ? await handledBy(current) : null };
+    }
+    await refreshCards(moved.changeset, await account(cs), await userName(userId));
+    return { ok: true, changeset: moved.changeset };
+  }
+
+  return { process: processChangeSet, approve, reject, refreshCards, notify, drift, runOps, view, post, move, origin, account, handledBy, userName };
 }
 
 export type Executor = ReturnType<typeof createExecutor>;

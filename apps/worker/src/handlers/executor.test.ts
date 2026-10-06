@@ -2,7 +2,7 @@ import { FakeChatAdapter } from '@arlo/adapters/chat';
 import { FakePlatformAdapter } from '@arlo/adapters/platform';
 import { createLogger } from '@arlo/config/logger';
 import type { ChangeSetSource, EntityKind, Op } from '@arlo/core';
-import { DEFAULT_ORG_ID, insertChangeSet, listApprovalMessages, listAudit, listOpResults, schema, type AdAccount } from '@arlo/db';
+import { DEFAULT_ORG_ID, getChangeSet, insertChangeSet, listApprovalMessages, listAudit, listOpResults, schema, upsertUserOnSignIn, type AdAccount } from '@arlo/db';
 import { useTestDatabase } from '@arlo/db/testing';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { syncAccounts, syncSnapshots } from '../sync/sync';
@@ -160,5 +160,117 @@ describe('Executor.process', () => {
 
     expect(done).toMatchObject({ status: 'FAILED', statusReason: expect.stringContaining('WRITE_NOT_ALLOWED') });
     expect(platform.applied).toEqual([]);
+  });
+});
+
+describe('Executor.approve / reject', () => {
+  const t = useTestDatabase();
+  let platform: FakePlatformAdapter;
+  let chat: FakeChatAdapter;
+  let account: AdAccount;
+  let deps: ExecutorDeps;
+  let ann: string;
+  let bob: string;
+
+  beforeAll(async () => {
+    platform = seededPlatform();
+    const sync = { db: t.db, platform, logger, now: () => NOW };
+    account = (await syncAccounts(sync))[0]!;
+    await syncSnapshots(sync, account);
+    ann = (await upsertUserOnSignIn(t.db, { email: 'ann@example.com', displayName: 'Ann' })).id;
+    bob = (await upsertUserOnSignIn(t.db, { email: 'bob@example.com', displayName: 'Bob' })).id;
+  });
+
+  beforeEach(async () => {
+    platform = seededPlatform();
+    chat = new FakeChatAdapter();
+    deps = { db: t.db, platform, chat, logger, now: () => NOW, writeAllowedCustomerIds: [ACC], approvalChannel: APPROVAL };
+    await t.db.delete(schema.rules);
+    await t.db.delete(schema.approvalMessages);
+  });
+
+  const raise: Op = { kind: 'set_budget', target: CAMPAIGN, field: 'budget_micros', before: 1_000_000_000, after: 1_100_000_000 };
+  const enableKeyword: Op = { kind: 'set_status', target: KEYWORD, field: 'status', before: 'ENABLED', after: 'PAUSED' };
+
+  async function pending(ops: Op[] = [raise]) {
+    const cs = await insertChangeSet(t.db, { accountId: account.id, source: { kind: 'chat', ref: THREAD }, ops, summary: 'raise Brand', requestedBy: { kind: 'user', userId: ann } });
+    const executor = createExecutor(deps);
+    expect(await executor.process(cs.id)).toMatchObject({ status: 'PENDING_APPROVAL' });
+    return { cs, executor, card: chat.postedTo(THREAD.channelId)[0]! };
+  }
+
+  it('executes after approval and updates the card with the approver', async () => {
+    const { cs, executor, card } = await pending();
+    const result = await executor.approve(cs.id, bob);
+
+    expect(result).toMatchObject({ outcome: 'executed', status: 'EXECUTED' });
+    expect(platform.entity(CAMPAIGN)?.state?.budgetMicros).toBe(1_100_000_000);
+    expect(card.message).toMatchObject({ type: 'approval_request', changeset: { status: 'EXECUTED', requestedBy: 'Ann', outcome: { status: 'EXECUTED', actor: 'Bob' } } });
+    expect((await getChangeSet(t.db, cs.id))?.approvedBy).toBe(bob);
+    const audit = await listAudit(t.db, 'changeset', cs.id);
+    expect(audit.map((a) => [a.action, a.actorKind])).toEqual([
+      ['create', 'user'],
+      ['request_approval', 'system'],
+      ['approve', 'user'],
+      ['execute', 'user'],
+      ['executed', 'user'],
+    ]);
+  });
+
+  it('handles a double click once and reports who handled it', async () => {
+    const { cs, executor } = await pending();
+    const [first, second] = await Promise.all([executor.approve(cs.id, bob), executor.approve(cs.id, ann)]);
+    const outcomes = [first.outcome, second.outcome].sort();
+    expect(outcomes).toEqual(['executed', 'not_pending']);
+    expect(platform.applied).toHaveLength(1);
+    const late = await executor.approve(cs.id, ann);
+    expect(late).toMatchObject({ outcome: 'not_pending', status: 'EXECUTED', handledBy: 'Bob' });
+  });
+
+  it('marks STALE when the target drifted since the proposal', async () => {
+    const { cs, executor, card } = await pending();
+    platform.drift(CAMPAIGN, { budgetMicros: 1_300_000_000 });
+    const result = await executor.approve(cs.id, bob);
+
+    expect(result).toMatchObject({ outcome: 'stale', status: 'STALE' });
+    expect(platform.applied).toEqual([]);
+    expect(card.message).toMatchObject({ changeset: { outcome: { status: 'STALE', actor: 'Bob' } } });
+    expect(chat.postedTo(THREAD.channelId).at(-1)?.message).toMatchObject({ type: 'notice', level: 'warn', text: expect.stringContaining('重新提議') });
+  });
+
+  it('blocks when re-validation with fresh context fails', async () => {
+    const { cs, executor } = await pending();
+    await t.db.insert(schema.rules).values({ orgId: DEFAULT_ORG_ID, scopeKind: 'org', spec: { type: 'DailyBudgetCap', maxMicros: 1_050_000_000 }, severity: 'HARD_BLOCK' });
+    const result = await executor.approve(cs.id, bob);
+
+    expect(result).toMatchObject({ outcome: 'blocked', status: 'BLOCKED', changeset: { violations: [{ ruleType: 'DailyBudgetCap' }] } });
+    expect(platform.applied).toEqual([]);
+  });
+
+  it('marks FAILED on partial failure and keeps the successful op results', async () => {
+    const { cs, executor } = await pending([raise, enableKeyword]);
+    platform.failOps((op) => (op.kind === 'set_status' ? 'INTERNAL_ERROR' : undefined));
+    const result = await executor.approve(cs.id, bob);
+
+    expect(result).toMatchObject({ outcome: 'failed', status: 'FAILED' });
+    expect((await listOpResults(t.db, cs.id)).map((r) => r.ok)).toEqual([true, false]);
+    expect(platform.entity(CAMPAIGN)?.state?.budgetMicros).toBe(1_100_000_000);
+  });
+
+  it('expires instead of executing past expires_at', async () => {
+    const { cs } = await pending();
+    const later = createExecutor({ ...deps, now: () => new Date(NOW.getTime() + 25 * 3_600_000) });
+    expect(await later.approve(cs.id, bob)).toMatchObject({ outcome: 'expired', status: 'EXPIRED' });
+    expect(platform.applied).toEqual([]);
+  });
+
+  it('rejects with a reason, once', async () => {
+    const { cs, executor, card } = await pending();
+    const result = await executor.reject(cs.id, bob, '  not now ');
+
+    expect(result).toMatchObject({ ok: true, changeset: { status: 'REJECTED', statusReason: 'not now' } });
+    expect(card.message).toMatchObject({ changeset: { outcome: { status: 'REJECTED', actor: 'Bob', reason: 'not now' } } });
+    expect(await executor.reject(cs.id, ann)).toMatchObject({ ok: false, status: 'REJECTED', handledBy: 'Bob' });
+    expect(await executor.approve(cs.id, ann)).toMatchObject({ outcome: 'not_pending', status: 'REJECTED', handledBy: 'Bob' });
   });
 });
