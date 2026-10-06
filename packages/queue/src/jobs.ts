@@ -6,10 +6,40 @@ import { jobSpec, type JobSpec } from './spec';
 // Without accountId: fan out one job per active account. With it: sync that account.
 const accountScoped = z.object({ accountId: z.uuid().optional() });
 
+// Slack app_mention (Requirement 10.x); ts values are Slack message timestamps.
+const chatMention = z.object({
+  eventId: z.string(),
+  teamId: z.string().optional(),
+  channelId: z.string(),
+  userId: z.string(),
+  text: z.string(),
+  messageTs: z.string(),
+  /** Set when the mention is a thread reply. */
+  threadTs: z.string().optional(),
+});
+
+// Slack interactivity, reduced to what handlers use (Requirements 1.5, 6.6).
+const chatInteraction = z.object({
+  type: z.enum(['block_actions', 'view_submission']),
+  userId: z.string(),
+  teamId: z.string().optional(),
+  channelId: z.string().optional(),
+  messageTs: z.string().optional(),
+  threadTs: z.string().optional(),
+  actions: z
+    .array(z.object({ actionId: z.string(), value: z.string().optional(), selected: z.array(z.string()).optional() }))
+    .default([]),
+  responseUrl: z.string().optional(),
+  view: z.object({ callbackId: z.string(), privateMetadata: z.string(), values: z.record(z.string(), z.unknown()) }).optional(),
+});
+
 export const Jobs = {
   syncSnapshots: jobSpec('sync.snapshots', accountScoped),
   syncHourly: jobSpec('sync.hourly', accountScoped),
   syncDaily: jobSpec('sync.daily', accountScoped),
+  // Interactive: a late answer is worth little, so retry only briefly.
+  chatMention: jobSpec('chat.mention', chatMention, { retryLimit: 2 }),
+  chatInteraction: jobSpec('chat.interaction', chatInteraction, { retryLimit: 2 }),
 } satisfies Record<string, JobSpec>;
 
 export const ALL_JOBS: readonly JobSpec[] = Object.values(Jobs);

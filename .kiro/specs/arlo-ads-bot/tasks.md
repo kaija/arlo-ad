@@ -118,7 +118,7 @@
     - `ConversationRef`、`ChatMessage` union、`ChatAdapter` 介面、`FakeChatAdapter`
     - _Requirements: 7.6_
     - _ADR: ADR-0005_
-  - [ ] 8.2 Slack endpoints
+  - [x] 8.2 Slack endpoints
     - `/api/slack/events`、`/api/slack/interactivity`：HMAC 驗簽、timestamp 視窗、`event_id` 去重、3 秒內 ack、enqueue
     - 單元測試：簽章正確/錯誤/過期；去重
     - _Requirements: 7.7_
