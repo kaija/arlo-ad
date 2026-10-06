@@ -6,5 +6,6 @@ export * from './health';
 export * from './llm';
 export * from './metrics';
 export * from './platform';
+export * from './tier';
 export * from './time';
 export * from './validator';

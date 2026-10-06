@@ -196,7 +196,7 @@
     - table-driven 測試
     - _Requirements: 5.1, 5.2, 5.4, 5.5, 5.6_
     - _ADR: ADR-0008_
-  - [ ] 11.3 Tier 計算
+  - [x] 11.3 Tier 計算
     - `computeTier()`：op 分類、門檻、WARN 提升、取最大值
     - 測試：保護性在門檻內為 1、擴張至少 2、超過 X%/$Y 為 3
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
