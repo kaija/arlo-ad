@@ -27,7 +27,19 @@ function createdBudgetMicros(op: Op): number {
   return typeof b === 'number' ? b : 0;
 }
 
+/** The tier an op asks for at least, e.g. 2 for classifier picks below the auto threshold. */
+function minTierOf(op: Op): Tier | null {
+  const m = op.meta?.minTier;
+  return m === 1 || m === 2 || m === 3 ? m : null;
+}
+
 export function tierOfOp(op: Op, opIndex: number, t: TierThresholds): OpTier {
+  const base = baseTierOfOp(op, opIndex, t);
+  const min = minTierOf(op);
+  return min !== null && min > base.tier ? { opIndex, tier: min, reason: '需要人工確認' } : base;
+}
+
+function baseTierOfOp(op: Op, opIndex: number, t: TierThresholds): OpTier {
   const cls = classifyOp(op);
   const ratio = changeRatio(op);
   const amount = budgetDeltaMicros(op) || createdBudgetMicros(op);

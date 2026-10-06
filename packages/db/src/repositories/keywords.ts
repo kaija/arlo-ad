@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 import { BusinessProfileSchema, normalizeSearchTerm, withExample, type BusinessProfile, type ProfileExample, type SearchTermLabel } from '@arlo/core';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
-import { businessProfiles, DEFAULT_ORG_ID, gSearchTermLabels } from '../schema';
+import { businessProfiles, changesets, DEFAULT_ORG_ID, entities, gSearchTermLabels, gSearchTerms } from '../schema';
 import type { Db } from '../client';
 import { writeAudit, type Actor } from './changesets';
 import { inBatches, type DbOrTx } from './upsert';
@@ -62,10 +62,15 @@ export async function saveBusinessProfile(db: Db, accountId: string, profile: Bu
 }
 
 /** Records a labelled term (e.g. an approver's correction, Requirement 14.6) as a new version. */
-export async function addProfileExample(db: Db, accountId: string, example: ProfileExample, actor: Actor): Promise<StoredProfile> {
+export function addProfileExample(db: Db, accountId: string, example: ProfileExample, actor: Actor): Promise<StoredProfile> {
+  return addProfileExamples(db, accountId, [example], actor);
+}
+
+/** Several labelled terms in one new version. */
+export async function addProfileExamples(db: Db, accountId: string, examples: readonly ProfileExample[], actor: Actor): Promise<StoredProfile> {
   const current = await getBusinessProfile(db, accountId);
   const base: BusinessProfile = current?.profile ?? { offerings: [], targetIntents: [], excludedIntents: [], brandTerms: [], competitorPolicy: 'review', examples: [] };
-  return saveBusinessProfile(db, accountId, withExample(base, example), actor);
+  return saveBusinessProfile(db, accountId, examples.reduce(withExample, base), actor);
 }
 
 // --- classifier cache (Requirement 14.3) ----------------------------------------------------
@@ -116,4 +121,62 @@ export async function saveSearchTermLabels(
       })
       .returning({ id: gSearchTermLabels.id }),
   );
+}
+
+// --- negative keyword sweep (Requirements 14.4, 14.5) ---------------------------------------
+
+export interface SearchTermStat {
+  /** Normalized term. */
+  term: string;
+  costMicros: number;
+  clicks: number;
+  impressions: number;
+  /** Conversions over the longer window (90 days for the auto condition). */
+  conversions: number;
+  /** Campaign entity ids the term spent in. */
+  campaignIds: string[];
+}
+
+/** Per-term totals: cost / clicks / impressions since `costFrom`, conversions since `convFrom`. */
+export async function searchTermStats(db: DbOrTx, accountId: string, opts: { costFrom: string; convFrom: string; to: string; limit?: number }): Promise<SearchTermStat[]> {
+  const norm = sql<string>`lower(regexp_replace(trim(${gSearchTerms.term}), '\\s+', ' ', 'g'))`;
+  const rows = await db
+    .select({
+      term: norm,
+      costMicros: sql<number>`coalesce(sum(${gSearchTerms.costMicros}) filter (where ${gSearchTerms.date} >= ${opts.costFrom}), 0)`.mapWith(Number),
+      clicks: sql<number>`coalesce(sum(${gSearchTerms.clicks}) filter (where ${gSearchTerms.date} >= ${opts.costFrom}), 0)`.mapWith(Number),
+      impressions: sql<number>`coalesce(sum(${gSearchTerms.impressions}) filter (where ${gSearchTerms.date} >= ${opts.costFrom}), 0)`.mapWith(Number),
+      conversions: sql<number>`coalesce(sum(${gSearchTerms.conversions}), 0)`.mapWith(Number),
+      campaignIds: sql<string[]>`array_agg(distinct ${gSearchTerms.campaignId}::text)`,
+    })
+    .from(gSearchTerms)
+    .where(and(eq(gSearchTerms.accountId, accountId), sql`${gSearchTerms.date} >= ${opts.convFrom}`, sql`${gSearchTerms.date} <= ${opts.to}`))
+    .groupBy(norm)
+    .orderBy(desc(sql`coalesce(sum(${gSearchTerms.costMicros}) filter (where ${gSearchTerms.date} >= ${opts.costFrom}), 0)`))
+    .limit(opts.limit ?? 2000);
+  return rows;
+}
+
+/**
+ * Normalized texts of negative keywords already proposed for the account and not dropped
+ * (anything except FAILED / STALE / EXPIRED / BLOCKED), so sweeps do not repeat themselves.
+ */
+export async function proposedNegativeTerms(db: DbOrTx, accountId: string): Promise<Set<string>> {
+  const rows = await db.execute<{ text: string }>(sql`
+    select distinct lower(regexp_replace(trim(op->'after'->>'text'), '\\s+', ' ', 'g')) as text
+    from ${changesets}, jsonb_array_elements(${changesets.ops}) as op
+    where ${changesets.accountId} = ${accountId}
+      and ${changesets.status} not in ('FAILED', 'STALE', 'EXPIRED', 'BLOCKED')
+      and op->>'kind' = 'google.add_negative_keyword'
+      and op->'after'->>'text' is not null`);
+  return new Set(rows.rows.map((r) => r.text));
+}
+
+/** The account's shared negative list with this name (synced as a shared_set entity). */
+export async function findSharedSet(db: DbOrTx, accountId: string, name: string): Promise<{ id: string; externalId: string } | undefined> {
+  const [row] = await db
+    .select({ id: entities.id, externalId: entities.externalId })
+    .from(entities)
+    .where(and(eq(entities.accountId, accountId), eq(entities.kind, 'shared_set'), eq(entities.name, name), sql`${entities.status} is distinct from 'REMOVED'`));
+  return row;
 }

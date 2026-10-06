@@ -1,0 +1,1 @@
+ALTER TABLE "changesets" ADD COLUMN "excluded_ops" integer[] DEFAULT '{}'::integer[] NOT NULL;

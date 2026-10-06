@@ -1,5 +1,6 @@
 export * from './agents/analyst';
 export * from './agents/bidding';
+export * from './agents/keyword';
 export * from './agents/orchestrator';
 export * from './agents/prompts';
 export * from './agents/search-term-classifier';

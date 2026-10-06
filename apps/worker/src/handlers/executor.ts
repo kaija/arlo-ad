@@ -25,6 +25,7 @@ import {
 } from '@arlo/core';
 import {
   addApprovalMessage,
+  addProfileExamples,
   applyTransition,
   claimSlaReminder,
   getSetting,
@@ -87,7 +88,7 @@ function failureReason(results: readonly OpResult[]): string {
   return `${failed.length}/${results.length} 個變更失敗：${failed.map((r) => `op ${r.index + 1} ${r.error ?? ''}`.trim()).join('；')}`;
 }
 
-export type ApproveOutcome = 'executed' | 'failed' | 'stale' | 'blocked' | 'expired' | 'not_pending' | 'not_found';
+export type ApproveOutcome = 'executed' | 'failed' | 'stale' | 'blocked' | 'expired' | 'not_pending' | 'not_found' | 'all_excluded';
 
 export interface ApproveResult {
   outcome: ApproveOutcome;
@@ -175,18 +176,23 @@ export function createExecutor(deps: ExecutorDeps) {
   }
 
   /** EXECUTING → EXECUTED / FAILED. Each op's result is kept (Requirement 3.5). */
+  /** Indexes of the ops to execute: all but those the approver excluded (Requirement 14.5). */
+  const includedOps = (cs: ChangeSet) => cs.ops.map((_, i) => i).filter((i) => !cs.excludedOps?.includes(i));
+
   async function runOps(cs: StoredChangeSet, acc: AdAccount, actor: Actor): Promise<StoredChangeSet> {
+    const indexes = includedOps(cs);
     let results: OpResult[];
     try {
       assertWriteAllowed(deps.writeAllowedCustomerIds, acc.externalId);
-      results = await deps.platform.applyOps(acc.externalId, cs.ops);
+      // Results come back per submitted op; map them to the ChangeSet's op indexes.
+      results = (await deps.platform.applyOps(acc.externalId, indexes.map((i) => cs.ops[i]!))).map((r) => ({ ...r, index: indexes[r.index] ?? r.index }));
     } catch (err) {
       const error = err instanceof WriteNotAllowedError ? `${err.code}: ${err.message}` : `APPLY_FAILED: ${(err as Error).message}`;
       logger.error({ err, changeset_id: cs.id }, 'applyOps failed');
-      results = cs.ops.map((_, index) => ({ index, ok: false, error }));
+      results = indexes.map((index) => ({ index, ok: false, error }));
     }
     await recordOpResults(db, cs.id, results);
-    const ok = results.length === cs.ops.length && results.every((r) => r.ok);
+    const ok = results.length === indexes.length && results.every((r) => r.ok);
     const event: ChangeSetEvent = ok ? { type: 'executed', at: deps.now() } : { type: 'fail' };
     const moved = await move(cs, event, actor, ok ? null : failureReason(results), { results: results.map((r) => ({ index: r.index, ok: r.ok, error: r.error ?? null })) });
     if (!moved.ok) throw new Error(`ChangeSet ${cs.id} left EXECUTING concurrently`);
@@ -224,6 +230,19 @@ export function createExecutor(deps: ExecutorDeps) {
       } catch (err) {
         logger.error({ err, changeset_id: cs.id, channel: m.channelId }, 'failed to update approval card');
       }
+    }
+  }
+
+  /** Re-renders pending approval cards, e.g. after an op was ticked or unticked. */
+  async function refreshPendingCards(cs: StoredChangeSet) {
+    const v = await view(cs, await account(cs));
+    const cards = (await listApprovalMessages(db, cs.id)).filter((m) => m.kind !== 'notice');
+    const link = cards.some((m) => m.kind === 'mirror') ? await sourceLink(cs, cards.find((m) => m.kind === 'origin')) : undefined;
+    for (const m of cards) {
+      const changeset = m.kind === 'mirror' && link ? { ...v, sourceLink: link } : v;
+      await chat
+        .update({ platform: 'slack', channelId: m.channelId, messageId: m.messageId, ...(m.threadId ? { threadId: m.threadId } : {}) }, { type: 'approval_request', changeset, mirror: m.kind === 'mirror' })
+        .catch((err: unknown) => logger.error({ err, changeset_id: cs.id }, 'failed to update approval card'));
     }
   }
 
@@ -334,6 +353,21 @@ export function createExecutor(deps: ExecutorDeps) {
     return done;
   }
 
+  /** Negative keywords the approver unticked are labelled relevant in the profile (Requirement 14.6). */
+  async function writeExcludedExamples(cs: ChangeSet, userId: string) {
+    const examples = (cs.excludedOps ?? []).flatMap((i) => {
+      const op = cs.ops[i];
+      const text = (op?.after as { text?: unknown } | null)?.text;
+      return op?.kind === 'google.add_negative_keyword' && typeof text === 'string' ? [{ term: text, relevant: true, note: '審核時剔除，不排除' }] : [];
+    });
+    if (examples.length === 0) return;
+    try {
+      await addProfileExamples(db, cs.accountId, examples, { kind: 'user', id: userId });
+    } catch (err) {
+      logger.error({ err, changeset_id: cs.id }, 'failed to record excluded terms as profile examples');
+    }
+  }
+
   /**
    * Approve (ADR-0009): CAS PENDING_APPROVAL → APPROVED, then re-fetch and diff (→ STALE),
    * re-validate with fresh context (→ BLOCKED), mutate (→ EXECUTED / FAILED). Authorization is
@@ -354,6 +388,15 @@ export function createExecutor(deps: ExecutorDeps) {
       return { outcome: 'expired', status: 'EXPIRED', changeset: expired.changeset };
     }
 
+    if (includedOps(cs).length === 0) {
+      // Everything unticked: nothing to run, so it is the approver's rejection.
+      const rejected = await move(cs, { type: 'reject', by: userId, reason: '所有項目都被剔除' }, actor, '所有項目都被剔除，未執行');
+      if (!rejected.ok) return { outcome: 'not_pending', status: rejected.current?.status ?? null, changeset: rejected.current };
+      await writeExcludedExamples(rejected.changeset, userId);
+      await refreshCards(rejected.changeset, acc, await userName(userId));
+      return { outcome: 'all_excluded', status: 'REJECTED', changeset: rejected.changeset };
+    }
+
     const approved = await move(cs, { type: 'approve', by: userId }, actor);
     if (!approved.ok) {
       const current = approved.current;
@@ -361,8 +404,9 @@ export function createExecutor(deps: ExecutorDeps) {
     }
     const approver = await userName(userId);
     let current = approved.changeset;
+    const scoped = { ...current, ops: includedOps(current).map((i) => current.ops[i]!) };
 
-    const drifts = await drift(current);
+    const drifts = await drift(scoped);
     if (drifts.length) {
       const stale = await move(current, { type: 'stale' }, SYSTEM, describeDrift(drifts), { drifts });
       if (!stale.ok) throw new Error(`ChangeSet ${cs.id} left APPROVED concurrently`);
@@ -372,8 +416,8 @@ export function createExecutor(deps: ExecutorDeps) {
       return { outcome: 'stale', status: 'STALE', changeset: stale.changeset };
     }
 
-    const [ctx, rules] = await Promise.all([loadValidationContext(db, acc, current.ops, deps.now()), loadRules(db, acc.id)]);
-    const violations = validate(current, ctx, rules);
+    const [ctx, rules] = await Promise.all([loadValidationContext(db, acc, scoped.ops, deps.now()), loadRules(db, acc.id)]);
+    const violations = validate(scoped, ctx, rules);
     if (hasHardBlock(violations)) {
       const blocked = await move(current, { type: 'block', violations }, SYSTEM, '執行前重驗未通過');
       if (!blocked.ok) throw new Error(`ChangeSet ${cs.id} left APPROVED concurrently`);
@@ -386,6 +430,7 @@ export function createExecutor(deps: ExecutorDeps) {
     if (!executing.ok) throw new Error(`ChangeSet ${cs.id} left APPROVED concurrently`);
     current = await runOps(executing.changeset, acc, actor);
     log.info({ status: current.status }, 'approved ChangeSet executed');
+    await writeExcludedExamples(current, userId);
     await refreshCards(current, acc, approver);
     if (current.status === 'FAILED') await notify(current, 'error', `執行失敗：${cs.summary}\n${current.statusReason ?? ''}`);
     return { outcome: current.status === 'EXECUTED' ? 'executed' : 'failed', status: current.status, changeset: current };
@@ -516,7 +561,7 @@ export function createExecutor(deps: ExecutorDeps) {
     return { ok: true, revert: done };
   }
 
-  return { process: processChangeSet, approve, expireDue, remindSla, undo, refreshShadowCards, reject, refreshCards, notify, drift, runOps, view, post, move, origin, account, handledBy, userName };
+  return { process: processChangeSet, approve, expireDue, remindSla, undo, refreshShadowCards, refreshPendingCards, reject, refreshCards, notify, drift, runOps, view, post, move, origin, account, handledBy, userName };
 }
 
 export type Executor = ReturnType<typeof createExecutor>;

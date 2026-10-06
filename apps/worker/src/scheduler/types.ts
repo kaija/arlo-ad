@@ -1,4 +1,4 @@
-import type { AgentContext } from '@arlo/agents';
+import type { AgentContext, SearchTermLabelsSchema } from '@arlo/agents';
 import type { Logger } from '@arlo/config/logger';
 import type { ChatMessage } from '@arlo/core';
 import type { AdAccount, Db, JobRun, ScheduledJob } from '@arlo/db';
@@ -7,7 +7,10 @@ import type { Agent } from '@openai/agents';
 export interface AgentFactories {
   analyst: () => Agent<AgentContext>;
   bidding?: () => Agent<AgentContext>;
+  keyword?: () => Agent<AgentContext>;
   orchestrator: () => Agent<AgentContext>;
+  /** Small-model search term classifier (ADR-0019, ADR-0023). */
+  searchTermClassifier?: () => Agent<unknown, typeof SearchTermLabelsSchema>;
 }
 
 export interface TemplateContext {

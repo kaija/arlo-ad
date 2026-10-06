@@ -309,7 +309,7 @@
     - eval golden set：auto 門檻 precision ≥ 0.98
     - _Requirements: 14.2, 14.3_
     - _ADR: ADR-0019, ADR-0023_
-  - [ ] 16.3 negative_kw_sweep 模板
+  - [x] 16.3 negative_kw_sweep 模板
     - 自動條件函式（純函式 + 測試）→ Tier 1 ChangeSet（EXACT → `arlo-auto-negatives`）；其餘 → Tier 2 批次 ChangeSet，卡片可逐項勾選；剔除項回寫 examples
     - keyword agent 骨架：`propose_negative_keywords`
     - 整合測試

@@ -165,5 +165,7 @@ export async function loadChangeSetView(db: DbOrTx, cs: ChangeSet, account: AdAc
     cs.requestedBy.userId ? getUserWithBindings(db, cs.requestedBy.userId) : undefined,
   ]);
   const requestedBy = requester ? (requester.displayName ?? requester.googleEmail) : cs.requestedBy.kind === 'agent' ? 'Arlo' : cs.requestedBy.kind === 'system' ? '系統' : undefined;
-  return changeSetView(cs, { accountName: account.name, currency: account.currency, names, requestedBy, outcome });
+  // Negative keyword batches can be ticked op by op before approval (Requirement 14.5).
+  const selectable = cs.status === 'PENDING_APPROVAL' && cs.ops.length > 1 && cs.ops.every((op) => op.kind === 'google.add_negative_keyword');
+  return changeSetView(cs, { accountName: account.name, currency: account.currency, names, requestedBy, outcome, selectable });
 }

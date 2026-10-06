@@ -47,6 +47,7 @@ export function toChangeSet(row: Row): ChangeSet {
     expiresAt: row.expiresAt,
     revertOf: row.revertOf,
     traceId: row.traceId,
+    excludedOps: row.excludedOps,
     createdAt: row.createdAt,
     executedAt: row.executedAt,
   };
@@ -362,6 +363,25 @@ export async function loadTierThresholds(db: DbOrTx, accountId: string): Promise
     .where(and(eq(tierThresholds.orgId, DEFAULT_ORG_ID), or(isNull(tierThresholds.accountId), eq(tierThresholds.accountId, accountId))));
   const row = rows.find((r) => r.accountId === accountId) ?? rows.find((r) => r.accountId === null);
   return row ? { tier3Pct: row.tier3Pct, tier3AmountMicros: row.tier3AmountMicros, tier1MaxReducePct: row.tier1MaxReducePct } : DEFAULT_TIER_THRESHOLDS;
+}
+
+/**
+ * Includes or excludes one op of a pending batch (Requirement 14.5). Only while
+ * PENDING_APPROVAL; returns the updated ChangeSet, or undefined when it is no longer pending.
+ */
+export async function setOpExcluded(db: DbOrTx, id: string, opIndex: number, excluded: boolean, actor: Actor): Promise<StoredChangeSet | undefined> {
+  const [row] = await db
+    .update(changesets)
+    .set({
+      excludedOps: excluded
+        ? sql`(select coalesce(array_agg(distinct x order by x), '{}') from unnest(array_append(${changesets.excludedOps}, ${opIndex}::int)) x)`
+        : sql`array_remove(${changesets.excludedOps}, ${opIndex}::int)`,
+    })
+    .where(and(eq(changesets.id, id), eq(changesets.status, 'PENDING_APPROVAL'), sql`${opIndex} >= 0 and ${opIndex} < jsonb_array_length(${changesets.ops})`))
+    .returning();
+  if (!row) return undefined;
+  await writeAudit(db, { actor, entityKind: 'changeset', entityId: id, action: excluded ? 'exclude_op' : 'include_op', payload: { opIndex } });
+  return stored(row);
 }
 
 // --- approval SLA (Requirement 7.5) ------------------------------------------------------

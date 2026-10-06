@@ -69,3 +69,12 @@ describe('computeTier', () => {
     });
   });
 });
+
+describe('op minTier', () => {
+  it('raises a protective op to the tier it asks for', () => {
+    const neg = (minTier?: number): Op => ({ kind: 'google.add_negative_keyword', target: { platform: 'google_ads', accountId: '1', kind: 'shared_set', id: '9' }, before: null, after: { text: 'x', matchType: 'EXACT' }, ...(minTier ? { meta: { minTier } } : {}) });
+    expect(computeTier({ ops: [neg()] }, DEFAULT_TIER_THRESHOLDS)).toBe(1);
+    expect(computeTier({ ops: [neg(2)] }, DEFAULT_TIER_THRESHOLDS)).toBe(2);
+    expect(computeTier({ ops: [neg(), neg(2)] }, DEFAULT_TIER_THRESHOLDS)).toBe(2);
+  });
+});

@@ -202,10 +202,10 @@ describe('scheduler', () => {
     });
 
     it('fails clearly for templates that are not available yet', async () => {
-      const j = await job({ name: 'sweep', template: 'negative_kw_sweep' });
-      expect(await runScheduledJob(deps, { scheduledJobId: j.id, trigger: 'manual' }, logger)).toMatchObject({
+      const j = await job({ name: 'audit', template: 'tracking_audit' });
+      expect(await runScheduledJob({ ...deps, templates: {} }, { scheduledJobId: j.id, trigger: 'manual' }, logger)).toMatchObject({
         status: 'failed',
-        error: 'template negative_kw_sweep is not available',
+        error: 'template tracking_audit is not available',
       });
     });
   });

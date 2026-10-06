@@ -75,6 +75,8 @@ export interface ChangeSet {
   expiresAt?: Date | null;
   revertOf?: string | null;
   traceId?: string | null;
+  /** Ops the approver excluded from a batch; they are never executed (Requirement 14.5). */
+  excludedOps?: number[];
   createdAt: Date;
   executedAt?: Date | null;
 }

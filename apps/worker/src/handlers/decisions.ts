@@ -88,6 +88,7 @@ export async function decide(
       const result = await deps.executor.approve(cs.id, user.id);
       if (result.outcome === 'not_pending' || result.outcome === 'not_found') return { message: alreadyHandled(result.status, result.handledBy), outcome: result.outcome };
       if (result.outcome === 'expired') return { message: '這個變更已超過審核期限，未執行。', outcome: 'expired' };
+      if (result.outcome === 'all_excluded') return { message: '所有項目都被剔除，已視為拒絕；剔除的字詞已記入 Business Profile。', outcome: 'all_excluded' };
       return { message: null, outcome: result.outcome };
     }
     const result = await deps.executor.reject(cs.id, user.id, opts.reason);

@@ -3,9 +3,9 @@
 import type { ChatAdapter, ConfirmMetadata } from '@arlo/adapters/chat';
 import type { Logger } from '@arlo/config/logger';
 import { authorize, decodeAction, type ChatAction, type ConversationRef } from '@arlo/core';
-import { getChangeSet, recordShadowFeedback, resolveSlackUser, type Db, type UserWithBindings } from '@arlo/db';
+import { getChangeSet, recordShadowFeedback, resolveSlackUser, setOpExcluded, type Db, type UserWithBindings } from '@arlo/db';
 import { defineJob, Jobs, type JobData } from '@arlo/queue';
-import { decide, DISABLED, UNBOUND } from './decisions';
+import { decide, DENY_TEXT, DISABLED, UNBOUND } from './decisions';
 import type { Executor } from './executor';
 
 export interface InteractionDeps {
@@ -35,6 +35,18 @@ export function createInteractionHandler(deps: InteractionDeps) {
     if (!message) return;
     if (where) await chat.ephemeral(where, job.userId, message);
     else deps.logger.info({ changeset_id: action.changesetId }, `no channel for feedback: ${message}`);
+  }
+
+  /** Ticks or unticks one op of a pending batch; only users who may approve it (Requirement 14.5). */
+  async function toggleOp(job: Interaction, user: UserWithBindings, action: Extract<ChatAction, { kind: 'neg_toggle' }>, included: boolean, where: ConversationRef | null) {
+    const say = (text: string) => (where ? chat.ephemeral(where, job.userId, text) : Promise.resolve());
+    const cs = await getChangeSet(db, action.changesetId);
+    if (!cs) return say('找不到這個變更。');
+    const decision = authorize(user, 'approve', { accountId: cs.accountId, tier: cs.tier, requestedByUserId: cs.requestedBy.userId });
+    if (!decision.allowed) return say(DENY_TEXT[decision.reason](cs.tier));
+    const updated = await setOpExcluded(db, cs.id, action.opIndex, !included, { kind: 'user', id: user.id });
+    if (!updated) return say('這個變更已處理，無法再調整項目。');
+    await executor.refreshPendingCards(updated);
   }
 
   /** 👍/👎 on a ShadowResult card from anyone who can see the account (Requirement 9.4). */
@@ -71,6 +83,10 @@ export function createInteractionHandler(deps: InteractionDeps) {
     for (const action of actions) {
       if (action.kind === 'changeset') await changesetAction(job, resolved.user, action, where);
       if (action.kind === 'shadow') await shadowVote(job, resolved.user, action, where);
+      if (action.kind === 'neg_toggle') {
+        const raw = (job.actions ?? []).find((a) => decodeAction(a.actionId)?.kind === 'neg_toggle' && a.actionId.endsWith(`:${action.opIndex}`));
+        await toggleOp(job, resolved.user, action, (raw?.selected ?? []).includes(String(action.opIndex)), where);
+      }
     }
   };
 }

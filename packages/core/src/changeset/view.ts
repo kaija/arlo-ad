@@ -77,7 +77,7 @@ export function changeSetView(cs: ChangeSet, ctx: ViewContext): ChangeSetView {
     ...(cs.rationale ? { rationale: cs.rationale } : {}),
     tier: cs.tier,
     status: cs.status,
-    ops: cs.ops.map((op, i) => ({ ...opView(op, ctx), ...(ctx.excludedOps?.has(i) ? { excluded: true } : {}) })),
+    ops: cs.ops.map((op, i) => ({ ...opView(op, ctx), ...(ctx.excludedOps?.has(i) || cs.excludedOps?.includes(i) ? { excluded: true } : {}) })),
     violations: cs.violations.map((v) => ({ severity: v.severity, message: v.message })),
     ...(ctx.requestedBy ? { requestedBy: ctx.requestedBy } : {}),
     ...(cs.expiresAt ? { expiresAt: cs.expiresAt.toISOString() } : {}),
