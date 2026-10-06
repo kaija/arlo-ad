@@ -230,6 +230,7 @@ export const gConversionActions = pgTable(
     category: text('category'),
     primary: boolean('primary').notNull().default(false),
     lastConversionAt: timestamp('last_conversion_at', { withTimezone: true }),
+    conversions30d: decimal('conversions_30d'),
     ecDiagnostics: jsonb('ec_diagnostics'),
     ...timestamps,
   },

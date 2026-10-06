@@ -10,4 +10,5 @@ export * from './platform';
 export * from './profile';
 export * from './tier';
 export * from './time';
+export * from './tracking';
 export * from './validator';

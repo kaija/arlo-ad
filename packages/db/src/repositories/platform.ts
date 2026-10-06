@@ -124,7 +124,7 @@ export function upsertConversionActions(db: DbOrTx, rows: readonly Insert<typeof
       .values(batch)
       .onConflictDoUpdate({
         target: [gConversionActions.accountId, gConversionActions.externalId],
-        set: setExcluded(gConversionActions, ['name', 'status', 'category', 'primary', 'lastConversionAt', 'ecDiagnostics']),
+        set: setExcluded(gConversionActions, ['name', 'status', 'category', 'primary', 'lastConversionAt', 'conversions30d', 'ecDiagnostics']),
       })
       .returning({ id: gConversionActions.id, externalId: gConversionActions.externalId }),
   );

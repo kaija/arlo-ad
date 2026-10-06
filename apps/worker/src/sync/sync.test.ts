@@ -131,7 +131,7 @@ describe('sync', () => {
         { campaignExternalId: '111', adGroupExternalId: '221', term: 'arlo free', date: '2026-10-05', ...zero, costMicros: 5 },
       ]);
       fake.setConversionActions(ACC, [
-        { externalId: '501', name: 'Purchase', status: 'ENABLED', category: 'PURCHASE', primary: true, lastConversionAt: null, ecDiagnostics: null },
+        { externalId: '501', name: 'Purchase', status: 'ENABLED', category: 'PURCHASE', primary: true, lastConversionAt: null, conversions30d: 0, ecDiagnostics: null },
       ]);
       const first = await syncDaily(deps, account);
       expect(first).toMatchObject({ range: { from: '2026-10-03', to: '2026-10-05' }, metrics: 3, searchTerms: 1, conversionActions: 1 });

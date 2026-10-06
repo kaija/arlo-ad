@@ -226,9 +226,11 @@ const lastSegment = (resourceName: unknown) => str(resourceName).split('/').pop(
 export function mapConversionActions(actions: Row[], activity: Row[], uploadSummaries: Row[], timeZone: string): ConversionActionRow[] {
   // Latest hour with conversions per action; the action is "last converted" by the end of that hour.
   const last = new Map<string, Date>();
+  const total = new Map<string, number>();
   for (const r of activity) {
     if (!r.segments?.conversion_action || !r.segments.date) continue;
     const id = lastSegment(r.segments.conversion_action);
+    total.set(id, (total.get(id) ?? 0) + num(r.metrics?.all_conversions));
     const at = zonedToInstant(`${str(r.segments?.date)} ${String(num(r.segments?.hour)).padStart(2, '0')}:00:00`, timeZone);
     const end = new Date(at.getTime() + 3_600_000);
     const prev = last.get(id);
@@ -256,6 +258,7 @@ export function mapConversionActions(actions: Row[], activity: Row[], uploadSumm
       category: enumName(enums.ConversionActionCategory, a.category),
       primary: Boolean(a.primary_for_goal),
       lastConversionAt: last.get(id) ?? null,
+      conversions30d: total.get(id) ?? 0,
       ecDiagnostics: uploads.get(str(a.name)) ?? null,
     };
   });

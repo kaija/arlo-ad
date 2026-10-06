@@ -1,0 +1,1 @@
+ALTER TABLE "g_conversion_actions" ADD COLUMN "conversions_30d" numeric(20, 6) DEFAULT 0 NOT NULL;

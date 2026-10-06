@@ -127,6 +127,13 @@
       "when": 1791315945115,
       "tag": "0017_monitor",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791316523731,
+      "tag": "0018_conversions_30d",
+      "breakpoints": true
     }
   ]
 }

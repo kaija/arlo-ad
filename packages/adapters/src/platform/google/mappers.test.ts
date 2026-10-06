@@ -159,6 +159,7 @@ describe('Google Ads mappers', () => {
         primary: true,
         // 2026-10-06 07:00 Taipei hour bucket ends at 08:00 = 00:00Z.
         lastConversionAt: new Date('2026-10-06T00:00:00Z'),
+        conversions30d: 4,
         ecDiagnostics: null,
       },
       {
@@ -168,6 +169,7 @@ describe('Google Ads mappers', () => {
         category: 'SUBMIT_LEAD_FORM',
         primary: false,
         lastConversionAt: null,
+        conversions30d: 0,
         ecDiagnostics: {
           status: 'GOOD',
           totalEventCount: 40,

@@ -87,6 +87,8 @@ export interface ConversionActionRow {
   category: string | null;
   primary: boolean;
   lastConversionAt: Date | null;
+  /** All conversions over the last 30 days, for the tracking health baseline (Requirement 16.2). */
+  conversions30d: number;
   ecDiagnostics: unknown;
 }
 
