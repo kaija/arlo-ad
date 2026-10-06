@@ -272,7 +272,7 @@
     - validator 規則 CRUD（依 RuleSpec 動態表單）、tier 門檻
     - _Requirements: 5.1, 5.2, 18.4_
     - _ADR: ADR-0008, ADR-0007_
-  - [ ] 14.4 RBAC 設定頁
+  - [x] 14.4 RBAC 設定頁
     - 使用者列表、未綁定處理、role bindings 編輯
     - _Requirements: 1.3, 1.4, 18.4_
     - _ADR: ADR-0010_

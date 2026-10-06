@@ -128,3 +128,56 @@ export async function listActiveSlackUsers(db: DbOrTx): Promise<UserWithBindings
     : [];
   return rows.filter((u) => u.slackUserId).map((u) => ({ ...u, bindings: bindings.filter((b) => b.userId === u.id) }));
 }
+
+// --- RBAC administration (Requirements 1.3, 1.4, 18.4) -------------------------------------
+
+/** Every user of the org with their bindings, admins first then by email. */
+export async function listUsersWithBindings(db: DbOrTx): Promise<UserWithBindings[]> {
+  const rows = await db.select().from(users).where(eq(users.orgId, DEFAULT_ORG_ID)).orderBy(asc(users.googleEmail));
+  const bindings = rows.length ? await db.select().from(roleBindings).where(inArray(roleBindings.userId, rows.map((u) => u.id))).orderBy(asc(roleBindings.createdAt)) : [];
+  return rows.map((u) => ({ ...u, bindings: bindings.filter((b) => b.userId === u.id) }));
+}
+
+export interface BindingInput {
+  role: RoleBinding['role'];
+  accountIds: string[] | null;
+  maxTier: number;
+}
+
+export async function addRoleBinding(db: DbOrTx, userId: string, input: BindingInput): Promise<RoleBinding> {
+  const [row] = await db
+    .insert(roleBindings)
+    .values({ orgId: DEFAULT_ORG_ID, userId, role: input.role, accountIds: input.accountIds?.length ? input.accountIds : null, maxTier: input.maxTier })
+    .returning();
+  return row!;
+}
+
+/** Active admin bindings other than `exceptBindingId` (to keep at least one admin). */
+export async function countOtherAdminBindings(db: DbOrTx, exceptBindingId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)`.mapWith(Number) })
+    .from(roleBindings)
+    .innerJoin(users, eq(users.id, roleBindings.userId))
+    .where(and(eq(roleBindings.orgId, DEFAULT_ORG_ID), eq(roleBindings.role, 'admin'), sql`${roleBindings.id} <> ${exceptBindingId}`, sql`${users.status} <> 'disabled'`));
+  return row?.n ?? 0;
+}
+
+export async function getRoleBinding(db: DbOrTx, id: string): Promise<RoleBinding | undefined> {
+  const [row] = await db.select().from(roleBindings).where(eq(roleBindings.id, id));
+  return row;
+}
+
+export async function deleteRoleBinding(db: DbOrTx, id: string): Promise<RoleBinding | undefined> {
+  const [row] = await db.delete(roleBindings).where(eq(roleBindings.id, id)).returning();
+  return row;
+}
+
+/** Disables a user (keeps the Slack id for audit) or re-enables them per their binding. */
+export async function setUserDisabled(db: DbOrTx, userId: string, disabled: boolean): Promise<User | undefined> {
+  const [row] = await db
+    .update(users)
+    .set({ status: disabled ? 'disabled' : sql`case when ${users.slackUserId} is null then 'unbound'::user_status else 'active'::user_status end` })
+    .where(eq(users.id, userId))
+    .returning();
+  return row;
+}
