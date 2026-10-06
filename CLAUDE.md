@@ -39,6 +39,9 @@ pnpm dev                      # turbo dev
 
 ## 慣例
 
+- 環境變數一律經 `@arlo/config` 的 `parseEnv(EnvSchema.pick({...}))` 讀取，不直接讀 `process.env`。每個 process 只 pick 自己用到的 key，功能落地時再擴充 pick（`apps/worker/src/index.ts` 的 `WorkerEnv`、`apps/web/lib/server.ts` 的 `WebEnv`）。新增變數時同時改 `EnvSchema` 與 `.env.example`（`env.test.ts` 會檢查兩者一致）；錯誤訊息只列 key，不可帶出值。
+- 寫入廣告帳戶前必須呼叫 `assertWriteAllowed(env.ADS_WRITE_ALLOWED_CUSTOMER_IDS, customerId)`（ADR-0026）；空白清單代表不允許任何寫入。
+
 - Log 一律用 `@arlo/config/logger` 的 `createLogger({ component })`，追蹤欄位以 `logger.child({ changeset_id, job_id, trace_id })` 帶入；錯誤用 `{ err }` 欄位（序列化時會移除 pg `client` 等連線物件）。秘密與 email 依 key 名遮罩，新增敏感欄位時擴充 `SECRET_KEYS`。
 - Healthz 回應是公開的：失敗只回錯誤代碼（`ECONNREFUSED`、SQLSTATE、`timeout`），細節寫 log。新增檢查項（pg-boss、last sync）時加進 web 與 worker 的 `runHealthChecks({...})`。
 

@@ -5,7 +5,7 @@
 
 ## M0 — 基礎與 EC2 環境
 
-- [-] 1. Monorepo 與本機開發環境
+- [x] 1. Monorepo 與本機開發環境
   - [x] 1.1 建立 pnpm + turbo workspace
     - 建立 `apps/web`、`apps/worker`、`packages/{core,db,adapters,agents,config}`、`evals/`
     - 共用 tsconfig、eslint（含 `no-restricted-imports` 邊界規則：core 禁 I/O、agents 禁 mutate 介面）、Vitest
@@ -24,7 +24,7 @@
     - `.env.example` 列出所有變數
     - _Requirements: 20.1, 20.6, 20.7_
     - _ADR: ADR-0025_
-  - [ ] 1.4 Config 模組
+  - [x] 1.4 Config 模組
     - `packages/config`：zod env schema、`ADS_WRITE_ALLOWED_CUSTOMER_IDS` 解析、`assertWriteAllowed()`
     - 單元測試：缺變數報錯、白名單判斷
     - _Requirements: 20.6, 20.9_

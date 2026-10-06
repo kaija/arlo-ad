@@ -1,3 +1,4 @@
+import { EnvSchema, parseEnv } from '@arlo/config';
 import { createLogger } from '@arlo/config/logger';
 import { checkDatabase, createPool } from '@arlo/db';
 import { closeServer, startHealthServer } from './health-server';
@@ -15,12 +16,22 @@ process.on('unhandledRejection', (err) => {
   void shutdown.shutdown('unhandledRejection', 1);
 });
 
-// TODO(task 1.4): read from the validated env schema in @arlo/config.
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error('DATABASE_URL is required');
-const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 9090);
+// Validate only the keys the worker uses so far; extend the pick as features land.
+const WorkerEnv = EnvSchema.pick({ DATABASE_URL: true, WORKER_HEALTH_PORT: true });
 
-const pool = createPool({ connectionString: databaseUrl, logger });
+function loadEnv() {
+  try {
+    return parseEnv(WorkerEnv);
+  } catch (err) {
+    logger.fatal({ err }, 'invalid configuration');
+    process.exit(1);
+  }
+}
+
+const env = loadEnv();
+const healthPort = env.WORKER_HEALTH_PORT;
+
+const pool = createPool({ connectionString: env.DATABASE_URL, logger });
 shutdown.register('postgres', () => pool.end());
 
 const server = await startHealthServer({
