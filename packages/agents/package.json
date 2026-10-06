@@ -1,0 +1,20 @@
+{
+  "name": "@arlo/agents",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@arlo/core": "workspace:*",
+    "@arlo/db": "workspace:*",
+    "@arlo/config": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

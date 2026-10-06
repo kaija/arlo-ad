@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // No Node typings: process, Buffer, node:* must not type-check in pure logic (ADR-0006).
+    "types": []
+  },
+  "include": ["src"]
+}

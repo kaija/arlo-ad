@@ -5,8 +5,8 @@
 
 ## M0 — 基礎與 EC2 環境
 
-- [ ] 1. Monorepo 與本機開發環境
-  - [ ] 1.1 建立 pnpm + turbo workspace
+- [-] 1. Monorepo 與本機開發環境
+  - [x] 1.1 建立 pnpm + turbo workspace
     - 建立 `apps/web`、`apps/worker`、`packages/{core,db,adapters,agents,config}`、`evals/`
     - 共用 tsconfig、eslint（含 `no-restricted-imports` 邊界規則：core 禁 I/O、agents 禁 mutate 介面）、Vitest
     - 寫一個 lint 測試 fixture 證明邊界規則生效

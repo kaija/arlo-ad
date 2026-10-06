@@ -4,7 +4,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 專案狀態
 
-Arlo Ads Bot：內部用的 Google Ads 管理 Agent 系統（Slack + Web console）。目前只有 spec 與 ADR，**尚未有程式碼**；實作依 `.kiro/specs/arlo-ads-bot/tasks.md` 逐步進行。建立 monorepo（task 1.1）後，請在本檔補上實際的 build / lint / test 指令。
+Arlo Ads Bot：內部用的 Google Ads 管理 Agent 系統（Slack + Web console）。實作依 `.kiro/specs/arlo-ads-bot/tasks.md` 逐步進行。
+
+## 指令
+
+Node 24（`.node-version`）、pnpm 11（`packageManager`）。
+
+```bash
+pnpm install
+pnpm lint                     # eslint（含 package 邊界規則）
+pnpm typecheck                # root tsc + turbo 跑各 package 的 tsc
+pnpm test                     # vitest，全部 projects
+pnpm vitest run packages/core/src/tier/tier.test.ts   # 單一測試檔
+pnpm vitest run --project @arlo/core                  # 單一 package
+pnpm build                    # turbo build（目前只有 apps/web）
+pnpm dev                      # turbo dev
+```
+
+- Workspace package（`@arlo/*`）直接 export TypeScript 原始碼（`exports: ./src/index.ts`），沒有個別 build 步驟；`apps/web` 以 `transpilePackages` 編譯。新增被 web 使用的 package 時要加進 `apps/web/next.config.ts`。
+- 共用版本放在 `pnpm-workspace.yaml` 的 `catalog:`。
+- typescript 固定 `~6.0`：typescript-eslint 尚未支援 TS 7。
+- pnpm 啟用 minimumReleaseAge；不要為了裝剛發布的版本而加入 `minimumReleaseAgeExclude`，改用前一個已過門檻的版本。
+- Vitest projects：每個 `apps/*`、`packages/*`、`evals` 各為一個 project（以 package name 命名）；repo 層級測試在 `tests/`（project `repo`）。
 
 ## 文件位置
 
@@ -45,10 +66,11 @@ node scripts/gen-adr-index.mjs
 
 - **兩個 process，一個 Postgres**：`apps/web`（Next.js App Router：UI、API、Slack endpoints 驗簽 → 3 秒內 ack → enqueue）與 `apps/worker`（agents、Executor、Monitor、Sync、Scheduler）。Postgres 同時承載資料、pg-boss queue/cron、agent sessions。pnpm + turbo monorepo，Drizzle + Zod，Vitest + Testcontainers。
 - **核心安全邊界（ADR-0006）**：Agent（`@openai/agents`）只能呼叫 read tools 與 `propose_*` tools，後者只建立 ChangeSet；唯一能呼叫廣告平台 mutate 的是不含 LLM 的 Executor：`validator → tier → approval → re-fetch & diff → mutate → audit_log`。所有金錢相關決定（擋下、是否需審、數字、熔斷、預算分配）都必須是 `packages/core` 中可單元測試的純函式，不可交給 LLM。
-- **以 eslint `no-restricted-imports` 強制的邊界**：
-  - `packages/core` 不得 import 任何 I/O 套件。
-  - `PlatformAdapter.applyOps` 只能由 `apps/worker/src/handlers/executor.ts` 呼叫。
-  - `packages/agents` 不得 import platform adapter 的 mutate 介面。
+- **以 eslint 強制的邊界**（`eslint.config.mjs`，由 `tests/eslint-boundaries.test.ts` 驗證；改規則時同步更新該測試）：
+  - `packages/core` 只能 import 相對路徑與 `zod`（allowlist），且禁用 `process` / `fetch`；其 tsconfig `types: []` 讓 Node 型別無法通過型別檢查。新增純邏輯依賴時須擴充 allowlist。
+  - `applyOps` 這個識別字只能出現在 `packages/adapters/**` 與 `apps/worker/src/handlers/executor.ts`（及其測試）。
+  - `packages/agents` 不得 import `@arlo/adapters` / `@arlo/adapters/platform*`。
+  - `google-ads-api` 只能在 `packages/adapters` 使用。
 - **抽象層**：`PlatformAdapter`（共用核心 + Google 擴充，ADR-0004）與 `ChatAdapter`（語意訊息，v1 只做 Slack，ADR-0005），皆有 Fake 實作供整合測試使用。
 - **寫入白名單（ADR-0026）**：mutate 前必須 `assertWriteAllowed()` 檢查 `ADS_WRITE_ALLOWED_CUSTOMER_IDS`；dev 只放測試帳戶。新自動化功能預設 shadow 模式（ADR-0013）。
 - **測試分層**：單元（core 純函式，table-driven，覆蓋率 ≥ 90%）、整合（Testcontainers + Fake adapters）、Contract（Google Ads 測試帳戶，手動 `pnpm test:contract`）、Agent eval（`evals/` golden set）、E2E（Slack payload → EXECUTED）。
