@@ -88,13 +88,13 @@
 
 ## M1 — 看得到
 
-- [-] 6. PlatformAdapter（讀取）
+- [x] 6. PlatformAdapter（讀取）
   - [x] 6.1 介面與 Fake 實作
     - `PlatformAdapter`、`GoogleAdsExtensions`、`EntityRef`、`Op`、`OpResult` 型別
     - `FakePlatformAdapter`（in-memory，可注入 drift 與錯誤）
     - _Requirements: 2.7_
     - _ADR: ADR-0004_
-  - [ ] 6.2 GoogleAdsAdapter 讀取
+  - [x] 6.2 GoogleAdsAdapter 讀取
     - 以 `google-ads-api` 實作 listAccounts、fetchEntities、fetchMetrics、fetchChangeHistory、fetchCurrent、fetchSearchTerms、fetchConversionActions
     - GAQL 查詢集中於 `queries.ts`；mapper 單元測試（以錄製的 API 回應 fixture）
     - _Requirements: 2.1, 2.3, 2.4_

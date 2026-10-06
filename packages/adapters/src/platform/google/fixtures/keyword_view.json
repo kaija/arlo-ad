@@ -1,0 +1,4 @@
+[
+  { "ad_group_criterion": { "resource_name": "customers/1234567890/adGroupCriteria/221~3001", "criterion_id": 3001, "status": 2, "negative": false, "keyword": { "text": "arlo camera", "match_type": 2 } }, "ad_group": { "resource_name": "customers/1234567890/adGroups/221", "id": 221 } },
+  { "ad_group_criterion": { "resource_name": "customers/1234567890/adGroupCriteria/221~3002", "criterion_id": 3002, "status": 3, "negative": false, "keyword": { "text": "arlo doorbell", "match_type": 3 } }, "ad_group": { "resource_name": "customers/1234567890/adGroups/221", "id": 221 } }
+]

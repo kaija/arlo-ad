@@ -1,0 +1,16 @@
+[
+  {
+    "change_event": {
+      "resource_name": "customers/1234567890/changeEvents/1759708800000000~5~0",
+      "change_date_time": "2026-10-06 08:15:30.123456",
+      "user_email": "pat@example.com",
+      "client_type": 2,
+      "change_resource_type": 6,
+      "change_resource_name": "customers/1234567890/campaignBudgets/901",
+      "resource_change_operation": 3,
+      "changed_fields": { "paths": ["amount_micros"] },
+      "old_resource": { "campaign_budget": { "amount_micros": 2500000000 } },
+      "new_resource": { "campaign_budget": { "amount_micros": 3000000000 } }
+    }
+  }
+]

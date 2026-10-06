@@ -1,0 +1,5 @@
+[
+  { "search_term_view": { "resource_name": "customers/1234567890/searchTermViews/111~221~YXJsbyBmcmVl", "search_term": "arlo free" }, "segments": { "date": "2026-10-05" }, "campaign": { "id": 111 }, "ad_group": { "id": 221 }, "metrics": { "cost_micros": 1000000, "impressions": 10, "clicks": 1, "conversions": 0, "conversions_value": 0 } },
+  { "search_term_view": { "resource_name": "customers/1234567890/searchTermViews/111~221~YXJsbyBmcmVl", "search_term": "arlo free" }, "segments": { "date": "2026-10-05" }, "campaign": { "id": 111 }, "ad_group": { "id": 221 }, "metrics": { "cost_micros": 500000, "impressions": 5, "clicks": 1, "conversions": 0, "conversions_value": 0 } },
+  { "search_term_view": { "resource_name": "customers/1234567890/searchTermViews/111~221~YXJsbyBwcm8", "search_term": "arlo pro 5" }, "segments": { "date": "2026-10-05" }, "campaign": { "id": 111 }, "ad_group": { "id": 221 }, "metrics": { "cost_micros": 8000000, "impressions": 80, "clicks": 9, "conversions": 2, "conversions_value": 7980 } }
+]

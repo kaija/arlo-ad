@@ -1,0 +1,4 @@
+[
+  { "segments": { "conversion_action": "customers/1234567890/conversionActions/501", "date": "2026-10-05", "hour": 22 }, "metrics": { "all_conversions": 3 } },
+  { "segments": { "conversion_action": "customers/1234567890/conversionActions/501", "date": "2026-10-06", "hour": 7 }, "metrics": { "all_conversions": 1 } }
+]

@@ -5,7 +5,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./chat": "./src/chat/index.ts",
-    "./platform": "./src/platform/index.ts"
+    "./platform": "./src/platform/index.ts",
+    "./platform/google": "./src/platform/google/index.ts"
   },
   "scripts": {
     "typecheck": "tsc"
@@ -13,7 +14,8 @@
   "dependencies": {
     "@arlo/config": "workspace:*",
     "@arlo/core": "workspace:*",
-    "@slack/web-api": "^8.2.0"
+    "@slack/web-api": "^8.2.0",
+    "google-ads-api": "^25.1.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",

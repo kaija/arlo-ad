@@ -1,0 +1,4 @@
+[
+  { "campaign": { "resource_name": "customers/1234567890/campaigns/111", "id": 111 }, "segments": { "date": "2026-10-04" }, "metrics": { "cost_micros": 1234500000, "impressions": 5400, "clicks": 321, "conversions": 12.5, "conversions_value": 45000.25, "search_impression_share": 0.8123, "search_budget_lost_impression_share": 0.05, "search_rank_lost_impression_share": 0.1377 } },
+  { "campaign": { "resource_name": "customers/1234567890/campaigns/112", "id": 112 }, "segments": { "date": "2026-10-04" }, "metrics": { "cost_micros": 0, "impressions": 0, "clicks": 0, "conversions": 0, "conversions_value": 0 } }
+]

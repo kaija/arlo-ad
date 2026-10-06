@@ -1,0 +1,4 @@
+[
+  { "conversion_action": { "resource_name": "customers/1234567890/conversionActions/501", "id": 501, "name": "Purchase", "status": 2, "category": 4, "primary_for_goal": true, "type": 8 } },
+  { "conversion_action": { "resource_name": "customers/1234567890/conversionActions/502", "id": 502, "name": "Lead upload", "status": 2, "category": 13, "primary_for_goal": false, "type": 7 } }
+]

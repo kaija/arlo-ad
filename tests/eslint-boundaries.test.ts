@@ -35,6 +35,7 @@ const cases: Case[] = [
   { name: 'agents may import core and db', file: 'packages/agents/src/tools.ts', code: "export * from '@arlo/core';\nexport * from '@arlo/db';", expected: [] },
   { name: 'agents reject platform adapter', file: 'packages/agents/src/tools.ts', code: "export { GoogleAdsAdapter } from '@arlo/adapters/platform';", expected: ['no-restricted-imports'] },
   { name: 'agents reject adapters root', file: 'packages/agents/src/tools.ts', code: "export * from '@arlo/adapters';", expected: ['no-restricted-imports'] },
+  { name: 'agents reject Google adapter subpath', file: 'packages/agents/src/tools.ts', code: "export { GoogleAdsAdapter } from '@arlo/adapters/platform/google';", expected: ['no-restricted-imports'] },
   { name: 'agents reject Google Ads SDK', file: 'packages/agents/src/tools.ts', code: "export { GoogleAdsApi } from 'google-ads-api';", expected: ['no-restricted-imports'] },
   { name: 'agents reject applyOps', file: 'packages/agents/src/tools.ts', code: 'export const run = (a: { applyOps(): void }) => a.applyOps();', expected: ['no-restricted-syntax'] },
 

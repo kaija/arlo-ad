@@ -1,0 +1,14 @@
+[
+  {
+    "campaign": { "resource_name": "customers/1234567890/campaigns/111", "id": 111, "name": "Brand - Search", "status": 2, "advertising_channel_type": 2, "bidding_strategy_type": 6, "target_cpa": { "target_cpa_micros": 250000000 } },
+    "campaign_budget": { "resource_name": "customers/1234567890/campaignBudgets/901", "id": 901, "amount_micros": 3000000000, "explicitly_shared": false }
+  },
+  {
+    "campaign": { "resource_name": "customers/1234567890/campaigns/112", "id": 112, "name": "Generic - Search", "status": 3, "advertising_channel_type": 2, "bidding_strategy_type": 11, "maximize_conversion_value": { "target_roas": 4.5 } },
+    "campaign_budget": { "resource_name": "customers/1234567890/campaignBudgets/902", "id": 902, "amount_micros": 1500000000, "explicitly_shared": true }
+  },
+  {
+    "campaign": { "resource_name": "customers/1234567890/campaigns/113", "id": 113, "name": "Max conv no target", "status": 2, "advertising_channel_type": 2, "bidding_strategy_type": 10, "maximize_conversions": { "target_cpa_micros": 0 } },
+    "campaign_budget": { "resource_name": "customers/1234567890/campaignBudgets/903", "id": 903, "amount_micros": 500000000, "explicitly_shared": false }
+  }
+]

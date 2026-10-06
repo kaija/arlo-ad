@@ -1,0 +1,4 @@
+[
+  { "customer_client": { "resource_name": "customers/1112223333/customerClients/1234567890", "id": 1234567890, "descriptive_name": "Arlo TW", "currency_code": "TWD", "time_zone": "Asia/Taipei", "manager": false, "status": 2 } },
+  { "customer_client": { "resource_name": "customers/1112223333/customerClients/2234567890", "id": 2234567890, "descriptive_name": "Arlo US", "currency_code": "USD", "time_zone": "America/Los_Angeles", "manager": false, "status": 2 } }
+]
