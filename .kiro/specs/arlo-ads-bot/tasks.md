@@ -400,7 +400,7 @@
     - eval：lint 通過率
     - _Requirements: 15.2, 15.3_
     - _ADR: ADR-0020, ADR-0014_
-  - [ ] 20.4 Draft 編輯與局部重生
+  - [x] 20.4 Draft 編輯與局部重生
     - Web 編輯器、版本、`campaign.regenerate(section)`
     - _Requirements: 15.4, 18.5_
     - _ADR: ADR-0020_

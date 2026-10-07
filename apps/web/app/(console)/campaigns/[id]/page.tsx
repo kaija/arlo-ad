@@ -1,27 +1,36 @@
-import { formatMoney } from '@arlo/core';
-import { getAdAccount, getCampaignTask, latestCampaignDraft } from '@arlo/db';
+import { authorize, DRAFT_SECTIONS, formatMoney, SECTION_LABEL, type LintIssue } from '@arlo/core';
+import { getAdAccount, getCampaignTask, latestCampaignDraft, listCampaignDraftVersions } from '@arlo/db';
 import { notFound } from 'next/navigation';
-import { Badge, Card, PageTitle } from '../../../../components/ui';
+import { DraftEditor, LintList } from '../../../../components/draft-editor';
+import { Badge, Button, Card, inputClass, PageTitle } from '../../../../components/ui';
 import { TASK_STATUS_LABEL, TASK_STATUS_TONE } from '../../../../lib/campaigns';
 import { getDb } from '../../../../lib/server';
 import { readableAccounts, requireUser } from '../../../../lib/session';
+import { formatAt } from '../../../../lib/time';
+import { regenerateAction, restoreVersionAction, saveDraftAction } from './actions';
 
 export const dynamic = 'force-dynamic';
 
 // One campaign task: status, brief and the latest draft (Requirements 15.8, 18.5).
-export default async function CampaignTaskPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CampaignTaskPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ saved?: string; error?: string; regenerating?: string }> }) {
   const user = await requireUser();
   const { id } = await params;
   const db = getDb();
   const task = /^[0-9a-f-]{36}$/i.test(id) ? await getCampaignTask(db, id) : undefined;
   const allowed = readableAccounts(user);
   if (!task || (allowed !== null && !allowed.includes(task.accountId))) notFound();
-  const [account, draft] = await Promise.all([getAdAccount(db, task.accountId), latestCampaignDraft(db, task.id)]);
+  const [account, draft, versions] = await Promise.all([getAdAccount(db, task.accountId), latestCampaignDraft(db, task.id), listCampaignDraftVersions(db, task.id)]);
+  const query = await searchParams;
+  const canEdit = task.status === 'draft' && authorize(user, 'propose', { accountId: task.accountId }).allowed;
+  const tz = account?.timezone ?? 'UTC';
   const b = task.brief;
   return (
     <>
       <PageTitle actions={<Badge tone={TASK_STATUS_TONE[task.status]}>{TASK_STATUS_LABEL[task.status]}</Badge>}>{b.name}</PageTitle>
       {task.status === 'queued' || task.status === 'running' ? <p className="mb-4 text-sm text-zinc-500">Campaign agent 正在背景產生草稿，通常需要一兩分鐘；重新整理頁面查看進度。</p> : null}
+      {query.saved ? <p className="mb-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">已儲存為第 {query.saved} 版。</p> : null}
+      {query.regenerating ? <p className="mb-4 rounded-md bg-sky-50 px-3 py-2 text-sm text-sky-800 dark:bg-sky-950 dark:text-sky-200">正在重新產生指定區段，完成後會成為新版本；稍後重新整理。</p> : null}
+      {query.error ? <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">{query.error}</p> : null}
       {task.status === 'failed' ? <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">產生失敗：{task.error ?? '未知錯誤'}</p> : null}
       <Card title="Brief">
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
@@ -54,11 +63,54 @@ export default async function CampaignTaskPage({ params }: { params: Promise<{ i
         </dl>
       </Card>
       {draft ? (
-        <Card title={`草稿 第 ${draft.version} 版`} className="mt-4">
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            {draft.draft.adGroups.length} 個廣告群組 · {draft.draft.adGroups.reduce((s, g) => s + g.keywords.length, 0)} 個關鍵字 · {draft.draft.negativeKeywords.length} 個否定關鍵字
-          </p>
-        </Card>
+        <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
+          <Card title={`草稿 第 ${draft.version} 版`}>
+            <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+              {draft.draft.adGroups.length} 個廣告群組 · {draft.draft.adGroups.reduce((s, g) => s + g.keywords.length, 0)} 個關鍵字 · {draft.draft.negativeKeywords.length} 個否定關鍵字
+            </p>
+            <DraftEditor draft={draft.draft} action={saveDraftAction.bind(null, task.id)} disabled={!canEdit} />
+          </Card>
+          <div className="space-y-4">
+            <Card title="檢查結果">
+              <LintList issues={draft.lintIssues as LintIssue[]} />
+            </Card>
+            {canEdit ? (
+              <Card title="重新產生區段">
+                <form action={regenerateAction.bind(null, task.id)} className="space-y-2">
+                  <select name="section" className={`${inputClass} w-full`} defaultValue="ads">
+                    {DRAFT_SECTIONS.map((s) => (
+                      <option key={s} value={s}>
+                        {SECTION_LABEL[s]}
+                      </option>
+                    ))}
+                  </select>
+                  <textarea name="instructions" rows={3} placeholder="要求（選填），例如：標題更強調免佈線" className={`${inputClass} w-full`} maxLength={1000} />
+                  <Button type="submit" variant="secondary">
+                    重新產生
+                  </Button>
+                </form>
+              </Card>
+            ) : null}
+            <Card title="版本">
+              <ul className="space-y-1 text-sm">
+                {versions.map((v) => (
+                  <li key={v.version} className="flex items-center justify-between gap-2">
+                    <span>
+                      第 {v.version} 版 · {v.origin} <span className="text-xs text-zinc-500">{formatAt(v.createdAt, tz)}</span>
+                    </span>
+                    {canEdit && v.version !== draft.version ? (
+                      <form action={restoreVersionAction.bind(null, task.id, v.version)}>
+                        <button type="submit" className="text-xs text-sky-700 hover:underline dark:text-sky-400">
+                          還原
+                        </button>
+                      </form>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          </div>
+        </div>
       ) : null}
     </>
   );

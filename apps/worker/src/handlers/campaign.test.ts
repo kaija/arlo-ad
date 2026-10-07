@@ -2,11 +2,11 @@ import { createCampaignAgent } from '@arlo/agents';
 import { say, ScriptedModel } from '@arlo/agents/testing';
 import { createLogger } from '@arlo/config/logger';
 import type { CampaignBrief, CampaignDraft } from '@arlo/core';
-import { createCampaignTask, DEFAULT_ORG_ID, getCampaignTask, latestCampaignDraft, upsertAdAccounts } from '@arlo/db';
+import { createCampaignTask, DEFAULT_ORG_ID, getCampaignTask, latestCampaignDraft, setCampaignTaskStatus, upsertAdAccounts } from '@arlo/db';
 import { useTestDatabase } from '@arlo/db/testing';
 import { setTracingDisabled } from '@openai/agents';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { generateForTask, type CampaignDeps } from './campaign';
+import { generateForTask, regenerateSection, type CampaignDeps } from './campaign';
 
 setTracingDisabled(true);
 const logger = createLogger({ component: 'test', level: 'silent' });
@@ -43,5 +43,19 @@ describe('campaign.generate', () => {
     const task = await createCampaignTask(t.db, { accountId, brief, createdBy: null });
     expect(await generateForTask(deps(null), task.id)).toEqual({ status: 'failed' });
     expect(await getCampaignTask(t.db, task.id)).toMatchObject({ status: 'failed', error: 'campaign agent is not configured' });
+  });
+
+  it('regenerates one section into a new version and leaves the rest', async () => {
+    const task = await createCampaignTask(t.db, { accountId, brief, createdBy: null });
+    await generateForTask(deps(new ScriptedModel(() => [say(JSON.stringify(draft))])), task.id);
+    const rewritten = { ...draft, campaign: { ...draft.campaign, dailyBudget: 9999 }, adGroups: [{ ...draft.adGroups[0]!, ads: [{ ...draft.adGroups[0]!.ads[0]!, headlines: ['新標題一', '新標題二', '新標題三'] }] }] };
+    const model = new ScriptedModel(() => [say(JSON.stringify(rewritten))]);
+    expect(await regenerateSection(deps(model), { taskId: task.id, section: 'ads', instructions: '更強調免佈線', userId: null })).toEqual({ status: 'draft', version: 2 });
+    const latest = await latestCampaignDraft(t.db, task.id);
+    expect(latest).toMatchObject({ origin: 'regenerate:ads', draft: { campaign: { dailyBudget: 1500 }, adGroups: [{ ads: [{ headlines: ['新標題一', '新標題二', '新標題三'] }] }] } });
+    expect(JSON.stringify(model.requests[0]!.input)).toContain('更強調免佈線');
+
+    await setCampaignTaskStatus(t.db, task.id, ['draft'], 'submitted');
+    expect(await regenerateSection(deps(model), { taskId: task.id, section: 'ads', instructions: null, userId: null })).toEqual({ status: 'submitted' });
   });
 });

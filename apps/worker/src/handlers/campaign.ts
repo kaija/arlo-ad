@@ -1,11 +1,11 @@
 // campaign.generate (ADR-0020, Requirements 15.1–15.3, 15.8): queued → running → draft (or
 // failed). The Campaign agent writes the draft; lint issues are stored with it.
-import { briefPrompt, generateCampaignDraft, trackedRun, type AgentContext } from '@arlo/agents';
+import { briefPrompt, generateCampaignDraft, regeneratePrompt, trackedRun, type AgentContext } from '@arlo/agents';
 import type { Logger } from '@arlo/config/logger';
-import type { CampaignDraftSchema } from '@arlo/core';
-import { getAdAccount, getCampaignTask, saveCampaignDraft, setCampaignTaskStatus, type Db } from '@arlo/db';
+import { CampaignDraftSchema, lintStructure, mergeDraftSection, SECTION_LABEL, type DraftSection } from '@arlo/core';
+import { getAdAccount, getCampaignTask, latestCampaignDraft, saveCampaignDraft, setCampaignTaskStatus, type Db } from '@arlo/db';
 import { defineJob, Jobs } from '@arlo/queue';
-import type { Agent } from '@openai/agents';
+import { run, type Agent } from '@openai/agents';
 
 export interface CampaignDeps {
   db: Db;
@@ -40,6 +40,34 @@ export async function generateForTask(deps: CampaignDeps, taskId: string): Promi
   }
 }
 
+/**
+ * campaign.regenerate (Requirement 15.4): the agent rewrites one section; only that section is
+ * merged into the latest draft, which becomes a new version. Drafts already submitted are final.
+ */
+export async function regenerateSection(deps: CampaignDeps, input: { taskId: string; section: DraftSection; instructions: string | null; userId: string | null }): Promise<{ status: string; version?: number }> {
+  const { db } = deps;
+  const task = await getCampaignTask(db, input.taskId);
+  const current = await latestCampaignDraft(db, input.taskId);
+  if (!task || !current || task.status !== 'draft') return { status: task?.status ?? 'missing' };
+  const account = await getAdAccount(db, task.accountId);
+  if (!account || !deps.agents.campaign) return { status: 'unavailable' };
+  const context: AgentContext = { db, allowedAccountIds: [account.id], now: deps.now, user: input.userId ? { id: input.userId } : null };
+  try {
+    const { result } = await trackedRun({ db, name: 'campaign.regenerate', ref: { kind: 'campaign_task', id: task.id }, now: deps.now }, () =>
+      run(deps.agents.campaign!(), regeneratePrompt(task.brief, current.draft, SECTION_LABEL[input.section], input.instructions), { context, maxTurns: 10 }),
+    );
+    const merged = mergeDraftSection(current.draft, CampaignDraftSchema.parse(result.finalOutput), input.section);
+    const saved = await saveCampaignDraft(db, { taskId: task.id, draft: merged, lintIssues: lintStructure(merged, { landingPageUrl: task.brief.landingPageUrl }), origin: `regenerate:${input.section}`, createdBy: input.userId });
+    return { status: 'draft', version: saved.version };
+  } catch (err) {
+    deps.logger.error({ err, task_id: task.id, section: input.section }, 'section regeneration failed');
+    return { status: 'failed' };
+  }
+}
+
 export function campaignJobs(deps: CampaignDeps) {
-  return [defineJob(Jobs.campaignGenerate, ({ taskId }) => generateForTask(deps, taskId))];
+  return [
+    defineJob(Jobs.campaignGenerate, ({ taskId }) => generateForTask(deps, taskId)),
+    defineJob(Jobs.campaignRegenerate, (data) => regenerateSection(deps, data)),
+  ];
 }

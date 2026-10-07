@@ -64,6 +64,11 @@ export async function latestCampaignDraft(db: DbOrTx, taskId: string): Promise<S
   return row ? draftOf(row) : undefined;
 }
 
+export async function getCampaignDraftVersion(db: DbOrTx, taskId: string, version: number): Promise<StoredDraft | undefined> {
+  const [row] = await db.select().from(campaignDrafts).where(and(eq(campaignDrafts.taskId, taskId), eq(campaignDrafts.version, version)));
+  return row ? draftOf(row) : undefined;
+}
+
 export function listCampaignDraftVersions(db: DbOrTx, taskId: string) {
   return db
     .select({ id: campaignDrafts.id, version: campaignDrafts.version, origin: campaignDrafts.origin, createdAt: campaignDrafts.createdAt, changesetId: campaignDrafts.changesetId })
