@@ -7,6 +7,7 @@ export const NAV_ITEMS = [
   { href: '/', label: '總覽' },
   { href: '/changesets', label: '審核' },
   { href: '/search-terms', label: '搜尋字詞' },
+  { href: '/tracking', label: '追蹤' },
   { href: '/automation', label: '自動化' },
   { href: '/schedules', label: '排程' },
   { href: '/settings', label: '設定' },

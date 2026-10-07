@@ -1,6 +1,7 @@
 export * from './agents/analyst';
 export * from './agents/audit';
 export * from './agents/bidding';
+export * from './agents/cause-ranker';
 export * from './agents/keyword';
 export * from './agents/orchestrator';
 export * from './agents/prompts';
@@ -8,6 +9,7 @@ export * from './agents/search-term-classifier';
 export * from './config/models';
 export * from './context';
 export * from './session';
+export * from './tools/audit';
 export * from './tools/keyword';
 export * from './tools/propose';
 export * from './tools/read';

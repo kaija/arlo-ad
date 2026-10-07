@@ -15,6 +15,7 @@ describe('ga4Gap (Requirement 16.3)', () => {
     ['within threshold', series([10, 8], [10, 7]), false, -0.125],
     ['too few baseline conversions', series([0.5, 0.5], [0, 5]), false, null],
     ['short baseline', series([10, 8], [10, 2], 5), false, null],
+    ['no GA4 data yet', series([10, 0], [10, 0]), false, null],
   ])('%s', (_, s, alert, shift) => {
     const r = ga4Gap(s);
     expect(r.alert).toBe(alert);

@@ -70,3 +70,19 @@ describe('classifier suite precision gate', () => {
     expect(result.precision!.value).toBeLessThan(0.98);
   });
 });
+
+describe('cause ranking suite', () => {
+  it('scores the top cause from a scripted ranker', async () => {
+    const suite = (await loadSuites()).find((s) => s.suite === 'audit_cause_ranking')!;
+    const expected = new Map(suite.cases.map((c) => [JSON.stringify(c.input), (c.expect.output as { topCause: string | null }).topCause]));
+    const model = new ScriptedModel((req) => {
+      const items = req.input as { content: { text: string }[] | string }[];
+      const last = items.at(-1)!.content;
+      const top = expected.get(typeof last === 'string' ? last : last[0]!.text) ?? null;
+      return [say(JSON.stringify({ causes: top ? [{ id: top, likelihood: 0.8, reason: 'scripted' }] : [], summary: 's' }))];
+    });
+    const result = await runSuite(suite, agentFactory({ flagship: model, small: model }), { concurrency: 4 });
+    expect(result.cases.filter((c) => !c.pass).map((c) => c.id)).toEqual([]);
+    expect(result.passed).toBe(true);
+  });
+});

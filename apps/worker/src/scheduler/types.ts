@@ -1,4 +1,4 @@
-import type { AgentContext, SearchTermLabelsSchema } from '@arlo/agents';
+import type { AgentContext, CauseRankingSchema, SearchTermLabelsSchema } from '@arlo/agents';
 import type { Logger } from '@arlo/config/logger';
 import type { ChatMessage } from '@arlo/core';
 import type { AdAccount, Db, JobRun, ScheduledJob } from '@arlo/db';
@@ -10,6 +10,8 @@ export interface AgentFactories {
   keyword?: () => Agent<AgentContext>;
   audit?: () => Agent<AgentContext>;
   orchestrator: () => Agent<AgentContext>;
+  /** Orders candidate causes of an anomaly (ADR-0021). */
+  causeRanker?: () => Agent<unknown, typeof CauseRankingSchema>;
   /** Small-model search term classifier (ADR-0019, ADR-0023). */
   searchTermClassifier?: () => Agent<unknown, typeof SearchTermLabelsSchema>;
 }

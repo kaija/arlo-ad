@@ -46,6 +46,10 @@ export function ga4Gap(series: readonly GapDay[], opts: GapOptions = {}): GapRes
   if (baseline.length < Math.ceil(baselineDays / 2) || b.ads < minConversions || b.ratio === null) {
     return { baselineRatio: b.ratio, recentRatio: r.ratio, shift: null, alert: false, reason: '基準期間資料不足' };
   }
+  if (b.ga4 === 0) {
+    // GA4 recorded nothing in the baseline: not linked to key events yet, or not synced.
+    return { baselineRatio: b.ratio, recentRatio: r.ratio, shift: null, alert: false, reason: 'GA4 基準期間沒有轉換資料，無法比對' };
+  }
   if (r.ads === 0 && r.ga4 === 0) {
     // Both silent: tracking health catches dead Ads tracking; nothing to compare here.
     return { baselineRatio: b.ratio, recentRatio: null, shift: null, alert: false, reason: '近期兩邊都沒有轉換' };

@@ -1,0 +1,319 @@
+{
+  "suite": "audit_cause_ranking",
+  "description": "異常原因排序：依時間、影響範圍與方向挑出最可能的變更；沒有合理候選時不硬猜（Requirement 16.5，ADR-0021）。",
+  "agent": "cause_ranker",
+  "minPassRate": 0.75,
+  "cases": [
+    {
+      "id": "budget-raise",
+      "input": {
+        "anomaly": {
+          "date": "2026-10-06",
+          "metric": "clicks",
+          "direction": "up",
+          "value": 0,
+          "baseline": 0,
+          "entity": "111"
+        },
+        "candidates": [
+          {
+            "id": "ce:budget",
+            "at": "2026-10-05T13:00:00Z",
+            "kind": "change_event",
+            "who": "pat@example.com",
+            "summary": "CAMPAIGN_BUDGET amount_micros：{\"amount_micros\":1000000000} → {\"amount_micros\":3000000000}",
+            "targets": [
+              "111"
+            ]
+          },
+          {
+            "id": "ce:ad",
+            "at": "2026-10-04T02:00:00Z",
+            "kind": "change_event",
+            "who": "kai@example.com",
+            "summary": "AD status：\"ENABLED\" → \"PAUSED\"",
+            "targets": [
+              "9"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "output": {
+          "topCause": "ce:budget"
+        }
+      }
+    },
+    {
+      "id": "paused-by-arlo",
+      "input": {
+        "anomaly": {
+          "date": "2026-10-06",
+          "metric": "clicks",
+          "direction": "down",
+          "value": 0,
+          "baseline": 0,
+          "entity": "222"
+        },
+        "candidates": [
+          {
+            "id": "ce:kw",
+            "at": "2026-10-05T01:00:00Z",
+            "kind": "change_event",
+            "who": "kai@example.com",
+            "summary": "AD_GROUP_CRITERION cpc_bid_micros：10 → 11",
+            "targets": [
+              "333~1"
+            ]
+          },
+          {
+            "id": "cs:pause",
+            "at": "2026-10-05T20:00:00Z",
+            "kind": "changeset",
+            "who": "Arlo",
+            "summary": "熔斷：Generic 今日花費達進度的 300% → 暫停（EXECUTED）",
+            "targets": [
+              "222"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "output": {
+          "topCause": "cs:pause"
+        }
+      }
+    },
+    {
+      "id": "tcpa-raised",
+      "input": {
+        "anomaly": {
+          "date": "2026-10-06",
+          "metric": "cpc",
+          "direction": "up",
+          "value": 0,
+          "baseline": 0,
+          "entity": "111"
+        },
+        "candidates": [
+          {
+            "id": "ce:tcpa",
+            "at": "2026-10-05T09:00:00Z",
+            "kind": "change_event",
+            "who": "pat@example.com",
+            "summary": "CAMPAIGN target_cpa.target_cpa_micros：200000000 → 400000000",
+            "targets": [
+              "111"
+            ]
+          },
+          {
+            "id": "ce:label",
+            "at": "2026-10-05T11:00:00Z",
+            "kind": "change_event",
+            "who": "kai@example.com",
+            "summary": "CAMPAIGN labels：[] → [\"q4\"]",
+            "targets": [
+              "111"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "output": {
+          "topCause": "ce:tcpa"
+        }
+      }
+    },
+    {
+      "id": "conversion-action-changed",
+      "input": {
+        "anomaly": {
+          "date": "2026-10-06",
+          "metric": "cvr",
+          "direction": "down",
+          "value": 0,
+          "baseline": 0,
+          "entity": null
+        },
+        "candidates": [
+          {
+            "id": "ce:conv",
+            "at": "2026-10-05T08:00:00Z",
+            "kind": "change_event",
+            "who": "dev@example.com",
+            "summary": "CONVERSION_ACTION status / primary_for_goal：{\"primary_for_goal\":true} → {\"primary_for_goal\":false}",
+            "targets": [
+              "501"
+            ]
+          },
+          {
+            "id": "ce:budget",
+            "at": "2026-10-05T10:00:00Z",
+            "kind": "change_event",
+            "who": "pat@example.com",
+            "summary": "CAMPAIGN_BUDGET amount_micros：1000000000 → 1100000000",
+            "targets": [
+              "111"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "output": {
+          "topCause": "ce:conv"
+        }
+      }
+    },
+    {
+      "id": "match-type-broadened",
+      "input": {
+        "anomaly": {
+          "date": "2026-10-06",
+          "metric": "cost",
+          "direction": "up",
+          "value": 0,
+          "baseline": 0,
+          "entity": "111"
+        },
+        "candidates": [
+          {
+            "id": "ce:kwmatch",
+            "at": "2026-10-05T15:00:00Z",
+            "kind": "change_event",
+            "who": "pat@example.com",
+            "summary": "AD_GROUP_CRITERION keyword.match_type：EXACT → BROAD（12 個關鍵字）",
+            "targets": [
+              "111",
+              "221~3001"
+            ]
+          },
+          {
+            "id": "ce:ad-copy",
+            "at": "2026-10-05T16:00:00Z",
+            "kind": "change_event",
+            "who": "kai@example.com",
+            "summary": "AD headline 修改",
+            "targets": [
+              "9"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "output": {
+          "topCause": "ce:kwmatch"
+        }
+      }
+    },
+    {
+      "id": "entity-match-over-recency",
+      "input": {
+        "anomaly": {
+          "date": "2026-10-06",
+          "metric": "clicks",
+          "direction": "down",
+          "value": 0,
+          "baseline": 0,
+          "entity": "111"
+        },
+        "candidates": [
+          {
+            "id": "ce:other-campaign",
+            "at": "2026-10-06T02:00:00Z",
+            "kind": "change_event",
+            "who": "kai@example.com",
+            "summary": "CAMPAIGN status：ENABLED → PAUSED",
+            "targets": [
+              "999"
+            ]
+          },
+          {
+            "id": "ce:same-campaign",
+            "at": "2026-10-05T00:00:00Z",
+            "kind": "change_event",
+            "who": "pat@example.com",
+            "summary": "CAMPAIGN status：ENABLED → PAUSED",
+            "targets": [
+              "111"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "output": {
+          "topCause": "ce:same-campaign"
+        }
+      }
+    },
+    {
+      "id": "only-later-changes",
+      "input": {
+        "anomaly": {
+          "date": "2026-10-06",
+          "metric": "ctr",
+          "direction": "down",
+          "value": 0,
+          "baseline": 0,
+          "entity": "111"
+        },
+        "candidates": [
+          {
+            "id": "ce:after",
+            "at": "2026-10-07T09:00:00Z",
+            "kind": "change_event",
+            "who": "pat@example.com",
+            "summary": "CAMPAIGN_BUDGET amount_micros：1000 → 2000",
+            "targets": [
+              "111"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "output": {
+          "topCause": null
+        }
+      }
+    },
+    {
+      "id": "negatives-cut-traffic",
+      "input": {
+        "anomaly": {
+          "date": "2026-10-06",
+          "metric": "clicks",
+          "direction": "down",
+          "value": 0,
+          "baseline": 0,
+          "entity": null
+        },
+        "candidates": [
+          {
+            "id": "cs:neg",
+            "at": "2026-10-05T18:00:00Z",
+            "kind": "changeset",
+            "who": "Arlo",
+            "summary": "自動排除 48 個不相關搜尋字詞（EXACT → arlo-auto-negatives）（EXECUTED）",
+            "targets": [
+              "777"
+            ]
+          },
+          {
+            "id": "ce:bid-mod",
+            "at": "2026-10-03T01:00:00Z",
+            "kind": "change_event",
+            "who": "kai@example.com",
+            "summary": "CAMPAIGN_CRITERION device bid_modifier：1.0 → 1.1",
+            "targets": [
+              "111"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "output": {
+          "topCause": "cs:neg"
+        }
+      }
+    }
+  ]
+}

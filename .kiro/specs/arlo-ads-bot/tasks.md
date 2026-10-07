@@ -341,7 +341,7 @@
     - _Requirements: 18.4_
     - _ADR: ADR-0017_
 
-- [-] 18. 追蹤審計與異常
+- [x] 18. 追蹤審計與異常
   - [x] 18.1 轉換追蹤健康檢查
     - conversion action 狀態、最後轉換時間、EC 診斷 → 健康判定純函式 + 測試
     - _Requirements: 16.1, 16.2_
@@ -355,7 +355,7 @@
     - 單元測試
     - _Requirements: 16.4_
     - _ADR: ADR-0021_
-  - [ ] 18.4 Audit agent 與模板
+  - [x] 18.4 Audit agent 與模板
     - audit agent tools（tracking health、GA4 gap、anomalies、change correlation ±48h）；`tracking_audit`、`anomaly_watch` 模板；Orchestrator 加入 `audit.asTool()`；追蹤健康頁
     - eval：原因排序 case
     - _Requirements: 16.5, 18.7, 11.1_

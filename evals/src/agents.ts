@@ -1,6 +1,6 @@
 // Agents under evaluation. Specialists behind the Orchestrator are stubs answering canned text,
 // so routing suites measure the Orchestrator's choice without paying for nested runs.
-import { classifierInput, createOrchestrator, createSearchTermClassifier, type AgentContext } from '@arlo/agents';
+import { classifierInput, createCauseRanker, createOrchestrator, createSearchTermClassifier, type AgentContext } from '@arlo/agents';
 import { BusinessProfileSchema } from '@arlo/core';
 import { say, ScriptedModel } from '@arlo/agents/testing';
 import { Agent, type Model } from '@openai/agents';
@@ -37,6 +37,15 @@ export function agentFactory(models: { flagship: string | Model; small: string |
           project: (output) => (output as { labels?: unknown[] } | undefined)?.labels?.[0],
         };
       }
+      case 'cause_ranker':
+        // Scored on the most likely cause only (null when the model names none).
+        return {
+          agent: createCauseRanker({ model: models.flagship }),
+          project: (output) => {
+            const causes = [...((output as { causes?: { id: string; likelihood: number }[] } | undefined)?.causes ?? [])].sort((a, b) => b.likelihood - a.likelihood);
+            return { topCause: causes[0]?.id ?? null };
+          },
+        };
       default:
         throw new Error(`no eval agent registered for "${suite.agent}"`);
     }

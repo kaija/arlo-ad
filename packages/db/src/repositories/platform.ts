@@ -203,3 +203,7 @@ export async function conversionGapSeries(db: DbOrTx, account: { id: string; ga4
   for (const r of ga4) Object.assign(day(r.date), { ga4Conversions: Number(r.conv), ga4Sessions: Number(r.sessions) });
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
+
+export function listConversionActions(db: DbOrTx, accountId: string) {
+  return db.select().from(gConversionActions).where(eq(gConversionActions.accountId, accountId));
+}
