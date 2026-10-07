@@ -390,7 +390,7 @@
     - `campaign_tasks`、`campaign_drafts` schema；Web brief 表單 → enqueue `campaign.generate`；task 狀態頁
     - _Requirements: 15.1, 15.8_
     - _ADR: ADR-0020_
-  - [ ] 20.2 RSA / 結構 lint
+  - [x] 20.2 RSA / 結構 lint
     - `lintRsa()`、`lintStructure()`（CJK 寬度、數量、重複、禁用詞）
     - table-driven 測試
     - _Requirements: 15.3_
