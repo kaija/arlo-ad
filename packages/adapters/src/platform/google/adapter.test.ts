@@ -20,6 +20,9 @@ function recordingClient(byResource: Record<string, unknown[] | ((gaql: string) 
     mutate: () => {
       throw new Error('not used');
     },
+    keywordIdeas: () => {
+      throw new Error('not used');
+    },
     async query(customerId, gaql) {
       queries.push({ customerId, gaql: gaql.replace(/\s+/g, ' ').trim() });
       const from = /FROM (\w+)/.exec(gaql)?.[1] ?? '';

@@ -153,7 +153,8 @@ export interface GoogleAdsExtensions {
   fetchConversionActions(accountId: string): Promise<ConversionActionRow[]>;
   fetchUserListMetrics(accountId: string, range: DateRange): Promise<AudienceRow[]>;
   fetchBudgetSimulations(accountId: string, campaignIds: string[]): Promise<BudgetSimRow[]>;
-  generateKeywordIdeas(accountId: string, seeds: string[]): Promise<KeywordIdea[]>;
+  /** Keyword Planner ideas; language / locations default to zh-TW in Taiwan. */
+  generateKeywordIdeas(accountId: string, seeds: string[], opts?: { languageId?: number; geoTargetIds?: number[] }): Promise<KeywordIdea[]>;
   fetchAdPolicies(accountId: string, campaignIds: string[]): Promise<AdPolicyRow[]>;
 }
 

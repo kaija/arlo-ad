@@ -130,6 +130,7 @@ describe('GoogleAdsAdapter.applyOps', () => {
       customer: () => {
         throw new Error('not used');
       },
+      keywordIdeas: async () => ({}),
       async query(_customerId, gaql) {
         queries.push(gaql);
         return opts.contextRows ?? [];
@@ -244,6 +245,7 @@ describe('campaign bundle', () => {
         throw new Error('not used');
       },
       query: async () => [],
+      keywordIdeas: async () => ({}),
       mutate: async (_c, ops) => {
         calls.push(ops.length);
         return { mutate_operation_responses: [{ campaign_budget_result: { resource_name: `customers/${ACC}/campaignBudgets/91` } }, { campaign_result: { resource_name: `customers/${ACC}/campaigns/92` } }] };

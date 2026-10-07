@@ -15,6 +15,8 @@ export interface GoogleAdsClient {
   query(customerId: string, gaql: string): Promise<Row[]>;
   /** One atomic mutate request (partial_failure off, design.md「錯誤處理」). */
   mutate(customerId: string, operations: MutateOperation<Record<string, unknown>>[]): Promise<services.IMutateGoogleAdsResponse>;
+  /** KeywordPlanIdeaService.GenerateKeywordIdeas. */
+  keywordIdeas(customerId: string, request: services.IGenerateKeywordIdeasRequest): Promise<services.IGenerateKeywordIdeaResponse>;
   customer(customerId: string): Customer;
 }
 
@@ -40,6 +42,7 @@ export function createGoogleAdsClient(creds: GoogleAdsCredentials): GoogleAdsCli
   return {
     customer,
     query: (customerId, gaql) => customer(customerId).query(gaql),
+    keywordIdeas: (customerId, request) => customer(customerId).keywordPlanIdeas.generateKeywordIdeas(request as services.GenerateKeywordIdeasRequest),
     mutate: (customerId, operations) => customer(customerId).mutateResources(operations, { partial_failure: false }),
   };
 }

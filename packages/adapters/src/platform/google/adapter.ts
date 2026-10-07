@@ -29,6 +29,7 @@ import type {
   MetricsQuery,
   SearchTermRow,
 } from '../types';
+import { enums } from 'google-ads-api';
 import type { GoogleAdsClient } from './client';
 import * as M from './mappers';
 import { buildBundleMutations, buildMutation, campaignsNeedingContext, mapCampaignWriteContext, mutateErrorMessage, resultResourceName, type CampaignWriteContext } from './mutations';
@@ -230,8 +231,18 @@ export class GoogleAdsAdapter implements GoogleAdsPlatform {
     return M.mapAdPolicies(await this.client.query(accountId, Q.adPolicies(campaignIds)));
   }
 
-  async generateKeywordIdeas(): Promise<KeywordIdea[]> {
-    throw new Error('generateKeywordIdeas is not implemented yet (task 21.1)');
+  async generateKeywordIdeas(accountId: string, seeds: string[], opts: { languageId?: number; geoTargetIds?: number[] } = {}): Promise<KeywordIdea[]> {
+    const keywords = [...new Set(seeds.map((s) => s.trim()).filter(Boolean))].slice(0, 20);
+    if (keywords.length === 0) return [];
+    const response = await this.client.keywordIdeas(accountId, {
+      customer_id: accountId,
+      keyword_seed: { keywords },
+      language: `languageConstants/${opts.languageId ?? 1018}`,
+      geo_target_constants: (opts.geoTargetIds ?? [2158]).map((id) => `geoTargetConstants/${id}`),
+      keyword_plan_network: enums.KeywordPlanNetwork.GOOGLE_SEARCH,
+      include_adult_keywords: false,
+    });
+    return M.mapKeywordIdeas(response);
   }
 
   private async timeZone(accountId: string): Promise<string> {

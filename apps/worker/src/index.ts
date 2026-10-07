@@ -110,6 +110,7 @@ await registerJobs(
     agents: { analyst, audit, bidding, campaign, causeRanker, keyword, orchestrator, searchTermClassifier },
     propose: createProposer(db, boss),
     createCampaignTask: createCampaignTaskCreator(db, boss),
+    keywordIdeas: (customerId: string, seeds: string[]) => platform.generateKeywordIdeas(customerId, seeds),
     templates: TEMPLATES,
     llmBudgetUsd: env.DAILY_LLM_BUDGET_USD,
     boss,

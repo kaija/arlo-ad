@@ -19,5 +19,7 @@ export interface AgentContext {
    */
   propose?: (input: NewChangeSet) => Promise<{ id: string }>;
   /** Creates a campaign task and queues the Campaign agent (ADR-0020); absent where not allowed. */
+  /** Keyword Planner ideas for an account (platform id), injected by the worker (ADR-0019). */
+  keywordIdeas?: (customerId: string, seeds: string[]) => Promise<{ text: string; avgMonthlySearches: number | null; competition: 'LOW' | 'MEDIUM' | 'HIGH' | 'UNKNOWN'; lowTopBidMicros: number | null; highTopBidMicros: number | null }[]>;
   createCampaignTask?: (input: { accountId: string; brief: CampaignBrief; createdBy: string | null }) => Promise<{ id: string }>;
 }

@@ -1,6 +1,6 @@
 import { Agent, type Model } from '@openai/agents';
 import type { AgentContext } from '../context';
-import { getBusinessProfileTool, getSearchTermsTool, proposeNegativeKeywordsTool } from '../tools/keyword';
+import { getBusinessProfileTool, getKeywordIdeasTool, getSearchTermsTool, proposeKeywordsTool, proposeNegativeKeywordsTool } from '../tools/keyword';
 import { getChangeSetStatusTool } from '../tools/propose';
 import { STYLE_GUIDE, UNTRUSTED_CONTENT_POLICY } from './prompts';
 
@@ -12,6 +12,8 @@ export const KEYWORD_INSTRUCTIONS = `
 - get_search_terms：近期有花費的搜尋字詞與分類結果。
 - propose_negative_keywords：建立否定關鍵字的 ChangeSet（唯一的變更方式）。
 - get_changeset_status：查詢先前提案的狀態。
+- get_keyword_ideas：關鍵字擴展候選（有轉換的搜尋字詞 + Keyword Planner）。
+- propose_keywords：把關鍵字加入廣告群組（一律需要核准）。
 
 ## 原則
 - 不排除含品牌字的字詞；近 90 天有轉換的字詞要特別說明理由。
@@ -29,6 +31,6 @@ export function createKeywordAgent(opts: { model: string | Model }): Agent<Agent
     name: 'keyword',
     instructions: KEYWORD_INSTRUCTIONS,
     model: opts.model,
-    tools: [getBusinessProfileTool, getSearchTermsTool, proposeNegativeKeywordsTool, getChangeSetStatusTool],
+    tools: [getBusinessProfileTool, getSearchTermsTool, proposeNegativeKeywordsTool, getChangeSetStatusTool, getKeywordIdeasTool, proposeKeywordsTool],
   });
 }

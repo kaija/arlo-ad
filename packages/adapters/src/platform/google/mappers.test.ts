@@ -1,5 +1,6 @@
 // Fixtures in ./fixtures mirror google-ads-api query results (snake_case, numeric enums,
 // int64 as numbers) for the GAQL in queries.ts.
+import { enums } from 'google-ads-api';
 import { describe, expect, it } from 'vitest';
 import adGroups from './fixtures/ad_group.json';
 import campaigns from './fixtures/campaign.json';
@@ -187,5 +188,20 @@ describe('Google Ads mappers', () => {
     expect(M.enumName(e, 'PAUSED')).toBe('PAUSED');
     expect(M.enumName(e, 99)).toBe('UNKNOWN');
     expect(M.enumName(e, undefined)).toBeNull();
+  });
+
+  it('maps keyword ideas and skips blanks', () => {
+    expect(
+      M.mapKeywordIdeas({
+        results: [
+          { text: ' arlo camera ', keyword_idea_metrics: { avg_monthly_searches: 1200, competition: enums.KeywordPlanCompetitionLevel.HIGH, low_top_of_page_bid_micros: 5_000_000, high_top_of_page_bid_micros: 20_000_000 } },
+          { text: '' },
+          { text: 'rare', keyword_idea_metrics: {} },
+        ],
+      }),
+    ).toEqual([
+      { text: 'arlo camera', avgMonthlySearches: 1200, competition: 'HIGH', lowTopBidMicros: 5_000_000, highTopBidMicros: 20_000_000 },
+      { text: 'rare', avgMonthlySearches: null, competition: 'UNKNOWN', lowTopBidMicros: null, highTopBidMicros: null },
+    ]);
   });
 });

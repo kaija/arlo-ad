@@ -1,6 +1,7 @@
 // Keyword-domain read tools (ADR-0019): Business Profile and search terms context.
-import { addDays, AUTO_NEGATIVE_LIST_NAME, authorize, dateInTimeZone, microsToUnits, normalizeSearchTerm, type Op } from '@arlo/core';
-import { findSharedSet, getBusinessProfile, getSearchTermLabels, getUserWithBindings, listCampaigns, resolveAccounts, searchTermStats, type AdAccount } from '@arlo/db';
+import { addDays, AUTO_NEGATIVE_LIST_NAME, authorize, dateInTimeZone, keywordCandidates, microsToUnits, normalizeSearchTerm, type Op } from '@arlo/core';
+import { findSharedSet, getBusinessProfile, getSearchTermLabels, getUserWithBindings, listCampaigns, proposedNegativeTerms, resolveAccounts, schema, searchTermStats, type AdAccount } from '@arlo/db';
+import { and, eq, sql } from 'drizzle-orm';
 import { tool, type RunContext } from '@openai/agents';
 import { z } from 'zod';
 import type { AgentContext } from '../context';
@@ -115,4 +116,102 @@ export const proposeNegativeKeywordsTool = tool({
   description: '提出新增否定關鍵字（建立待驗證的 ChangeSet，不會直接生效）。',
   parameters: ProposeNegativeKeywordsParams,
   execute: (p, rc?: RunContext<AgentContext>) => runProposeNegativeKeywords(ctxOf(rc), p),
+});
+
+// --- keyword expansion (Requirement 14.7) -------------------------------------------------------
+
+async function accountKeywords(ctx: AgentContext, acc: AdAccount) {
+  const e = schema.entities;
+  return ctx.db
+    .select({ externalId: e.externalId, text: e.name, parentId: e.parentId })
+    .from(e)
+    .where(and(eq(e.accountId, acc.id), eq(e.kind, 'keyword'), sql`${e.status} is distinct from 'REMOVED'`));
+}
+
+export const GetKeywordIdeasParams = z.object({
+  account: z.string().describe('帳戶名稱或 Google Ads customer ID'),
+  seeds: z.array(z.string().min(1).max(80)).max(20).describe('Keyword Planner 的種子字詞（產品、品牌、類別）；可為空陣列只看搜尋字詞'),
+});
+
+/** Converting search terms that are not keywords yet, plus Keyword Planner ideas, de-duplicated. */
+export async function runGetKeywordIdeas(ctx: AgentContext, p: z.infer<typeof GetKeywordIdeasParams>) {
+  const acc = await oneAccount(ctx, p.account);
+  const today = dateInTimeZone(ctx.now(), acc.timezone);
+  const [stats, existing, negatives, ideas] = await Promise.all([
+    searchTermStats(ctx.db, acc.id, { costFrom: addDays(today, -90), convFrom: addDays(today, -90), to: today, limit: 1000 }),
+    accountKeywords(ctx, acc),
+    proposedNegativeTerms(ctx.db, acc.id),
+    p.seeds.length && ctx.keywordIdeas ? ctx.keywordIdeas(acc.externalId, p.seeds) : Promise.resolve([]),
+  ]);
+  const profile = await getBusinessProfile(ctx.db, acc.id);
+  const candidates = keywordCandidates(
+    ideas,
+    stats.map((s) => ({ term: s.term, conversions: s.conversions, clicks: s.clicks, costMicros: s.costMicros })),
+    { existing: existing.map((k) => k.text ?? '').filter(Boolean), negatives: [...negatives, ...(profile?.profile.excludedIntents ?? [])] },
+  );
+  return {
+    account: acc.name,
+    plannerAvailable: Boolean(ctx.keywordIdeas),
+    candidates: candidates.map((c) => ({ text: c.text, source: c.source, suggestedMatchType: c.matchType, conversions90d: Math.round(c.conversions * 10) / 10, avgMonthlySearches: c.avgMonthlySearches, competition: c.competition, topOfPageBidHigh: c.highTopBidMicros === null ? null : microsToUnits(c.highTopBidMicros) })),
+  };
+}
+
+export const ProposeKeywordsParams = z.object({
+  account: z.string().describe('帳戶名稱或 Google Ads customer ID'),
+  adGroup: z.string().describe('要加入的廣告群組 ID 或名稱'),
+  keywords: z.array(z.object({ text: z.string().min(1).max(80), matchType: z.enum(['EXACT', 'PHRASE', 'BROAD']) })).min(1).max(50),
+  reason: z.string().nullable(),
+});
+
+export async function runProposeKeywords(ctx: AgentContext, p: z.infer<typeof ProposeKeywordsParams>) {
+  if (!ctx.propose) throw new ToolInputError('這個情境不允許提出變更。');
+  const acc = await oneAccount(ctx, p.account);
+  if (ctx.user) {
+    const user = await getUserWithBindings(ctx.db, ctx.user.id);
+    if (!user || !authorize(user, 'propose', { accountId: acc.id }).allowed) throw new ToolInputError('發問者沒有在這個帳戶提出變更的權限（需要 operator 以上）。');
+  }
+  const e = schema.entities;
+  const groups = await ctx.db
+    .select({ id: e.id, externalId: e.externalId, name: e.name })
+    .from(e)
+    .where(and(eq(e.accountId, acc.id), eq(e.kind, 'ad_group'), sql`${e.status} is distinct from 'REMOVED'`));
+  const wanted = p.adGroup.trim().toLowerCase();
+  const matches = groups.filter((g) => g.externalId === p.adGroup.trim() || g.name?.toLowerCase() === wanted);
+  if (matches.length !== 1) throw new ToolInputError(`找不到唯一的廣告群組「${p.adGroup}」。`);
+  const group = matches[0]!;
+  const inGroup = new Set((await accountKeywords(ctx, acc)).filter((k) => k.parentId === group.id).map((k) => normalizeSearchTerm(k.text ?? '')));
+  const seen = new Set<string>();
+  const fresh = p.keywords.flatMap((k) => {
+    const text = normalizeSearchTerm(k.text);
+    const key = `${text}|${k.matchType}`;
+    if (!text || inGroup.has(text) || seen.has(key)) return [];
+    seen.add(key);
+    return [{ text, matchType: k.matchType }];
+  });
+  if (fresh.length === 0) throw new ToolInputError('這些關鍵字都已在廣告群組中。');
+  const ops: Op[] = fresh.map((k) => ({ kind: 'google.add_keyword', target: { platform: acc.platform, accountId: acc.externalId, kind: 'ad_group', id: group.externalId }, before: null, after: k, meta: { minTier: 2 } }));
+  const cs = await ctx.propose({
+    accountId: acc.id,
+    source: ctx.source ?? { kind: 'chat' },
+    ops,
+    summary: `新增 ${ops.length} 個關鍵字到「${group.name ?? group.externalId}」`,
+    rationale: p.reason,
+    requestedBy: ctx.user ? { kind: 'user', userId: ctx.user.id } : { kind: 'agent' },
+    traceId: ctx.traceId ?? null,
+  });
+  return { changesetId: cs.id, status: 'PENDING_VALIDATION', added: fresh, skipped: p.keywords.length - fresh.length, note: '新增關鍵字一律需要人工核准。' };
+}
+
+export const getKeywordIdeasTool = tool({
+  name: 'get_keyword_ideas',
+  description: '關鍵字擴展候選：近 90 天有轉換但還不是關鍵字的搜尋字詞，加上 Keyword Planner 依種子字詞的建議（已排除現有關鍵字與否定字）。',
+  parameters: GetKeywordIdeasParams,
+  execute: (p, rc?: RunContext<AgentContext>) => runGetKeywordIdeas(ctxOf(rc), p),
+});
+
+export const proposeKeywordsTool = tool({
+  name: 'propose_keywords',
+  description: '提出把關鍵字加入某個廣告群組（建立待審核的 ChangeSet，一律需要人工核准）。',
+  parameters: ProposeKeywordsParams,
+  execute: (p, rc?: RunContext<AgentContext>) => runProposeKeywords(ctxOf(rc), p),
 });

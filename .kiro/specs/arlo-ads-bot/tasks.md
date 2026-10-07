@@ -410,8 +410,8 @@
     - _Requirements: 15.5, 15.6, 15.7_
     - _ADR: ADR-0020, ADR-0006_
 
-- [ ] 21. 關鍵字擴展與受眾
-  - [ ] 21.1 關鍵字擴展
+- [-] 21. 關鍵字擴展與受眾
+  - [x] 21.1 關鍵字擴展
     - `generateKeywordIdeas` + search term 挖掘 → keyword agent `propose_keywords`（Tier 2）
     - 測試：候選去重、已存在排除
     - _Requirements: 14.7_

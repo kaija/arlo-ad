@@ -7,6 +7,7 @@ import type {
   AccountInfo,
   AdPolicyRow,
   AudienceRow,
+  KeywordIdea,
   BudgetSimRow,
   ChangeEventRow,
   ConversionActionRow,
@@ -320,5 +321,23 @@ export function mapAdPolicies(rows: Row[]): AdPolicyRow[] {
       reviewStatus: enumName(enums.PolicyReviewStatus, p?.review_status),
       topics: (p?.policy_topic_entries ?? []).map((t) => str(t.topic)).filter(Boolean),
     };
+  });
+}
+
+export function mapKeywordIdeas(response: services.IGenerateKeywordIdeaResponse): KeywordIdea[] {
+  return (response.results ?? []).flatMap((r) => {
+    const text = r.text?.trim();
+    if (!text) return [];
+    const m = r.keyword_idea_metrics;
+    const competition = enumName(enums.KeywordPlanCompetitionLevel, m?.competition);
+    return [
+      {
+        text,
+        avgMonthlySearches: numOrNull(m?.avg_monthly_searches),
+        competition: competition === 'LOW' || competition === 'MEDIUM' || competition === 'HIGH' ? competition : 'UNKNOWN',
+        lowTopBidMicros: numOrNull(m?.low_top_of_page_bid_micros),
+        highTopBidMicros: numOrNull(m?.high_top_of_page_bid_micros),
+      },
+    ];
   });
 }
