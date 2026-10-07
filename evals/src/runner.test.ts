@@ -86,3 +86,25 @@ describe('cause ranking suite', () => {
     expect(result.passed).toBe(true);
   });
 });
+
+describe('campaign draft suite', () => {
+  it('scores lint cleanliness of the draft', async () => {
+    const suite = (await loadSuites()).find((s) => s.suite === 'campaign_draft_lint')!;
+    const draft = (url: string, headline: string) => ({
+      campaign: { name: 'c', dailyBudget: 1000, biddingStrategy: 'MAXIMIZE_CONVERSIONS', targetCpa: null, locations: ['台灣'], languages: ['zh-TW'] },
+      adGroups: [{ name: 'g', keywords: [{ text: 'arlo camera', matchType: 'PHRASE' }], ads: [{ headlines: [headline, 'Arlo 官方', '免佈線', '2K 畫質', '彩色夜視', '雲端錄影', '智慧偵測', '官方保固'], descriptions: ['看清每個細節。', '十分鐘完成安裝。'], finalUrl: url, path1: null, path2: null }] }],
+      negativeKeywords: [],
+      rationale: 'r',
+    });
+    const model = new ScriptedModel((req) => {
+      const text = JSON.stringify(req.input);
+      const url = /https:\/\/www\.arlo\.com\/[a-z/-]+/.exec(text)![0];
+      // The US brief gets a headline that fails lint.
+      return [say(JSON.stringify(draft(url, text.includes('United States') ? 'Buy now!' : 'Arlo 監視器')))];
+    });
+    const result = await runSuite(suite, agentFactory({ flagship: model, small: model }), { concurrency: 1 });
+    expect(result.cases.filter((c) => !c.pass).map((c) => c.id)).toEqual(['english-us']);
+    expect(result.passRate).toBe(0.75);
+    expect(result.passed).toBe(true);
+  });
+});

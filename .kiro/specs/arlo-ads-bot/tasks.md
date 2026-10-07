@@ -395,7 +395,7 @@
     - table-driven 測試
     - _Requirements: 15.3_
     - _ADR: ADR-0020_
-  - [ ] 20.3 Campaign agent
+  - [x] 20.3 Campaign agent
     - structured output `CampaignDraft`；lint 失敗回饋修正 ≤ 2 次；Orchestrator `create_campaign_task`
     - eval：lint 通過率
     - _Requirements: 15.2, 15.3_

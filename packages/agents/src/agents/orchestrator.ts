@@ -2,6 +2,7 @@
 // Requirement 10.5).
 import { Agent, type Model, type Tool } from '@openai/agents';
 import type { AgentContext } from '../context';
+import { createCampaignTaskTool } from '../tools/campaign';
 import { getChangeSetStatusTool } from '../tools/propose';
 import { STYLE_GUIDE, UNTRUSTED_CONTENT_POLICY } from './prompts';
 
@@ -29,6 +30,7 @@ export const ORCHESTRATOR_INSTRUCTIONS = `
 - keyword：搜尋字詞、否定關鍵字、新增關鍵字（若可用）。
 - audit：轉換追蹤、GA4、異常（若可用）。
 - 問題跨領域時，可依序呼叫多個 agent；給 agent 的輸入要完整自足（帳戶、日期、目標），因為它看不到對話。
+- 建立新的 Search campaign：收集 brief（名稱、目標、產品與賣點、到達網頁、地區、語言、每日預算），資訊齊全後用 create_campaign_task 建立背景任務；草稿完成後在 Web 編輯與送審。
 - 簡單的寒暄或系統用法問題可直接回答。沒有對應工具的請求，說明目前不支援。
 
 ## 變更請求
@@ -52,6 +54,6 @@ export function createOrchestrator(opts: { model: string | Model; specialists: S
     name: 'orchestrator',
     instructions: ORCHESTRATOR_INSTRUCTIONS,
     model: opts.model,
-    tools: [...specialistTools, getChangeSetStatusTool, ...(opts.tools ?? [])],
+    tools: [...specialistTools, getChangeSetStatusTool, createCampaignTaskTool, ...(opts.tools ?? [])],
   });
 }

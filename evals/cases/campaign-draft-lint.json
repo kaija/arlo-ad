@@ -1,0 +1,100 @@
+{
+  "suite": "campaign_draft_lint",
+  "description": "Campaign agent 產出的草稿需通過決定性 lint（字數、重複、政策字、否定字衝突、網域）（Requirement 15.3，ADR-0020）。",
+  "agent": "campaign",
+  "minPassRate": 0.75,
+  "cases": [
+    {
+      "id": "pro6-preorder",
+      "input": {
+        "name": "Arlo Pro 6 預購",
+        "objective": "新品預購，提高官網預購量",
+        "offering": "Arlo Pro 6 2K HDR 無線監視器，彩色夜視、免佈線、內建聚光燈",
+        "landingPageUrl": "https://www.arlo.com/tw/pro6",
+        "audience": null,
+        "locations": [
+          "台灣"
+        ],
+        "languages": [
+          "zh-TW"
+        ],
+        "dailyBudget": 1500,
+        "notes": "語氣專業，強調免佈線與 2K 畫質"
+      },
+      "expect": {
+        "output": {
+          "lintClean": true
+        }
+      }
+    },
+    {
+      "id": "doorbell-sales",
+      "input": {
+        "name": "視訊門鈴 Q4",
+        "objective": "Q4 視訊門鈴線上銷售",
+        "offering": "Arlo 視訊門鈴，直式畫面看見包裹，雙向通話",
+        "landingPageUrl": "https://www.arlo.com/tw/doorbell",
+        "audience": "有獨立門戶的家庭",
+        "locations": [
+          "台灣"
+        ],
+        "languages": [
+          "zh-TW"
+        ],
+        "dailyBudget": 800,
+        "notes": null
+      },
+      "expect": {
+        "output": {
+          "lintClean": true
+        }
+      }
+    },
+    {
+      "id": "english-us",
+      "input": {
+        "name": "Essential Outdoor US",
+        "objective": "Grow online sales in the US",
+        "offering": "Arlo Essential outdoor camera, 1080p, wire-free, 6-month battery",
+        "landingPageUrl": "https://www.arlo.com/en-us/essential",
+        "audience": null,
+        "locations": [
+          "United States"
+        ],
+        "languages": [
+          "en"
+        ],
+        "dailyBudget": 300,
+        "notes": null
+      },
+      "expect": {
+        "output": {
+          "lintClean": true
+        }
+      }
+    },
+    {
+      "id": "subscription",
+      "input": {
+        "name": "Arlo Secure 訂閱",
+        "objective": "推廣雲端訂閱方案",
+        "offering": "Arlo Secure 雲端錄影、智慧偵測、緊急應變；可免費試用 30 天",
+        "landingPageUrl": "https://www.arlo.com/tw/secure",
+        "audience": null,
+        "locations": [
+          "台灣"
+        ],
+        "languages": [
+          "zh-TW"
+        ],
+        "dailyBudget": 500,
+        "notes": "避免使用「最便宜」等字眼"
+      },
+      "expect": {
+        "output": {
+          "lintClean": true
+        }
+      }
+    }
+  ]
+}

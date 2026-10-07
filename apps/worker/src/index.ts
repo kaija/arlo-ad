@@ -1,7 +1,7 @@
 import { createGa4Adapter } from '@arlo/adapters/analytics';
 import { SlackAdapter } from '@arlo/adapters/chat';
 import { createGoogleAdsClient, GoogleAdsAdapter } from '@arlo/adapters/platform/google';
-import { createAnalystAgent, createAuditAgent, createBiddingAgent, createCauseRanker, createKeywordAgent, createOrchestrator, createSearchTermClassifier, meteredModelFactory, modelNameFor, type AgentName } from '@arlo/agents';
+import { createAnalystAgent, createAuditAgent, createBiddingAgent, createCampaignAgent, createCauseRanker, createKeywordAgent, createOrchestrator, createSearchTermClassifier, meteredModelFactory, modelNameFor, type AgentName } from '@arlo/agents';
 import { EnvSchema, parseEnv } from '@arlo/config';
 import { createLogger } from '@arlo/config/logger';
 import { checkDatabase, createDb, createPool } from '@arlo/db';
@@ -10,7 +10,7 @@ import { OpenAIProvider, setDefaultOpenAIKey } from '@openai/agents';
 import { WebClient } from '@slack/web-api';
 import { closeServer, startHealthServer } from './health-server';
 import { jobDefinitions } from './jobs';
-import { createProposer } from './proposals';
+import { createCampaignTaskCreator, createProposer } from './proposals';
 import { syncSchedules } from './scheduler/scheduler';
 import { TEMPLATES } from './scheduler/templates';
 import { applySystemSchedules } from './schedules';
@@ -90,6 +90,7 @@ const analyst = () => createAnalystAgent({ model: model('analyst') });
 const bidding = () => createBiddingAgent({ model: model('bidding') });
 const keyword = () => createKeywordAgent({ model: model('keyword') });
 const audit = () => createAuditAgent({ model: model('audit') });
+const campaign = () => createCampaignAgent({ model: model('campaign') });
 const causeRanker = () => createCauseRanker({ model: model('audit') });
 const searchTermClassifier = () => createSearchTermClassifier({ model: model('search_term_classifier') });
 const orchestrator = () => createOrchestrator({ model: model('orchestrator'), specialists: { analyst: analyst(), bidding: bidding(), keyword: keyword(), audit: audit() } });
@@ -106,8 +107,9 @@ await registerJobs(
     ga4,
     chat,
     orchestrator,
-    agents: { analyst, audit, bidding, causeRanker, keyword, orchestrator, searchTermClassifier },
+    agents: { analyst, audit, bidding, campaign, causeRanker, keyword, orchestrator, searchTermClassifier },
     propose: createProposer(db, boss),
+    createCampaignTask: createCampaignTaskCreator(db, boss),
     templates: TEMPLATES,
     llmBudgetUsd: env.DAILY_LLM_BUDGET_USD,
     boss,

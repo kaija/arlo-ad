@@ -1,4 +1,4 @@
-import type { ChangeSetSource } from '@arlo/core';
+import type { CampaignBrief, ChangeSetSource } from '@arlo/core';
 import type { Db, NewChangeSet } from '@arlo/db';
 
 /** Run context shared by every tool (ADR-0014). Tools only read Postgres or create ChangeSets. */
@@ -18,4 +18,6 @@ export interface AgentContext {
    * allowed; propose_* tools then refuse.
    */
   propose?: (input: NewChangeSet) => Promise<{ id: string }>;
+  /** Creates a campaign task and queues the Campaign agent (ADR-0020); absent where not allowed. */
+  createCampaignTask?: (input: { accountId: string; brief: CampaignBrief; createdBy: string | null }) => Promise<{ id: string }>;
 }

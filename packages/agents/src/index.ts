@@ -1,6 +1,7 @@
 export * from './agents/analyst';
 export * from './agents/audit';
 export * from './agents/bidding';
+export * from './agents/campaign';
 export * from './agents/cause-ranker';
 export * from './agents/keyword';
 export * from './agents/orchestrator';
@@ -10,6 +11,7 @@ export * from './config/models';
 export * from './context';
 export * from './session';
 export * from './tools/audit';
+export * from './tools/campaign';
 export * from './tools/keyword';
 export * from './tools/optimizer';
 export * from './tools/propose';

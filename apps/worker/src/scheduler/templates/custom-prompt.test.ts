@@ -30,6 +30,7 @@ const READ_AND_PROPOSE = new Set([
   'propose_budget_reallocation',
   'suggest_bid_targets',
   'propose_bid_target_adjustments',
+  'create_campaign_task',
 ]);
 
 describe('custom_prompt template', () => {

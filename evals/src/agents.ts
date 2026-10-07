@@ -1,7 +1,7 @@
 // Agents under evaluation. Specialists behind the Orchestrator are stubs answering canned text,
 // so routing suites measure the Orchestrator's choice without paying for nested runs.
-import { classifierInput, createCauseRanker, createOrchestrator, createSearchTermClassifier, type AgentContext } from '@arlo/agents';
-import { BusinessProfileSchema } from '@arlo/core';
+import { briefPrompt, CAMPAIGN_INSTRUCTIONS, classifierInput, createCauseRanker, createOrchestrator, createSearchTermClassifier, type AgentContext } from '@arlo/agents';
+import { BusinessProfileSchema, CampaignBriefSchema, CampaignDraftSchema, hasLintErrors, lintStructure } from '@arlo/core';
 import { say, ScriptedModel } from '@arlo/agents/testing';
 import { Agent, type Model } from '@openai/agents';
 import type { AgentFactory } from './runner';
@@ -46,6 +46,23 @@ export function agentFactory(models: { flagship: string | Model; small: string |
             return { topCause: causes[0]?.id ?? null };
           },
         };
+      case 'campaign': {
+        // Same instructions and output schema as the Campaign agent, without DB tools; scored on
+        // whether the draft passes the deterministic lint (Requirement 15.3).
+        let landingPageUrl: string | undefined;
+        return {
+          agent: new Agent({ name: 'campaign', instructions: CAMPAIGN_INSTRUCTIONS, model: models.flagship, outputType: CampaignDraftSchema }),
+          formatInput: (input) => {
+            const brief = CampaignBriefSchema.parse(input);
+            landingPageUrl = brief.landingPageUrl;
+            return briefPrompt(brief, { name: 'Eval 帳戶', externalId: '0000000000', currency: 'TWD' });
+          },
+          project: (output) => {
+            const issues = lintStructure(CampaignDraftSchema.parse(output), { landingPageUrl });
+            return { lintClean: !hasLintErrors(issues), errors: issues.filter((i) => i.severity === 'error').map((i) => `${i.path} ${i.code}`) };
+          },
+        };
+      }
       default:
         throw new Error(`no eval agent registered for "${suite.agent}"`);
     }

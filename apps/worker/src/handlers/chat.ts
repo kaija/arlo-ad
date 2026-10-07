@@ -16,6 +16,7 @@ export interface ChatJobDeps {
   orchestrator: () => Agent<AgentContext>;
   /** Stores a ChangeSet and queues changeset.process (propose_* tools, ADR-0006). */
   propose?: AgentContext['propose'];
+  createCampaignTask?: AgentContext['createCampaignTask'];
 }
 
 export const PROGRESS_EMOJI = 'hourglass_flowing_sand';
@@ -93,6 +94,7 @@ export async function handleMention(deps: ChatJobDeps, job: JobData<typeof Jobs.
       now: deps.now,
       source: { kind: 'chat', ref: conversation },
       propose: deps.propose,
+      createCampaignTask: deps.createCampaignTask,
     };
     const question = stripMentions(job.text) || '（使用者只標記了你，沒有其他內容）';
     let answer: string;

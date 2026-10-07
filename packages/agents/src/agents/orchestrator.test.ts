@@ -27,7 +27,7 @@ describe('orchestrator', () => {
 
   it('exposes specialists as tools and carries the routing and safety instructions', () => {
     const orchestrator = createOrchestrator({ model: 'test', specialists: { analyst: createAnalystAgent({ model: 'test' }) } });
-    expect(orchestrator.tools.map((tool) => tool.name)).toEqual(['analyst', 'get_changeset_status']);
+    expect(orchestrator.tools.map((tool) => tool.name)).toEqual(['analyst', 'get_changeset_status', 'create_campaign_task']);
     expect(ORCHESTRATOR_INSTRUCTIONS).toContain(UNTRUSTED_CONTENT_POLICY);
   });
 
