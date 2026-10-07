@@ -7,6 +7,7 @@ export * from './health';
 export * from './llm';
 export * from './metrics';
 export * from './monitor';
+export * from './optimizer';
 export * from './platform';
 export * from './profile';
 export * from './tier';
