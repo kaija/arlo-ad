@@ -363,7 +363,7 @@
 
 ## M4 — 優化與創作
 
-- [-] 19. 預算與出價
+- [x] 19. 預算與出價
   - [x] 19.1 Optimizer
     - `allocate()` 貪婪邊際分配：總額守恆、|Δ| 上限、locked 排除
     - 屬性測試：總額守恆、上限不違反
@@ -379,7 +379,7 @@
     - 測試：agent 無法改數字
     - _Requirements: 13.3, 13.4_
     - _ADR: ADR-0018, ADR-0006_
-  - [ ] 19.4 tCPA / tROAS 微調
+  - [x] 19.4 tCPA / tROAS 微調
     - 建議計算（±15% 上限、跳過 learning）→ `propose_bid_target`；受 BidTargetRange 驗證
     - 測試
     - _Requirements: 13.5_
