@@ -1,5 +1,6 @@
 export * from './anomaly';
 export * from './authz';
+export * from './campaign';
 export * from './changeset';
 export * from './chat';
 export * from './format';

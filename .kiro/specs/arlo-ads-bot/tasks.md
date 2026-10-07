@@ -385,8 +385,8 @@
     - _Requirements: 13.5_
     - _ADR: ADR-0018, ADR-0008_
 
-- [ ] 20. Campaign agent
-  - [ ] 20.1 Task 與 brief 提交
+- [-] 20. Campaign agent
+  - [x] 20.1 Task 與 brief 提交
     - `campaign_tasks`、`campaign_drafts` schema；Web brief 表單 → enqueue `campaign.generate`；task 狀態頁
     - _Requirements: 15.1, 15.8_
     - _ADR: ADR-0020_

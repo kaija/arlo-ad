@@ -12,3 +12,4 @@ export * from './keywords';
 export * from './monitor';
 export * from './audit';
 export * from './optimizer';
+export * from './campaigns';

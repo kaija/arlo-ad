@@ -50,6 +50,9 @@ export const Jobs = {
   monitorRun: jobSpec('monitor.run', z.object({ accountId: z.uuid() }), { retryLimit: 1 }),
   // Root cause of a Monitor ChangeSet, posted with [Undo] [維持] (ADR-0017, Requirement 12.5).
   auditExplain: jobSpec('audit.explain', changesetRef, { retryLimit: 1 }),
+  // Campaign agent on a submitted brief, and section regeneration (ADR-0020).
+  campaignGenerate: jobSpec('campaign.generate', z.object({ taskId: z.uuid() }), { retryLimit: 1 }),
+  campaignRegenerate: jobSpec('campaign.regenerate', z.object({ taskId: z.uuid(), section: z.enum(['structure', 'keywords', 'ads', 'negatives', 'budget']), instructions: z.string().max(1000).nullable().default(null), userId: z.uuid().nullable().default(null) }), { retryLimit: 1 }),
   // Validation → tier → auto-execute or approval request (ADR-0006). Idempotent per status.
   changesetProcess: jobSpec('changeset.process', changesetRef),
   // Cron: PENDING_APPROVAL past expires_at → EXPIRED, cards disabled (Requirement 6.2).
