@@ -19,6 +19,8 @@ import {
   upsertConversionActions,
   upsertEntities,
   upsertGa4Daily,
+  upsertBudgetSimulations,
+  listCampaigns,
   upsertMetricsDaily,
   upsertMetricsHourly,
   upsertSearchTerms,
@@ -218,9 +220,32 @@ export async function syncDaily(deps: SyncDeps, account: AdAccount) {
   );
 
   const ga4 = await syncGa4(deps, account, today);
-  const result = { range, metrics: metrics.written, searchTerms, conversionActions: actions.length, skipped: metrics.skipped + skippedTerms, ga4 };
+  const budgetSimulations = await syncBudgetSimulations(deps, account, today);
+  const result = { range, metrics: metrics.written, searchTerms, conversionActions: actions.length, skipped: metrics.skipped + skippedTerms, ga4, budgetSimulations };
   logger.info({ account: account.externalId, ...result }, 'daily sync done');
   return result;
+}
+
+/** Budget simulations of enabled campaigns, for the optimizer (ADR-0018); best effort. */
+async function syncBudgetSimulations(deps: SyncDeps, account: AdAccount, today: string): Promise<number | 'failed'> {
+  try {
+    const ids = await loadEntityIds(deps.db, account.id, ['campaign']);
+    const enabled = (await listCampaigns(deps.db, [account.id])).filter((c) => c.status === 'ENABLED').map((c) => c.externalId);
+    if (enabled.length === 0) return 0;
+    const rows = await deps.platform.fetchBudgetSimulations(account.externalId, enabled);
+    return await upsertBudgetSimulations(
+      deps.db,
+      account.id,
+      today,
+      rows.flatMap((r) => {
+        const campaignId = ids.get(`campaign:${r.campaignExternalId}`);
+        return campaignId && r.points.length ? [{ campaignId, points: r.points }] : [];
+      }),
+    );
+  } catch (err) {
+    deps.logger.warn({ err, account: account.externalId }, 'budget simulation sync failed');
+    return 'failed';
+  }
 }
 
 /** Days of GA4 history kept fresh: the 14-day baseline plus the recent window (Requirement 16.3). */

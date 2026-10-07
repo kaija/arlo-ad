@@ -374,7 +374,7 @@
     - 單元測試：插值與退化路徑
     - _Requirements: 13.1, 13.2_
     - _ADR: ADR-0018_
-  - [ ] 19.3 budget_rebalance 模板
+  - [x] 19.3 budget_rebalance 模板
     - `run_budget_optimizer` tool（回傳 result id）、`propose_budget_reallocation`（只接受 result id + 排除清單）、bidding agent 解釋；ChangeSet ≥ Tier 2
     - 測試：agent 無法改數字
     - _Requirements: 13.3, 13.4_

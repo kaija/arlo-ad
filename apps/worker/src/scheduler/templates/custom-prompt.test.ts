@@ -26,6 +26,8 @@ const READ_AND_PROPOSE = new Set([
   'propose_budget',
   'propose_status',
   'propose_bid_target',
+  'run_budget_optimizer',
+  'propose_budget_reallocation',
 ]);
 
 describe('custom_prompt template', () => {

@@ -112,7 +112,7 @@ describe('propose tools', () => {
     const bidding = createBiddingAgent({ model: 'test' });
     const orchestrator = createOrchestrator({ model: 'test', specialists: { analyst: createAnalystAgent({ model: 'test' }), bidding } });
     const names = (a: { tools: { name: string }[] }) => a.tools.map((x) => x.name);
-    expect(names(bidding)).toEqual(['list_campaigns', 'query_metrics', 'get_pacing', 'propose_budget', 'propose_status', 'propose_bid_target', 'get_changeset_status']);
+    expect(names(bidding)).toEqual(['list_campaigns', 'query_metrics', 'get_pacing', 'propose_budget', 'propose_status', 'propose_bid_target', 'get_changeset_status', 'run_budget_optimizer', 'propose_budget_reallocation']);
     expect(names(orchestrator)).toEqual(['analyst', 'bidding', 'get_changeset_status']);
     for (const name of [...names(bidding), ...names(orchestrator)]) expect(name).not.toMatch(/apply|mutate|execute|approve/i);
   });

@@ -11,6 +11,7 @@ export * from './context';
 export * from './session';
 export * from './tools/audit';
 export * from './tools/keyword';
+export * from './tools/optimizer';
 export * from './tools/propose';
 export * from './tools/read';
 export * from './usage';

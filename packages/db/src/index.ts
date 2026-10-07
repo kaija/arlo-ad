@@ -7,6 +7,7 @@ export * from './repositories/executor';
 export * from './repositories/identity';
 export * from './repositories/keywords';
 export * from './repositories/monitor';
+export * from './repositories/optimizer';
 export * from './repositories/platform';
 export * from './repositories/reads';
 export * from './repositories/scheduler';
