@@ -369,7 +369,7 @@
     - 屬性測試：總額守恆、上限不違反
     - _Requirements: 13.1, 13.2_
     - _ADR: ADR-0018_
-  - [ ] 19.2 邊際函數輸入
+  - [x] 19.2 邊際函數輸入
     - `fetchBudgetSimulations`、14 天曲線擬合、learning / 資料不足判定
     - 單元測試：插值與退化路徑
     - _Requirements: 13.1, 13.2_
