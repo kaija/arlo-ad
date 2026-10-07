@@ -189,3 +189,11 @@ export function adPolicies(campaignIds: readonly string[]): string {
   FROM ad_group_ad
   WHERE campaign.id IN (${ids(campaignIds)}) AND ad_group_ad.status != 'REMOVED'`;
 }
+
+/** Positive user-list criteria on campaigns, to update bid modifiers in place. */
+export function audienceCriteria(campaignIds: readonly string[]): string {
+  return `
+  SELECT campaign.id, campaign_criterion.resource_name, campaign_criterion.user_list.user_list
+  FROM campaign_criterion
+  WHERE campaign.id IN (${ids(campaignIds)}) AND campaign_criterion.type = 'USER_LIST' AND campaign_criterion.negative = FALSE`;
+}

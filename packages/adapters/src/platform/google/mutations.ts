@@ -83,7 +83,13 @@ function positiveNumber(value: unknown, what: string): number {
  * The mutate operation for `op` in `customerId`. Throws OpRejectedError for ops this adapter
  * refuses: shared budgets and portfolio strategies (they move other campaigns), unsupported kinds.
  */
-export function buildMutation(customerId: string, op: Op, campaigns: ReadonlyMap<string, CampaignWriteContext>): Mutation {
+export function buildMutation(
+  customerId: string,
+  op: Op,
+  campaigns: ReadonlyMap<string, CampaignWriteContext>,
+  /** Existing audience criteria, `${campaignId}:${userListId}` → resource name. */
+  audiences: ReadonlyMap<string, string> = new Map(),
+): Mutation {
   const c = `customers/${checkId(customerId)}`;
   const { kind, target } = op;
 
@@ -166,6 +172,23 @@ export function buildMutation(customerId: string, op: Op, campaigns: ReadonlyMap
           ...(cpcBidMicros === undefined || cpcBidMicros === null ? {} : { cpc_bid_micros: Math.round(positiveNumber(cpcBidMicros, 'cpcBidMicros')) }),
         },
       };
+    }
+
+    case 'google.set_audience_bid_modifier':
+    case 'google.exclude_audience': {
+      if (target.kind !== 'campaign') throw new OpRejectedError('UNSUPPORTED_OP', `${kind} on ${target.kind}`);
+      const { userListId, bidModifier } = (op.after ?? {}) as { userListId?: unknown; bidModifier?: unknown };
+      const list = `${c}/userLists/${checkId(String(userListId ?? ''))}`;
+      const campaign = `${c}/campaigns/${checkId(target.id)}`;
+      if (kind === 'google.exclude_audience') {
+        return { entity: 'campaign_criterion', operation: 'create', resource: { campaign, negative: true, user_list: { user_list: list } } };
+      }
+      const modifier = Number(bidModifier);
+      if (!Number.isFinite(modifier) || modifier < 0.1 || modifier > 10) throw new OpRejectedError('INVALID_OP', 'bidModifier must be between 0.1 and 10');
+      const existing = audiences.get(`${target.id}:${String(userListId)}`);
+      return existing
+        ? { entity: 'campaign_criterion', operation: 'update', resource: { resource_name: existing, bid_modifier: modifier } }
+        : { entity: 'campaign_criterion', operation: 'create', resource: { campaign, user_list: { user_list: list }, bid_modifier: modifier } };
     }
 
     case 'google.create_campaign_bundle':
@@ -272,6 +295,23 @@ export function buildBundleMutations(customerId: string, bundle: CampaignBundle,
         },
       });
     }
+  }
+  return out;
+}
+
+/** Campaigns whose existing audience criteria a bid-modifier op needs (update in place vs create). */
+export function audienceCampaignIds(ops: readonly Op[]): string[] {
+  const ids = ops.filter((op) => op.kind === 'google.set_audience_bid_modifier' && op.target.kind === 'campaign').map((op) => op.target.id);
+  return [...new Set(ids)].filter((id) => ID.test(id));
+}
+
+/** `${campaignId}:${userListId}` → campaign criterion resource name. */
+export function mapAudienceCriteria(rows: Row[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const r of rows) {
+    const list = r.campaign_criterion?.user_list?.user_list ?? '';
+    const name = r.campaign_criterion?.resource_name;
+    if (name && list) out.set(`${String(r.campaign?.id)}:${list.split('/').at(-1)}`, name);
   }
   return out;
 }

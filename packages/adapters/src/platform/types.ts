@@ -97,6 +97,8 @@ export interface AudienceRow {
   userListId: string;
   userListName: string | null;
   targetingMode: 'OBSERVATION' | 'TARGETING' | null;
+  /** Current bid adjustment on the campaign criterion (1 = none); null when not reported. */
+  bidModifier: number | null;
   date: string;
   costMicros: number;
   impressions: number;

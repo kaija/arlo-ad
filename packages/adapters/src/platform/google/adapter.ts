@@ -32,7 +32,7 @@ import type {
 import { enums } from 'google-ads-api';
 import type { GoogleAdsClient } from './client';
 import * as M from './mappers';
-import { buildBundleMutations, buildMutation, campaignsNeedingContext, mapCampaignWriteContext, mutateErrorMessage, resultResourceName, type CampaignWriteContext } from './mutations';
+import { audienceCampaignIds, buildBundleMutations, buildMutation, campaignsNeedingContext, mapAudienceCriteria, mapCampaignWriteContext, mutateErrorMessage, resultResourceName, type CampaignWriteContext } from './mutations';
 import * as Q from './queries';
 
 export interface GoogleAdsAdapterOptions {
@@ -174,6 +174,17 @@ export class GoogleAdsAdapter implements GoogleAdsPlatform {
       }
     }
 
+    let audiences = new Map<string, string>();
+    const audienceCampaigns = audienceCampaignIds(ops);
+    if (audienceCampaigns.length) {
+      try {
+        audiences = mapAudienceCriteria(await this.client.query(customerId, Q.audienceCriteria(audienceCampaigns)));
+      } catch (err) {
+        const error = `CONTEXT_LOOKUP_FAILED: ${mutateErrorMessage(err)}`;
+        return ops.map((_, index) => ({ index, ok: false, error }));
+      }
+    }
+
     const results: OpResult[] = [];
     for (const [index, op] of ops.entries()) {
       try {
@@ -186,7 +197,7 @@ export class GoogleAdsAdapter implements GoogleAdsPlatform {
           results.push({ index, ok: true, resourceName: resultResourceName(response.mutate_operation_responses?.[1]) });
           continue;
         }
-        const mutation = buildMutation(customerId, op, campaigns);
+        const mutation = buildMutation(customerId, op, campaigns, audiences);
         assertWriteAllowed(this.writeAllowed, customerId);
         const response = await this.client.mutate(customerId, [mutation]);
         results.push({ index, ok: true, resourceName: resultResourceName(response.mutate_operation_responses?.[0]) });

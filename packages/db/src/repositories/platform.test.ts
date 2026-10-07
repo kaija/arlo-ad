@@ -26,6 +26,7 @@ import {
   upsertMetricsHourly,
   upsertSearchTerms,
 } from './platform';
+import { audienceStats } from './reads';
 
 const orgId = DEFAULT_ORG_ID;
 
@@ -257,6 +258,13 @@ describe('platform repositories', () => {
       await upsertAudienceMetrics(t.db, [{ ...audience, clicks: 11 }]);
       const rows = await t.db.select().from(gAudienceMetrics);
       expect(rows.map((r) => r.clicks)).toEqual([11]);
+
+      // Totals over the window, with the latest name, mode and modifier.
+      await upsertAudienceMetrics(t.db, [{ ...audience, date: '2026-10-06', userListName: 'Buyers', bidModifier: 1.2, clicks: 5, costMicros: 3_000_000, conversions: 1.5 }]);
+      expect(await audienceStats(t.db, accountId, { from: '2026-10-01', to: '2026-10-06' })).toEqual([
+        expect.objectContaining({ campaignId: ids.campaign, userListId: '777', userListName: 'Buyers', targetingMode: 'OBSERVATION', bidModifier: 1.2, clicks: 16, costMicros: 3_000_000, conversions: 1.5 }),
+      ]);
+      expect(await audienceStats(t.db, accountId, { from: '2026-10-07', to: '2026-10-08' })).toEqual([]);
     });
 
     it('upserts GA4 daily rows by property, date and source/medium', async () => {

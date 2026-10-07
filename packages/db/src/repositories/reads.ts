@@ -2,7 +2,7 @@
 // (Requirement 2.8: reads go to Postgres, not the platform API).
 import { and, asc, desc, eq, gte, inArray, lte, sql, type SQL } from 'drizzle-orm';
 import type { EntityKind } from '@arlo/core';
-import { adAccounts, changeEvents, DEFAULT_ORG_ID, entities, entitySnapshots, metricsDaily } from '../schema';
+import { adAccounts, changeEvents, DEFAULT_ORG_ID, entities, entitySnapshots, gAudienceMetrics, metricsDaily } from '../schema';
 import type { AdAccount } from './sync';
 import type { DbOrTx } from './upsert';
 
@@ -209,4 +209,48 @@ export async function findEntities(db: DbOrTx, accountIds: readonly string[], ki
         sql`${entities.status} is distinct from 'REMOVED'`,
       ),
     );
+}
+
+export interface AudienceStatsRow {
+  /** Internal campaign entity id. */
+  campaignId: string;
+  campaignExternalId: string;
+  campaignName: string | null;
+  userListId: string;
+  userListName: string | null;
+  /** Latest reported targeting mode and bid modifier in the window. */
+  targetingMode: string | null;
+  bidModifier: number | null;
+  costMicros: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  convValue: number;
+}
+
+/** Audience segment totals per campaign × user list (Requirement 17.1), by spend. */
+export async function audienceStats(db: DbOrTx, accountId: string, range: { from: string; to: string }): Promise<AudienceStatsRow[]> {
+  const a = gAudienceMetrics;
+  const latest = <T>(col: SQL | typeof a.targetingMode | typeof a.bidModifier | typeof a.userListName) => sql<T>`(array_agg(${col} order by ${a.date} desc))[1]`;
+  const rows = await db
+    .select({
+      campaignId: a.campaignId,
+      campaignExternalId: entities.externalId,
+      campaignName: entities.name,
+      userListId: a.userListId,
+      userListName: latest<string | null>(a.userListName),
+      targetingMode: latest<string | null>(a.targetingMode),
+      bidModifier: latest<string | null>(a.bidModifier),
+      costMicros: sql<number>`sum(${a.costMicros})`.mapWith(Number),
+      impressions: sql<number>`sum(${a.impressions})`.mapWith(Number),
+      clicks: sql<number>`sum(${a.clicks})`.mapWith(Number),
+      conversions: sql<number>`sum(${a.conversions})`.mapWith(Number),
+      convValue: sql<number>`sum(${a.convValue})`.mapWith(Number),
+    })
+    .from(a)
+    .innerJoin(entities, eq(entities.id, a.campaignId))
+    .where(and(eq(a.accountId, accountId), gte(a.date, range.from), lte(a.date, range.to)))
+    .groupBy(a.campaignId, entities.externalId, entities.name, a.userListId)
+    .orderBy(desc(sql`sum(${a.costMicros})`), asc(a.userListId));
+  return rows.map((r) => ({ ...r, bidModifier: r.bidModifier === null ? null : Number(r.bidModifier) }));
 }

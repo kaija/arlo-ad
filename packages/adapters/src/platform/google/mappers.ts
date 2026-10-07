@@ -282,6 +282,7 @@ export function mapUserListMetrics(rows: Row[], userLists: Row[]): AudienceRow[]
       userListName: names.get(userList) ?? null,
       // bid_only = observation; absent restriction also means observation.
       targetingMode: audience && audience.bid_only === false ? 'TARGETING' : 'OBSERVATION',
+      bidModifier: numOrNull(r.campaign_criterion?.bid_modifier),
       date: str(r.segments?.date),
       costMicros: num(m.cost_micros),
       impressions: num(m.impressions),

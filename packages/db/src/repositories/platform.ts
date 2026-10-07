@@ -142,6 +142,7 @@ export async function upsertAudienceMetrics(db: DbOrTx, rows: readonly Insert<ty
         set: setExcluded(gAudienceMetrics, [
           'userListName',
           'targetingMode',
+          'bidModifier',
           'costMicros',
           'impressions',
           'clicks',

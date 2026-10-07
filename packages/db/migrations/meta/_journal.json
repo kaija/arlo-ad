@@ -162,6 +162,13 @@
       "when": 1791335709907,
       "tag": "0022_campaigns",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791338775624,
+      "tag": "0023_audience_bid_modifier",
+      "breakpoints": true
     }
   ]
 }

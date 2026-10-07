@@ -161,6 +161,21 @@ describe('sync', () => {
       expect((await syncDaily({ ...deps, ga4: broken }, linked)).ga4).toBe('failed');
     });
 
+    it('syncs 30 days of audience segments for known campaigns', async () => {
+      const segment = { userListId: '777', userListName: 'Past buyers', targetingMode: 'OBSERVATION' as const, bidModifier: 1.2, date: '2026-09-20', ...zero, clicks: 4 };
+      fake.setAudienceRows(ACC, [
+        { campaignExternalId: '111', ...segment },
+        { campaignExternalId: '999', ...segment }, // not synced as an entity: dropped
+        { campaignExternalId: '111', ...segment, date: '2026-08-01' }, // outside the window
+      ]);
+      expect((await syncDaily(deps, account)).audiences).toBe(1);
+      const [row] = await t.db.select().from(schema.gAudienceMetrics);
+      expect(row).toMatchObject({ userListId: '777', userListName: 'Past buyers', targetingMode: 'OBSERVATION', bidModifier: 1.2, clicks: 4 });
+
+      const broken = Object.assign(Object.create(fake) as FakePlatformAdapter, { fetchUserListMetrics: () => Promise.reject(new Error('UNAVAILABLE')) });
+      expect((await syncDaily({ ...deps, platform: broken }, account)).audiences).toBe('failed');
+    });
+
     it('drops hourly metrics older than 14 days', async () => {
       const [entity] = await t.db.select().from(schema.entities).where(eq(schema.entities.externalId, '111'));
       await t.db.insert(schema.metricsHourly).values({

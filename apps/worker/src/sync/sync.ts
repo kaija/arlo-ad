@@ -23,6 +23,7 @@ import {
   listCampaigns,
   createdCampaignDrafts,
   setDraftPolicyStatus,
+  upsertAudienceMetrics,
   upsertMetricsDaily,
   upsertMetricsHourly,
   upsertSearchTerms,
@@ -224,9 +225,28 @@ export async function syncDaily(deps: SyncDeps, account: AdAccount) {
   const ga4 = await syncGa4(deps, account, today);
   const budgetSimulations = await syncBudgetSimulations(deps, account, today);
   const adPolicies = await syncDraftPolicies(deps, account);
-  const result = { range, metrics: metrics.written, searchTerms, conversionActions: actions.length, skipped: metrics.skipped + skippedTerms, ga4, budgetSimulations, adPolicies };
+  const audiences = await syncAudiences(deps, account, today);
+  const result = { range, metrics: metrics.written, searchTerms, conversionActions: actions.length, skipped: metrics.skipped + skippedTerms, ga4, budgetSimulations, adPolicies, audiences };
   logger.info({ account: account.externalId, ...result }, 'daily sync done');
   return result;
+}
+
+/** Audience segment performance (ADR-0022, Requirement 17.1); 30 days, overwritten daily. No PII. */
+async function syncAudiences(deps: SyncDeps, account: AdAccount, today: string): Promise<number | 'failed'> {
+  try {
+    const ids = await loadEntityIds(deps.db, account.id, ['campaign']);
+    const rows = await deps.platform.fetchUserListMetrics(account.externalId, { from: addDays(today, -30), to: addDays(today, -1) });
+    return await upsertAudienceMetrics(
+      deps.db,
+      rows.flatMap((r) => {
+        const campaignId = ids.get(`campaign:${r.campaignExternalId}`);
+        return campaignId && r.userListId ? [{ orgId, accountId: account.id, campaignId, userListId: r.userListId, userListName: r.userListName, targetingMode: r.targetingMode, bidModifier: r.bidModifier, date: r.date, costMicros: r.costMicros, impressions: r.impressions, clicks: r.clicks, conversions: r.conversions, convValue: r.convValue }] : [];
+      }),
+    );
+  } catch (err) {
+    deps.logger.warn({ err, account: account.externalId }, 'audience sync failed');
+    return 'failed';
+  }
 }
 
 /** Google policy review of campaigns created from drafts, onto the draft (Requirement 15.7). */

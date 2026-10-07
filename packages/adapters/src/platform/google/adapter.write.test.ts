@@ -96,13 +96,31 @@ describe('buildMutation', () => {
     });
   });
 
+  it('sets audience bid modifiers in place or on a new criterion, and excludes audiences', () => {
+    const audiences = new Map([['111:501', `customers/${ACC}/campaignCriteria/111~9001`]]);
+    const set = (userListId: string) => buildMutation(ACC, op({ kind: 'google.set_audience_bid_modifier', target: ref('campaign', '111'), after: { userListId, bidModifier: 1.25 } }), campaigns, audiences);
+    expect(set('501')).toEqual({ entity: 'campaign_criterion', operation: 'update', resource: { resource_name: `customers/${ACC}/campaignCriteria/111~9001`, bid_modifier: 1.25 } });
+    expect(set('502')).toEqual({
+      entity: 'campaign_criterion',
+      operation: 'create',
+      resource: { campaign: `customers/${ACC}/campaigns/111`, user_list: { user_list: `customers/${ACC}/userLists/502` }, bid_modifier: 1.25 },
+    });
+    expect(build(op({ kind: 'google.exclude_audience', target: ref('campaign', '111'), after: { userListId: '501' } }))).toEqual({
+      entity: 'campaign_criterion',
+      operation: 'create',
+      resource: { campaign: `customers/${ACC}/campaigns/111`, negative: true, user_list: { user_list: `customers/${ACC}/userLists/501` } },
+    });
+  });
+
   it.each<[string, Op, string]>([
     ['bad status', op({ kind: 'set_status', target: ref('campaign', '111'), after: 'REMOVED' }), 'INVALID_OP'],
     ['bad match type', op({ kind: 'google.add_keyword', target: ref('ad_group', '221'), after: { text: 'x', matchType: 'FUZZY' } }), 'INVALID_OP'],
     ['empty keyword', op({ kind: 'google.add_keyword', target: ref('ad_group', '221'), after: { text: ' ', matchType: 'EXACT' } }), 'INVALID_OP'],
     ['non-positive budget', op({ kind: 'set_budget', target: ref('campaign', '111'), after: 0 }), 'INVALID_OP'],
     ['injected id', op({ kind: 'set_status', target: ref('campaign', '1/../2'), after: 'PAUSED' }), 'INVALID_ID'],
-    ['unsupported kind', op({ kind: 'google.exclude_audience', target: ref('campaign', '111'), after: { userListId: '1' } }), 'UNSUPPORTED_OP'],
+    ['audience on an ad group', op({ kind: 'google.exclude_audience', target: ref('ad_group', '221'), after: { userListId: '1' } }), 'UNSUPPORTED_OP'],
+    ['audience modifier out of range', op({ kind: 'google.set_audience_bid_modifier', target: ref('campaign', '111'), after: { userListId: '1', bidModifier: 12 } }), 'INVALID_OP'],
+    ['audience without a user list', op({ kind: 'google.exclude_audience', target: ref('campaign', '111'), after: {} }), 'INVALID_ID'],
   ])('rejects %s', (_, o, code) => {
     expect(() => build(o)).toThrow(OpRejectedError);
     expect(() => build(o)).toThrow(new RegExp(`^${code}`));
@@ -192,6 +210,18 @@ describe('GoogleAdsAdapter.applyOps', () => {
       [false, 'criterion_error.KEYWORD_HAS_INVALID_CHARS: bad'],
       [true, undefined],
     ]);
+  });
+
+  it('looks up existing audience criteria before setting modifiers', async () => {
+    const { client, mutations, queries } = writeClient({
+      contextRows: [{ campaign: { id: 111 }, campaign_criterion: { resource_name: `customers/${ACC}/campaignCriteria/111~9001`, user_list: { user_list: `customers/${ACC}/userLists/501` } } }],
+    });
+    const adapter = new GoogleAdsAdapter(client, { loginCustomerId: ACC, writeAllowedCustomerIds: [ACC] });
+    const results = await adapter.applyOps(ACC, [op({ kind: 'google.set_audience_bid_modifier', target: ref('campaign', '111'), after: { userListId: '501', bidModifier: 0.8 } })]);
+    expect(results).toEqual([{ index: 0, ok: true, resourceName: `customers/${ACC}/campaign_criterion/1` }]);
+    expect(queries).toHaveLength(1);
+    expect(queries[0]).toContain('FROM campaign_criterion');
+    expect(mutations).toEqual([{ customerId: ACC, entity: 'campaign_criterion', resource: { resource_name: `customers/${ACC}/campaignCriteria/111~9001`, bid_modifier: 0.8 } }]);
   });
 
   it('fails every op when the campaign lookup fails', async () => {

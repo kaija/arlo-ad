@@ -1,7 +1,7 @@
 import { createGa4Adapter } from '@arlo/adapters/analytics';
 import { SlackAdapter } from '@arlo/adapters/chat';
 import { createGoogleAdsClient, GoogleAdsAdapter } from '@arlo/adapters/platform/google';
-import { createAnalystAgent, createAuditAgent, createBiddingAgent, createCampaignAgent, createCauseRanker, createKeywordAgent, createOrchestrator, createSearchTermClassifier, meteredModelFactory, modelNameFor, type AgentName } from '@arlo/agents';
+import { createAnalystAgent, createAudienceAgent, createAuditAgent, createBiddingAgent, createCampaignAgent, createCauseRanker, createKeywordAgent, createOrchestrator, createSearchTermClassifier, meteredModelFactory, modelNameFor, type AgentName } from '@arlo/agents';
 import { EnvSchema, parseEnv } from '@arlo/config';
 import { createLogger } from '@arlo/config/logger';
 import { checkDatabase, createDb, createPool } from '@arlo/db';
@@ -90,10 +90,11 @@ const analyst = () => createAnalystAgent({ model: model('analyst') });
 const bidding = () => createBiddingAgent({ model: model('bidding') });
 const keyword = () => createKeywordAgent({ model: model('keyword') });
 const audit = () => createAuditAgent({ model: model('audit') });
+const audience = () => createAudienceAgent({ model: model('audience') });
 const campaign = () => createCampaignAgent({ model: model('campaign') });
 const causeRanker = () => createCauseRanker({ model: model('audit') });
 const searchTermClassifier = () => createSearchTermClassifier({ model: model('search_term_classifier') });
-const orchestrator = () => createOrchestrator({ model: model('orchestrator'), specialists: { analyst: analyst(), bidding: bidding(), keyword: keyword(), audit: audit() } });
+const orchestrator = () => createOrchestrator({ model: model('orchestrator'), specialists: { analyst: analyst(), bidding: bidding(), keyword: keyword(), audit: audit(), audience: audience() } });
 
 const boss = createBoss({ connectionString: env.DATABASE_URL, logger, role: 'worker' });
 await boss.start();

@@ -1,4 +1,5 @@
 export * from './agents/analyst';
+export * from './agents/audience';
 export * from './agents/audit';
 export * from './agents/bidding';
 export * from './agents/campaign';
@@ -10,6 +11,7 @@ export * from './agents/search-term-classifier';
 export * from './config/models';
 export * from './context';
 export * from './session';
+export * from './tools/audience';
 export * from './tools/audit';
 export * from './tools/campaign';
 export * from './tools/keyword';

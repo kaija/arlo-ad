@@ -249,6 +249,7 @@ export const gAudienceMetrics = pgTable(
     userListName: text('user_list_name'),
     // OBSERVATION or TARGETING (Requirement 17.1).
     targetingMode: text('targeting_mode'),
+    bidModifier: numeric('bid_modifier', { precision: 8, scale: 4, mode: 'number' }),
     date: day(),
     costMicros: micros('cost_micros'),
     impressions: count('impressions'),

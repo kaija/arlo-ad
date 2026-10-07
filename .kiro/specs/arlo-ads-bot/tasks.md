@@ -410,13 +410,13 @@
     - _Requirements: 15.5, 15.6, 15.7_
     - _ADR: ADR-0020, ADR-0006_
 
-- [-] 21. 關鍵字擴展與受眾
+- [x] 21. 關鍵字擴展與受眾
   - [x] 21.1 關鍵字擴展
     - `generateKeywordIdeas` + search term 挖掘 → keyword agent `propose_keywords`（Tier 2）
     - 測試：候選去重、已存在排除
     - _Requirements: 14.7_
     - _ADR: ADR-0019_
-  - [ ] 21.2 受眾分析
+  - [x] 21.2 受眾分析
     - 同步 audience metrics；audience agent `propose_audience_modifier` / exclusion（Tier 2）；不處理 PII
     - 測試
     - _Requirements: 17.1, 17.2, 17.3_

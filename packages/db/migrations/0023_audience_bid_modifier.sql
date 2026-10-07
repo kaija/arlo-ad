@@ -1,0 +1,1 @@
+ALTER TABLE "g_audience_metrics" ADD COLUMN "bid_modifier" numeric(8, 4);

@@ -24,6 +24,7 @@ export function agentFactory(models: { flagship: string | Model; small: string |
               bidding: stubSpecialist('bidding'),
               keyword: stubSpecialist('keyword'),
               audit: stubSpecialist('audit'),
+              audience: stubSpecialist('audience'),
             },
           }),
           context: { db: undefined, allowedAccountIds: null, now: () => new Date() },

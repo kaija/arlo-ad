@@ -1,4 +1,4 @@
-import { createAnalystAgent, createOrchestrator } from '@arlo/agents';
+import { createAnalystAgent, createAudienceAgent, createOrchestrator } from '@arlo/agents';
 import { callTool, say, ScriptedModel, toolResultText } from '@arlo/agents/testing';
 import { setTracingDisabled } from '@openai/agents';
 import { describe, expect, it } from 'vitest';
@@ -15,11 +15,13 @@ describe('runSuite', () => {
     const orchestratorModel = new ScriptedModel((req, { lastItem }) => {
       if (toolResultText(lastItem)) return [say('完成')];
       const input = typeof req.input === 'string' ? req.input : JSON.stringify(req.input);
+      if (/受眾/.test(input)) return [callTool('audience', { input })];
       if (/花|CPA|預算會|轉換|ROAS|曝光|關鍵字|campaign|spend|誰動過/i.test(input) && !/忽略之前/.test(input)) return [callTool('analyst', { input })];
       return [say('我可以協助查數據；任何變更都需要經過審核。')];
     });
     const analyst = createAnalystAgent({ model: new ScriptedModel(() => [say('stub')]) });
-    const result = await runSuite(suite, () => ({ agent: createOrchestrator({ model: orchestratorModel, specialists: { analyst } }), context: {} }), {
+    const audience = createAudienceAgent({ model: new ScriptedModel(() => [say('stub')]) });
+    const result = await runSuite(suite, () => ({ agent: createOrchestrator({ model: orchestratorModel, specialists: { analyst, audience } }), context: {} }), {
       concurrency: 2,
     });
     expect(result.cases.filter((c) => !c.pass).map((c) => [c.id, c.failures])).toEqual([]);
