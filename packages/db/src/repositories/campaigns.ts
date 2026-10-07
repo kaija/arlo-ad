@@ -1,7 +1,7 @@
 // Campaign tasks and drafts (ADR-0020).
 import { CampaignBriefSchema, CampaignDraftSchema, type CampaignBrief, type CampaignDraft, type CampaignTaskStatus } from '@arlo/core';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
-import { campaignDrafts, campaignTasks, DEFAULT_ORG_ID } from '../schema';
+import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { campaignDrafts, campaignTasks, changesetOpResults, changesets, DEFAULT_ORG_ID } from '../schema';
 import type { DbOrTx } from './upsert';
 
 export type CampaignTaskRow = typeof campaignTasks.$inferSelect;
@@ -83,4 +83,33 @@ export async function setDraftChangeSet(db: DbOrTx, draftId: string, changesetId
 
 export async function setDraftPolicyStatus(db: DbOrTx, draftId: string, policyStatus: unknown): Promise<void> {
   await db.update(campaignDrafts).set({ policyStatus }).where(eq(campaignDrafts.id, draftId));
+}
+
+/** The draft that was submitted for a task, with its ChangeSet status and the created campaign id. */
+export async function submittedDraft(db: DbOrTx, taskId: string): Promise<{ draft: StoredDraft; changesetStatus: string; campaignExternalId: string | null } | undefined> {
+  const [row] = await db
+    .select({ draft: campaignDrafts, status: changesets.status })
+    .from(campaignDrafts)
+    .innerJoin(changesets, eq(changesets.id, campaignDrafts.changesetId))
+    .where(eq(campaignDrafts.taskId, taskId))
+    .orderBy(desc(campaignDrafts.version))
+    .limit(1);
+  if (!row) return undefined;
+  const [result] = await db.select({ resourceName: changesetOpResults.resourceName }).from(changesetOpResults).where(and(eq(changesetOpResults.changesetId, row.draft.changesetId!), eq(changesetOpResults.ok, true)));
+  const campaignExternalId = /\/campaigns\/(\d+)$/.exec(result?.resourceName ?? '')?.[1] ?? null;
+  return { draft: draftOf(row.draft), changesetStatus: row.status, campaignExternalId };
+}
+
+/** Executed drafts of an account with their created campaign ids (policy status sync, Requirement 15.7). */
+export async function createdCampaignDrafts(db: DbOrTx, accountId: string): Promise<{ draftId: string; campaignExternalId: string }[]> {
+  const rows = await db
+    .select({ draftId: campaignDrafts.id, resourceName: changesetOpResults.resourceName })
+    .from(campaignDrafts)
+    .innerJoin(campaignTasks, eq(campaignTasks.id, campaignDrafts.taskId))
+    .innerJoin(changesetOpResults, eq(changesetOpResults.changesetId, campaignDrafts.changesetId))
+    .where(and(eq(campaignTasks.accountId, accountId), eq(changesetOpResults.ok, true), isNotNull(changesetOpResults.resourceName)));
+  return rows.flatMap((r) => {
+    const id = /\/campaigns\/(\d+)$/.exec(r.resourceName ?? '')?.[1];
+    return id ? [{ draftId: r.draftId, campaignExternalId: id }] : [];
+  });
 }

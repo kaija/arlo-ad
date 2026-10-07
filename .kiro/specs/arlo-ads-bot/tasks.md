@@ -385,7 +385,7 @@
     - _Requirements: 13.5_
     - _ADR: ADR-0018, ADR-0008_
 
-- [-] 20. Campaign agent
+- [x] 20. Campaign agent
   - [x] 20.1 Task 與 brief 提交
     - `campaign_tasks`、`campaign_drafts` schema；Web brief 表單 → enqueue `campaign.generate`；task 狀態頁
     - _Requirements: 15.1, 15.8_
@@ -404,7 +404,7 @@
     - Web 編輯器、版本、`campaign.regenerate(section)`
     - _Requirements: 15.4, 18.5_
     - _ADR: ADR-0020_
-  - [ ] 20.5 送出、建立與啟用
+  - [x] 20.5 送出、建立與啟用
     - `google.create_campaign_bundle`（PAUSED、temporary resource names、原子化）；Enable 按鈕 → 新 ChangeSet；每日同步 policy status
     - contract test（測試帳戶）
     - _Requirements: 15.5, 15.6, 15.7_

@@ -138,12 +138,23 @@ export interface PlatformAdapter {
   applyOps(accountId: string, ops: Op[]): Promise<OpResult[]>;
 }
 
+/** Google's policy review of one ad (Requirement 15.7). */
+export interface AdPolicyRow {
+  campaignExternalId: string;
+  adGroupExternalId: string;
+  adId: string;
+  approvalStatus: string | null;
+  reviewStatus: string | null;
+  topics: string[];
+}
+
 export interface GoogleAdsExtensions {
   fetchSearchTerms(accountId: string, range: DateRange): Promise<SearchTermRow[]>;
   fetchConversionActions(accountId: string): Promise<ConversionActionRow[]>;
   fetchUserListMetrics(accountId: string, range: DateRange): Promise<AudienceRow[]>;
   fetchBudgetSimulations(accountId: string, campaignIds: string[]): Promise<BudgetSimRow[]>;
   generateKeywordIdeas(accountId: string, seeds: string[]): Promise<KeywordIdea[]>;
+  fetchAdPolicies(accountId: string, campaignIds: string[]): Promise<AdPolicyRow[]>;
 }
 
 export type GoogleAdsPlatform = PlatformAdapter & GoogleAdsExtensions;

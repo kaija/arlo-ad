@@ -6,6 +6,8 @@ import { Jobs } from '@arlo/queue';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { draftFromForm } from '../../../../lib/campaign-draft';
+import { enableCampaign, submitDraft } from '../../../../lib/campaign-submit';
+import { getBoss } from '../../../../lib/queue';
 import { enqueueJob } from '../../../../lib/queue';
 import { getDb } from '../../../../lib/server';
 import { ForbiddenError, requireUser } from '../../../../lib/session';
@@ -52,4 +54,20 @@ export async function restoreVersionAction(taskId: string, version: number): Pro
   const draft = old!.draft;
   const saved = await saveCampaignDraft(db, { taskId, draft, lintIssues: lintStructure(draft, { landingPageUrl: task.brief.landingPageUrl }), origin: `restore:${version}`, createdBy: user.id });
   back(taskId, `saved=${saved.version}`);
+}
+
+export async function submitDraftAction(taskId: string): Promise<void> {
+  const { user, task } = await editable(taskId);
+  const result = await submitDraft(getDb(), await getBoss(), task, user.id);
+  if (!result.ok) back(taskId, `error=${encodeURIComponent(result.error)}`);
+  back(taskId, 'submitted=1');
+}
+
+export async function enableCampaignAction(taskId: string): Promise<void> {
+  const user = await requireUser();
+  const task = /^[0-9a-f-]{36}$/i.test(taskId) ? await getCampaignTask(getDb(), taskId) : undefined;
+  if (!task || !authorize(user, 'propose', { accountId: task.accountId }).allowed) throw new ForbiddenError('not_allowed');
+  const result = await enableCampaign(getDb(), await getBoss(), task, user.id);
+  if (!result.ok) back(taskId, `error=${encodeURIComponent(result.error)}`);
+  back(taskId, 'enabling=1');
 }

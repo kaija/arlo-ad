@@ -1,6 +1,6 @@
 // Builds one google-ads-api mutate operation per ChangeSet op (ADR-0004). Pure; the adapter
 // supplies the campaign write context (budget resource, sharing, bid strategy) it looked up.
-import type { Op } from '@arlo/core';
+import type { CampaignBundle, Op } from '@arlo/core';
 import { enums, type MutateOperation } from 'google-ads-api';
 import { enumName, type Row } from './mappers';
 
@@ -168,6 +168,9 @@ export function buildMutation(customerId: string, op: Op, campaigns: ReadonlyMap
       };
     }
 
+    case 'google.create_campaign_bundle':
+      throw new OpRejectedError('INVALID_OP', 'campaign bundles are built with buildBundleMutations');
+
     default:
       throw new OpRejectedError('UNSUPPORTED_OP', `${kind} is not supported by GoogleAdsAdapter yet`);
   }
@@ -197,4 +200,78 @@ export function mutateErrorMessage(err: unknown): string {
       .join('; ');
   }
   return err instanceof Error ? err.message : String(err);
+}
+
+const MATCH = (m: string) => {
+  if (!MATCH_TYPES.has(m)) throw new OpRejectedError('INVALID_OP', `invalid match type: ${m}`);
+  return enums.KeywordMatchType[m as 'EXACT'];
+};
+
+/**
+ * One atomic mutate that creates a Search campaign bundle PAUSED (ADR-0020, Requirement 15.5):
+ * budget, campaign, location / language / negative criteria, ad groups, keywords and RSAs, linked
+ * by temporary (negative) resource ids. Index 1 is the campaign, whose result names it.
+ */
+export function buildBundleMutations(customerId: string, bundle: CampaignBundle, opts: { suffix: string }): Mutation[] {
+  const c = `customers/${checkId(customerId)}`;
+  if (bundle.status !== 'PAUSED') throw new OpRejectedError('INVALID_OP', 'campaign bundles are created paused');
+  let tmp = 0;
+  const next = (collection: string) => `${c}/${collection}/${--tmp}`;
+  const budget = next('campaignBudgets');
+  const campaign = next('campaigns');
+  const bidding =
+    bundle.biddingStrategy === 'MAXIMIZE_CLICKS'
+      ? { target_spend: {} }
+      : { maximize_conversions: bundle.biddingStrategy === 'TARGET_CPA' && bundle.targetCpaMicros ? { target_cpa_micros: bundle.targetCpaMicros } : {} };
+  const out: Mutation[] = [
+    {
+      entity: 'campaign_budget',
+      operation: 'create',
+      resource: { resource_name: budget, name: `${bundle.name} 預算 ${opts.suffix}`, amount_micros: positiveNumber(bundle.budgetMicros, 'budget'), delivery_method: enums.BudgetDeliveryMethod.STANDARD, explicitly_shared: false },
+    },
+    {
+      entity: 'campaign',
+      operation: 'create',
+      resource: {
+        resource_name: campaign,
+        name: bundle.name,
+        status: enums.CampaignStatus.PAUSED,
+        advertising_channel_type: enums.AdvertisingChannelType.SEARCH,
+        campaign_budget: budget,
+        network_settings: { target_google_search: true, target_search_network: true, target_content_network: false, target_partner_search_network: false },
+        contains_eu_political_advertising: enums.EuPoliticalAdvertisingStatus.DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING,
+        ...bidding,
+      },
+    },
+    ...bundle.geoTargetIds.map((id): Mutation => ({ entity: 'campaign_criterion', operation: 'create', resource: { campaign, location: { geo_target_constant: `geoTargetConstants/${checkId(String(id))}` } } })),
+    ...bundle.languageIds.map((id): Mutation => ({ entity: 'campaign_criterion', operation: 'create', resource: { campaign, language: { language_constant: `languageConstants/${checkId(String(id))}` } } })),
+    ...bundle.negativeKeywords.map((k): Mutation => ({ entity: 'campaign_criterion', operation: 'create', resource: { campaign, negative: true, keyword: keyword(k) } })),
+  ];
+  for (const group of bundle.adGroups) {
+    const adGroup = next('adGroups');
+    out.push({ entity: 'ad_group', operation: 'create', resource: { resource_name: adGroup, campaign, name: group.name, status: enums.AdGroupStatus.ENABLED, type: enums.AdGroupType.SEARCH_STANDARD } });
+    for (const k of group.keywords) {
+      out.push({ entity: 'ad_group_criterion', operation: 'create', resource: { ad_group: adGroup, status: enums.AdGroupCriterionStatus.ENABLED, keyword: { text: k.text.trim(), match_type: MATCH(k.matchType) } } });
+    }
+    for (const ad of group.ads) {
+      out.push({
+        entity: 'ad_group_ad',
+        operation: 'create',
+        resource: {
+          ad_group: adGroup,
+          status: enums.AdGroupAdStatus.ENABLED,
+          ad: {
+            final_urls: [ad.finalUrl],
+            responsive_search_ad: {
+              headlines: ad.headlines.map((text) => ({ text })),
+              descriptions: ad.descriptions.map((text) => ({ text })),
+              ...(ad.path1 ? { path1: ad.path1 } : {}),
+              ...(ad.path2 ? { path2: ad.path2 } : {}),
+            },
+          },
+        },
+      });
+    }
+  }
+  return out;
 }

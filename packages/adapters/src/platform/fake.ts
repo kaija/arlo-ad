@@ -4,6 +4,7 @@ import { entityKey, type CurrentState, type EntityKind, type EntityRef, type Op,
 import { currentFromRecord } from './current';
 import type {
   AccountInfo,
+  AdPolicyRow,
   AudienceRow,
   BudgetSimRow,
   ChangeEventRow,
@@ -29,6 +30,7 @@ interface AccountState {
   audience: AudienceRow[];
   budgetSims: BudgetSimRow[];
   keywordIdeas: KeywordIdea[];
+  adPolicies: AdPolicyRow[];
   negatives: Map<string, { text: string; matchType: string }[]>; // by target entity id
   audienceModifiers: Map<string, number | 'excluded'>; // `${campaignId}:${userListId}`
 }
@@ -61,6 +63,7 @@ export class FakePlatformAdapter implements GoogleAdsPlatform {
       audience: [],
       budgetSims: [],
       keywordIdeas: [],
+      adPolicies: [],
       negatives: new Map(),
       audienceModifiers: new Map(),
     });
@@ -114,6 +117,11 @@ export class FakePlatformAdapter implements GoogleAdsPlatform {
 
   setKeywordIdeas(accountId: string, ideas: KeywordIdea[]): this {
     this.account(accountId).keywordIdeas = clone(ideas);
+    return this;
+  }
+
+  setAdPolicies(accountId: string, rows: AdPolicyRow[]): this {
+    this.account(accountId).adPolicies = clone(rows);
     return this;
   }
 
@@ -235,6 +243,11 @@ export class FakePlatformAdapter implements GoogleAdsPlatform {
   async fetchBudgetSimulations(accountId: string, campaignIds: string[]): Promise<BudgetSimRow[]> {
     this.enter('fetchBudgetSimulations');
     return this.account(accountId).budgetSims.filter((r) => campaignIds.includes(r.campaignExternalId)).map(clone);
+  }
+
+  async fetchAdPolicies(accountId: string, campaignIds: string[]): Promise<AdPolicyRow[]> {
+    this.enter('fetchAdPolicies');
+    return this.account(accountId).adPolicies.filter((r) => campaignIds.includes(r.campaignExternalId)).map(clone);
   }
 
   async generateKeywordIdeas(accountId: string): Promise<KeywordIdea[]> {

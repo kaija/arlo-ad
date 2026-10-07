@@ -2,7 +2,7 @@
 // Writes only to the first account in ADS_WRITE_ALLOWED_CUSTOMER_IDS, which must be a test
 // account; every change is reverted or harmless (unique negative keyword in a shared set).
 import { EnvSchema, parseEnv } from '@arlo/config';
-import type { Op } from '@arlo/core';
+import type { CampaignBundle, Op } from '@arlo/core';
 import { describe, expect, it } from 'vitest';
 import { GoogleAdsAdapter } from './adapter';
 import { createGoogleAdsClient } from './client';
@@ -59,6 +59,32 @@ describe.skipIf(!accountId)('GoogleAdsAdapter contract (test account)', () => {
       { kind: 'google.add_negative_keyword', target: ref('shared_set', set.externalId), before: null, after: { text: `arlo contract ${Date.now()}`, matchType: 'EXACT' } },
     ]);
     expect(result).toMatchObject({ ok: true, resourceName: expect.stringContaining('/sharedCriteria/') });
+  });
+
+  it('creates a paused Search campaign bundle atomically', async () => {
+    const stamp = Date.now();
+    const bundle: CampaignBundle = {
+      name: `arlo contract ${stamp}`,
+      budgetMicros: 10_000_000,
+      biddingStrategy: 'MAXIMIZE_CONVERSIONS',
+      targetCpaMicros: null,
+      geoTargetIds: [2158],
+      languageIds: [1018],
+      adGroups: [
+        {
+          name: 'contract',
+          keywords: [{ text: `arlo contract ${stamp}`, matchType: 'EXACT' }],
+          ads: [{ headlines: ['Arlo 監視器', '無線免佈線', '官方網站'], descriptions: ['合約測試廣告，不會投放。', '建立後保持暫停。'], finalUrl: 'https://www.arlo.com/', path1: null, path2: null }],
+        },
+      ],
+      negativeKeywords: [{ text: '免費', matchType: 'PHRASE' }],
+      status: 'PAUSED',
+    };
+    const [result] = await adapter.applyOps(accountId!, [{ kind: 'google.create_campaign_bundle', target: ref('account', accountId!), before: null, after: bundle }]);
+    expect(result).toMatchObject({ ok: true, resourceName: expect.stringMatching(/\/campaigns\/\d+$/) });
+    const id = /campaigns\/(\d+)$/.exec(result!.resourceName!)![1]!;
+    const current = await adapter.fetchCurrent([ref('campaign', id)]);
+    expect([...current.values()][0]?.status).toBe('PAUSED');
   });
 
   it('refuses accounts outside the allowlist', async () => {

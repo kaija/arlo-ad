@@ -180,3 +180,12 @@ export function budgetSimulations(campaignIds: readonly string[]): string {
   FROM campaign_simulation
   WHERE campaign_simulation.type = 'BUDGET' AND campaign_simulation.campaign_id IN (${ids(campaignIds)})`;
 }
+
+/** Policy review of the ads in these campaigns (Requirement 15.7). */
+export function adPolicies(campaignIds: readonly string[]): string {
+  return `
+  SELECT campaign.id, ad_group.id, ad_group_ad.ad.id, ad_group_ad.policy_summary.approval_status,
+         ad_group_ad.policy_summary.review_status, ad_group_ad.policy_summary.policy_topic_entries
+  FROM ad_group_ad
+  WHERE campaign.id IN (${ids(campaignIds)}) AND ad_group_ad.status != 'REMOVED'`;
+}

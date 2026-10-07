@@ -8,6 +8,7 @@ import {
   entityKey,
   type CurrentState,
   type EntityKind,
+  type CampaignBundle,
   type EntityRef,
   type Op,
   type OpResult,
@@ -15,6 +16,7 @@ import {
 import { currentFromRecord } from '../current';
 import type {
   AccountInfo,
+  AdPolicyRow,
   AudienceRow,
   BudgetSimRow,
   ChangeEventRow,
@@ -29,7 +31,7 @@ import type {
 } from '../types';
 import type { GoogleAdsClient } from './client';
 import * as M from './mappers';
-import { buildMutation, campaignsNeedingContext, mapCampaignWriteContext, mutateErrorMessage, resultResourceName, type CampaignWriteContext } from './mutations';
+import { buildBundleMutations, buildMutation, campaignsNeedingContext, mapCampaignWriteContext, mutateErrorMessage, resultResourceName, type CampaignWriteContext } from './mutations';
 import * as Q from './queries';
 
 export interface GoogleAdsAdapterOptions {
@@ -175,6 +177,14 @@ export class GoogleAdsAdapter implements GoogleAdsPlatform {
     for (const [index, op] of ops.entries()) {
       try {
         if (normalizeCustomerId(op.target.accountId) !== customerId) throw new Error('ACCOUNT_MISMATCH: op target is in another account');
+        if (op.kind === 'google.create_campaign_bundle') {
+          // Atomic: every part of the campaign is created, or nothing is (partial_failure off).
+          const mutations = buildBundleMutations(customerId, op.after as CampaignBundle, { suffix: this.now().toISOString() });
+          assertWriteAllowed(this.writeAllowed, customerId);
+          const response = await this.client.mutate(customerId, mutations);
+          results.push({ index, ok: true, resourceName: resultResourceName(response.mutate_operation_responses?.[1]) });
+          continue;
+        }
         const mutation = buildMutation(customerId, op, campaigns);
         assertWriteAllowed(this.writeAllowed, customerId);
         const response = await this.client.mutate(customerId, [mutation]);
@@ -213,6 +223,11 @@ export class GoogleAdsAdapter implements GoogleAdsPlatform {
   async fetchBudgetSimulations(accountId: string, campaignIds: string[]): Promise<BudgetSimRow[]> {
     if (campaignIds.length === 0) return [];
     return M.mapBudgetSimulations(await this.client.query(accountId, Q.budgetSimulations(campaignIds)));
+  }
+
+  async fetchAdPolicies(accountId: string, campaignIds: string[]): Promise<AdPolicyRow[]> {
+    if (campaignIds.length === 0) return [];
+    return M.mapAdPolicies(await this.client.query(accountId, Q.adPolicies(campaignIds)));
   }
 
   async generateKeywordIdeas(): Promise<KeywordIdea[]> {

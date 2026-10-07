@@ -7,12 +7,15 @@ import { TASK_STATUS_LABEL, TASK_STATUS_TONE } from '../../../../lib/campaigns';
 import { getDb } from '../../../../lib/server';
 import { readableAccounts, requireUser } from '../../../../lib/session';
 import { formatAt } from '../../../../lib/time';
-import { regenerateAction, restoreVersionAction, saveDraftAction } from './actions';
+import { createdCampaign } from '../../../../lib/campaign-submit';
+import { STATUS_LABEL as CS_STATUS_LABEL } from '../../../../lib/changesets';
+import Link from 'next/link';
+import { enableCampaignAction, regenerateAction, restoreVersionAction, saveDraftAction, submitDraftAction } from './actions';
 
 export const dynamic = 'force-dynamic';
 
 // One campaign task: status, brief and the latest draft (Requirements 15.8, 18.5).
-export default async function CampaignTaskPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ saved?: string; error?: string; regenerating?: string }> }) {
+export default async function CampaignTaskPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ saved?: string; error?: string; regenerating?: string; submitted?: string; enabling?: string }> }) {
   const user = await requireUser();
   const { id } = await params;
   const db = getDb();
@@ -23,6 +26,10 @@ export default async function CampaignTaskPage({ params, searchParams }: { param
   const query = await searchParams;
   const canEdit = task.status === 'draft' && authorize(user, 'propose', { accountId: task.accountId }).allowed;
   const tz = account?.timezone ?? 'UTC';
+  const created = task.status === 'submitted' ? await createdCampaign(db, task) : null;
+  const canPropose = authorize(user, 'propose', { accountId: task.accountId }).allowed;
+  const lintErrors = (draft?.lintIssues as LintIssue[] | undefined)?.some((i) => i.severity === 'error') ?? true;
+  const policies = (draft?.policyStatus ?? null) as { adId: string; adGroupExternalId: string; approvalStatus: string | null; reviewStatus: string | null; topics: string[] }[] | null;
   const b = task.brief;
   return (
     <>
@@ -30,6 +37,8 @@ export default async function CampaignTaskPage({ params, searchParams }: { param
       {task.status === 'queued' || task.status === 'running' ? <p className="mb-4 text-sm text-zinc-500">Campaign agent 正在背景產生草稿，通常需要一兩分鐘；重新整理頁面查看進度。</p> : null}
       {query.saved ? <p className="mb-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">已儲存為第 {query.saved} 版。</p> : null}
       {query.regenerating ? <p className="mb-4 rounded-md bg-sky-50 px-3 py-2 text-sm text-sky-800 dark:bg-sky-950 dark:text-sky-200">正在重新產生指定區段，完成後會成為新版本；稍後重新整理。</p> : null}
+      {query.submitted ? <p className="mb-4 rounded-md bg-sky-50 px-3 py-2 text-sm text-sky-800 dark:bg-sky-950 dark:text-sky-200">已送出：campaign 會在核准後以暫停狀態建立。</p> : null}
+      {query.enabling ? <p className="mb-4 rounded-md bg-sky-50 px-3 py-2 text-sm text-sky-800 dark:bg-sky-950 dark:text-sky-200">已送出啟用變更，核准後 campaign 才會開始投放。</p> : null}
       {query.error ? <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">{query.error}</p> : null}
       {task.status === 'failed' ? <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">產生失敗：{task.error ?? '未知錯誤'}</p> : null}
       <Card title="Brief">
@@ -73,7 +82,48 @@ export default async function CampaignTaskPage({ params, searchParams }: { param
           <div className="space-y-4">
             <Card title="檢查結果">
               <LintList issues={draft.lintIssues as LintIssue[]} />
+              {canEdit ? (
+                <form action={submitDraftAction.bind(null, task.id)} className="mt-3">
+                  <Button type="submit" disabled={lintErrors}>
+                    送出建立（暫停狀態）
+                  </Button>
+                  <p className="mt-1 text-xs text-zinc-500">{lintErrors ? '修正錯誤後才能送出。' : '會建立待審核的變更，核准後以暫停狀態建立 campaign；啟用是另一個變更。'}</p>
+                </form>
+              ) : null}
             </Card>
+            {created ? (
+              <Card title="建立狀態">
+                <p className="text-sm">
+                  建立變更：
+                  <Link href={`/changesets/${created.changesetId}`} className="text-sky-700 hover:underline dark:text-sky-400">
+                    {CS_STATUS_LABEL[created.changesetStatus as keyof typeof CS_STATUS_LABEL] ?? created.changesetStatus}
+                  </Link>
+                </p>
+                {created.campaignExternalId ? <p className="mt-1 text-sm">Campaign ID：<code>{created.campaignExternalId}</code>（暫停）</p> : null}
+                {created.enableChangesetId ? (
+                  <p className="mt-1 text-sm">
+                    <Link href={`/changesets/${created.enableChangesetId}`} className="text-sky-700 hover:underline dark:text-sky-400">
+                      啟用變更
+                    </Link>
+                  </p>
+                ) : created.campaignExternalId && created.changesetStatus === 'EXECUTED' && canPropose ? (
+                  <form action={enableCampaignAction.bind(null, task.id)} className="mt-2">
+                    <Button type="submit">啟用 campaign</Button>
+                  </form>
+                ) : null}
+              </Card>
+            ) : null}
+            {policies?.length ? (
+              <Card title="政策審核">
+                <ul className="space-y-1 text-xs">
+                  {policies.map((p) => (
+                    <li key={p.adId}>
+                      廣告 {p.adId}：{p.approvalStatus ?? '—'}（{p.reviewStatus ?? '—'}）{p.topics.length ? ` · ${p.topics.join(', ')}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            ) : null}
             {canEdit ? (
               <Card title="重新產生區段">
                 <form action={regenerateAction.bind(null, task.id)} className="space-y-2">

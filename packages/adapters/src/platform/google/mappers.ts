@@ -5,6 +5,7 @@ import { enums, type services } from 'google-ads-api';
 import { currentFromRecord } from '../current';
 import type {
   AccountInfo,
+  AdPolicyRow,
   AudienceRow,
   BudgetSimRow,
   ChangeEventRow,
@@ -306,4 +307,18 @@ export function mapBudgetSimulations(rows: Row[]): BudgetSimRow[] {
 /** fetchCurrent values from a campaign state row. */
 export function currentFromCampaignRow(r: Row) {
   return currentFromRecord({ status: enumName(enums.CampaignStatus, r.campaign?.status), state: campaignState(r) });
+}
+
+export function mapAdPolicies(rows: Row[]): AdPolicyRow[] {
+  return rows.map((r) => {
+    const p = r.ad_group_ad?.policy_summary;
+    return {
+      campaignExternalId: str(r.campaign?.id),
+      adGroupExternalId: str(r.ad_group?.id),
+      adId: str(r.ad_group_ad?.ad?.id),
+      approvalStatus: enumName(enums.PolicyApprovalStatus, p?.approval_status),
+      reviewStatus: enumName(enums.PolicyReviewStatus, p?.review_status),
+      topics: (p?.policy_topic_entries ?? []).map((t) => str(t.topic)).filter(Boolean),
+    };
+  });
 }

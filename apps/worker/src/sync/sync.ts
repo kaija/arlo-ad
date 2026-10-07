@@ -21,6 +21,8 @@ import {
   upsertGa4Daily,
   upsertBudgetSimulations,
   listCampaigns,
+  createdCampaignDrafts,
+  setDraftPolicyStatus,
   upsertMetricsDaily,
   upsertMetricsHourly,
   upsertSearchTerms,
@@ -221,9 +223,24 @@ export async function syncDaily(deps: SyncDeps, account: AdAccount) {
 
   const ga4 = await syncGa4(deps, account, today);
   const budgetSimulations = await syncBudgetSimulations(deps, account, today);
-  const result = { range, metrics: metrics.written, searchTerms, conversionActions: actions.length, skipped: metrics.skipped + skippedTerms, ga4, budgetSimulations };
+  const adPolicies = await syncDraftPolicies(deps, account);
+  const result = { range, metrics: metrics.written, searchTerms, conversionActions: actions.length, skipped: metrics.skipped + skippedTerms, ga4, budgetSimulations, adPolicies };
   logger.info({ account: account.externalId, ...result }, 'daily sync done');
   return result;
+}
+
+/** Google policy review of campaigns created from drafts, onto the draft (Requirement 15.7). */
+async function syncDraftPolicies(deps: SyncDeps, account: AdAccount): Promise<number | 'failed'> {
+  try {
+    const drafts = await createdCampaignDrafts(deps.db, account.id);
+    if (drafts.length === 0) return 0;
+    const rows = await deps.platform.fetchAdPolicies(account.externalId, [...new Set(drafts.map((d) => d.campaignExternalId))]);
+    for (const d of drafts) await setDraftPolicyStatus(deps.db, d.draftId, rows.filter((r) => r.campaignExternalId === d.campaignExternalId));
+    return drafts.length;
+  } catch (err) {
+    deps.logger.warn({ err, account: account.externalId }, 'ad policy sync failed');
+    return 'failed';
+  }
 }
 
 /** Budget simulations of enabled campaigns, for the optimizer (ADR-0018); best effort. */
