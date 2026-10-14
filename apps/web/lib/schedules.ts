@@ -3,41 +3,35 @@ import { ConversationRefSchema } from '@arlo/core';
 import { createScheduledJob, JOB_TEMPLATES, updateScheduledJob, type Db, type ScheduledJob } from '@arlo/db';
 import { enqueue, Jobs, previewCron, type PgBoss } from '@arlo/queue';
 import { z } from 'zod';
+import { isErrorKey, msg, type Msg } from './msg';
 
-export const TEMPLATE_LABELS: Record<(typeof JOB_TEMPLATES)[number], string> = {
-  daily_report: '每日報告',
-  negative_kw_sweep: '否定關鍵字掃描',
-  budget_rebalance: '預算再分配',
-  tracking_audit: '追蹤審計',
-  anomaly_watch: '異常監看',
-  custom_prompt: '自訂指示',
-};
+// Issue messages are `errors` catalog keys; values for the text ride in `params`.
 
 export const ScheduleFormSchema = z
   .object({
-    name: z.string().trim().min(1, '請輸入名稱').max(100),
+    name: z.string().trim().min(1, 'enterName').max(100),
     template: z.enum(JOB_TEMPLATES),
-    cron: z.string().trim().min(1, '請輸入 cron'),
+    cron: z.string().trim().min(1, 'enterCron'),
     tz: z.string().trim().min(1),
     /** Empty = every active account. */
     accountIds: z.array(z.uuid()),
-    channelId: z.string().trim().regex(/^[A-Z0-9]+$/, '請選擇或輸入 Slack channel ID'),
-    extraInstructions: z.string().trim().max(2000, '最多 2000 字').optional(),
+    channelId: z.string().trim().regex(/^[A-Z0-9]+$/, 'chooseChannel'),
+    extraInstructions: z.string().trim().max(2000, 'max2000').optional(),
     enabled: z.boolean(),
   })
   .superRefine((v, ctx) => {
     const preview = previewCron(v.cron, v.tz);
     if (!preview.ok) {
       const field = /time zone/i.test(preview.error) ? 'tz' : 'cron';
-      ctx.addIssue({ code: 'custom', path: [field], message: field === 'tz' ? '無效的時區' : `無效的 cron：${preview.error}` });
+      ctx.addIssue(field === 'tz' ? { code: 'custom', path: [field], message: 'invalidTimezone' } : { code: 'custom', path: [field], message: 'invalidCron', params: { detail: preview.error } });
     }
     if (v.template === 'custom_prompt' && !v.extraInstructions) {
-      ctx.addIssue({ code: 'custom', path: ['extraInstructions'], message: 'custom_prompt 需要指示內容' });
+      ctx.addIssue({ code: 'custom', path: ['extraInstructions'], message: 'customPromptNeedsInstructions' });
     }
   });
 
 export type ScheduleForm = z.infer<typeof ScheduleFormSchema>;
-export type FieldErrors = Partial<Record<keyof ScheduleForm | 'form', string>>;
+export type FieldErrors = Partial<Record<keyof ScheduleForm | 'form', Msg>>;
 
 export function parseScheduleForm(form: FormData): { ok: true; value: ScheduleForm } | { ok: false; errors: FieldErrors } {
   const result = ScheduleFormSchema.safeParse({
@@ -54,7 +48,8 @@ export function parseScheduleForm(form: FormData): { ok: true; value: ScheduleFo
   const errors: FieldErrors = {};
   for (const issue of result.error.issues) {
     const key = (issue.path[0] ?? 'form') as keyof FieldErrors;
-    errors[key] ??= issue.message;
+    const message = isErrorKey(issue.message) ? issue.message : 'invalidValue';
+    errors[key] ??= issue.code === 'custom' && issue.params ? msg(message, issue.params as Record<string, string>) : message;
   }
   return { ok: false, errors };
 }

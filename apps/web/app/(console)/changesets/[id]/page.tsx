@@ -1,7 +1,9 @@
+import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Alert, Badge, Button, Card, Checkbox, DataTable, Icon, PageHeader, Textarea, type Tone } from '../../../../components/ui';
-import { availableActions, loadDetail, SOURCE_LABEL, STATUS_LABEL, STATUS_NOTE, STATUS_TONE, tierTone, UNDO_WINDOW_MS } from '../../../../lib/changesets';
+import { CHANGESET_STATUSES, type ChangeSetStatus } from '@arlo/core';
+import { availableActions, isSourceKind, loadDetail, STATUS_TONE, tierTone, UNDO_WINDOW_MS } from '../../../../lib/changesets';
 import { getDb } from '../../../../lib/server';
 import { readableAccounts, requireUser } from '../../../../lib/session';
 import { formatAt } from '../../../../lib/time';
@@ -9,15 +11,11 @@ import { decideAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
 
-const SUBMITTED: Record<string, string> = {
-  approve: '已送出核准，正在寫入 Google Ads。',
-  confirm: '已送出 Tier 3 核准，正在寫入 Google Ads。',
-  reject: '已送出拒絕，正在更新狀態。',
-  undo: '已送出還原，正在建立還原變更單。',
-};
+const SUBMITTED = ['approve', 'confirm', 'reject', 'undo'] as const;
+const isSubmitted = (s?: string): s is (typeof SUBMITTED)[number] => (SUBMITTED as readonly (string | undefined)[]).includes(s);
+const isStatus = (s: string): s is ChangeSetStatus => (CHANGESET_STATUSES as readonly string[]).includes(s);
 
 const DOT: Record<Tone, string> = { info: 'bg-accent', ok: 'bg-success', bad: 'bg-danger', warn: 'bg-warning', neutral: 'bg-faint' };
-const statusLabel = (s: string) => STATUS_LABEL[s as keyof typeof STATUS_LABEL] ?? s;
 
 // ChangeSet detail: diff, validator results, approver, trace, op results and audit trail (Requirement 18.3).
 export default async function ChangeSetPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ submitted?: string; error?: string }> }) {
@@ -26,6 +24,8 @@ export default async function ChangeSetPage({ params, searchParams }: { params: 
   const { submitted, error } = await searchParams;
   const detail = await loadDetail(getDb(), id, readableAccounts(user));
   if (!detail) notFound();
+  const t = await getTranslations('changeset');
+  const statusLabel = (s: string) => (isStatus(s) ? t(`status.${s}`) : s);
   const { cs, account, view } = detail;
   const tz = account.timezone;
   const now = new Date();
@@ -38,53 +38,61 @@ export default async function ChangeSetPage({ params, searchParams }: { params: 
 
   const opResult = (i: number, excluded?: boolean): { tone: Tone; label: string; error?: string | null } => {
     const r = results.get(i);
-    if (excluded) return { tone: 'neutral', label: '已剔除' };
-    if (r) return r.ok ? { tone: 'ok', label: '成功' } : { tone: 'bad', label: '失敗', error: r.error };
-    if (cs.status === 'EXECUTING') return { tone: 'info', label: '執行中' };
-    if (cs.status === 'SIMULATED') return { tone: 'info', label: '已模擬' };
-    return { tone: 'neutral', label: '未執行' };
+    if (excluded) return { tone: 'neutral', label: t('detail.result.excluded') };
+    if (r) return r.ok ? { tone: 'ok', label: t('detail.result.ok') } : { tone: 'bad', label: t('detail.result.failed'), error: r.error };
+    if (cs.status === 'EXECUTING') return { tone: 'info', label: t('detail.result.executing') };
+    if (cs.status === 'SIMULATED') return { tone: 'info', label: t('detail.result.simulated') };
+    return { tone: 'neutral', label: t('detail.result.notRun') };
   };
 
   const info: [string, React.ReactNode][] = [
-    ['帳戶', account.name],
+    [t('detail.info.account'), account.name],
     ['Tier', cs.tier === null ? '—' : `Tier ${cs.tier}`],
-    ['來源', SOURCE_LABEL[cs.source.kind] ?? cs.source.kind],
-    ['提出者', view.requestedBy ?? '—'],
-    ['核准者', detail.approver ?? '—'],
-    ['建立時間', `${formatAt(cs.createdAt, tz)} (${tz})`],
-    ['到期時間', pending && cs.expiresAt ? formatAt(cs.expiresAt, tz) : '—'],
-    ['執行時間', cs.executedAt ? formatAt(cs.executedAt, tz) : '—'],
+    [t('detail.info.source'), isSourceKind(cs.source.kind) ? t(`source.${cs.source.kind}`) : cs.source.kind],
+    [t('detail.info.requestedBy'), view.requestedBy ?? '—'],
+    [t('detail.info.approver'), detail.approver ?? '—'],
+    [t('detail.info.createdAt'), `${formatAt(cs.createdAt, tz)} (${tz})`],
+    [t('detail.info.expiresAt'), pending && cs.expiresAt ? formatAt(cs.expiresAt, tz) : '—'],
+    [t('detail.info.executedAt'), cs.executedAt ? formatAt(cs.executedAt, tz) : '—'],
   ];
 
   return (
     <>
       <PageHeader
-        back={{ href: '/changesets', label: '審核佇列' }}
+        back={{ href: '/changesets', label: t('queue.title') }}
         title={cs.summary}
         meta={
           <div className="mb-1 flex flex-wrap items-center gap-2">
             <span className="font-mono text-meta text-faint">{cs.id.slice(-8)}</span>
             <Badge tone={STATUS_TONE[cs.status]} dot>
-              {STATUS_LABEL[cs.status]}
+              {t(`status.${cs.status}`)}
             </Badge>
             {cs.tier === null ? null : <Badge tone={tierTone(cs.tier)}>Tier {cs.tier}</Badge>}
           </div>
         }
       />
-      {submitted && SUBMITTED[submitted] ? <Alert title="已送出，結果會在幾秒內更新">{SUBMITTED[submitted]}重新整理頁面查看最新狀態。</Alert> : null}
-      {error === 'confirm' ? <Alert tone="warning" title="Tier 3 需二次確認">請先勾選「我已確認上方金額與比例」後再核准。</Alert> : null}
+      {isSubmitted(submitted) ? (
+        <Alert title={t('detail.submittedTitle')}>
+          {t(`detail.submitted.${submitted}`)} {t('detail.submittedRefresh')}
+        </Alert>
+      ) : null}
+      {error === 'confirm' ? (
+        <Alert tone="warning" title={t('detail.confirmTitle')}>
+          {t('detail.confirmBody')}
+        </Alert>
+      ) : null}
 
       <div className="flex flex-wrap items-start gap-6">
         <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-6">
-          <Card title="變更內容">
+          <Card title={t('detail.changes')}>
             <DataTable minWidth={620} className="rounded-md">
               <thead>
                 <tr>
-                  <th>項目</th>
-                  <th className="text-right">原值</th>
-                  <th className="text-right">新值</th>
-                  <th className="text-right">變動幅度</th>
-                  <th>執行結果</th>
+                  <th>{t('detail.col.item')}</th>
+                  <th className="text-right">{t('detail.col.before')}</th>
+                  <th className="text-right">{t('detail.col.after')}</th>
+                  <th className="text-right">{t('detail.col.change')}</th>
+                  <th>{t('detail.col.result')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -112,21 +120,21 @@ export default async function ChangeSetPage({ params, searchParams }: { params: 
             </DataTable>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4">
               <div className="panel">
-                <span className="eyebrow">Agent 提出的理由</span>
+                <span className="eyebrow">{t('detail.rationale')}</span>
                 <p className="text-sm text-pretty whitespace-pre-line">{cs.rationale || '—'}</p>
               </div>
               <div className="panel">
-                <span className="eyebrow">狀態說明</span>
-                <p className="text-sm text-pretty">{cs.statusReason || STATUS_NOTE[cs.status]}</p>
+                <span className="eyebrow">{t('detail.statusNote')}</span>
+                <p className="text-sm text-pretty">{cs.statusReason || t(`note.${cs.status}`)}</p>
               </div>
             </div>
           </Card>
 
           <Card
-            title="Validator 結果"
+            title={t('detail.validator')}
             action={
               <span className="text-meta text-faint">
-                {cs.status === 'PENDING_VALIDATION' ? '驗證中…' : view.violations.length ? `${blocks} 阻擋 · ${view.violations.length - blocks} 警告` : ''}
+                {cs.status === 'PENDING_VALIDATION' ? t('detail.validating') : view.violations.length ? t('detail.violationSummary', { blocks, warnings: view.violations.length - blocks }) : ''}
               </span>
             }
             className="gap-3.5"
@@ -134,51 +142,51 @@ export default async function ChangeSetPage({ params, searchParams }: { params: 
             {view.violations.length === 0 && cs.status !== 'PENDING_VALIDATION' ? (
               <div className="flex items-center gap-2.5 text-sm text-success">
                 <Icon name="check-circle" size={16} />
-                所有規則通過
+                {t('detail.allPassed')}
               </div>
             ) : null}
             {view.violations.map((v, i) => (
               <div key={i} className="flex items-start gap-3 rounded-md border border-border px-3.5 py-3">
                 <Badge tone={v.severity === 'HARD_BLOCK' ? 'bad' : 'warn'} className="flex-none">
-                  {v.severity === 'HARD_BLOCK' ? '阻擋' : '警告'}
+                  {v.severity === 'HARD_BLOCK' ? t('detail.block') : t('detail.warn')}
                 </Badge>
                 <span className="text-sm text-muted">{v.message}</span>
               </div>
             ))}
           </Card>
 
-          <Card title="動作">
+          <Card title={t('detail.actions')}>
             {cs.status === 'BLOCKED' ? (
-              <Alert tone="danger" title="此變更已被 Validator 阻擋">
-                被阻擋的變更任何人都不能核准。請修正後由 agent 重新提出。
+              <Alert tone="danger" title={t('detail.blockedTitle')}>
+                {t('detail.blockedBody')}
               </Alert>
             ) : pending && !canReview ? (
-              <Alert tone="warning" title="你無法審核此變更單">
-                需要具備此帳戶與 Tier {cs.tier ?? '—'} 審核權限的 Approver；Tier 3 變更也不能由提出者本人核准。
+              <Alert tone="warning" title={t('detail.cannotReviewTitle')}>
+                {t('detail.cannotReviewBody', { tier: cs.tier ?? '—' })}
               </Alert>
             ) : !canReview && !actions.undo ? (
-              <p className="text-sm text-muted">此狀態沒有可用的動作。</p>
+              <p className="text-sm text-muted">{t('detail.noActions')}</p>
             ) : null}
             {actions.approve ? (
               <form action={decideAction.bind(null, cs.id, actions.confirm ? 'confirm' : 'approve')} className="flex flex-col gap-3.5">
                 {actions.confirm ? (
                   <div className="flex flex-col gap-1.5 rounded-md bg-warning-light px-4 py-3.5">
-                    <span className="text-meta font-semibold text-warning">Tier 3 需二次確認</span>
-                    <Checkbox name="confirm" label="我已確認上方金額與比例" required />
+                    <span className="text-meta font-semibold text-warning">{t('detail.confirmTitle')}</span>
+                    <Checkbox name="confirm" label={t('detail.confirmCheckbox')} required />
                   </div>
                 ) : null}
                 <div className="flex">
-                  <Button variant="primary">核准並執行</Button>
+                  <Button variant="primary">{t('detail.approve')}</Button>
                 </div>
               </form>
             ) : null}
             {actions.reject ? (
               <details className="group">
-                <summary className="btn btn-secondary list-none [&::-webkit-details-marker]:hidden">拒絕</summary>
+                <summary className="btn btn-secondary list-none [&::-webkit-details-marker]:hidden">{t('detail.reject')}</summary>
                 <form action={decideAction.bind(null, cs.id, 'reject')} className="mt-3 flex flex-col gap-2.5 rounded-md border border-border p-4">
-                  <Textarea label="拒絕原因（選填）" name="reason" placeholder="例如：促銷檔期結束，不需要再加預算" maxLength={500} />
+                  <Textarea label={t('detail.rejectReason')} name="reason" placeholder={t('detail.rejectPlaceholder')} maxLength={500} />
                   <div className="flex">
-                    <Button variant="primary">確認拒絕</Button>
+                    <Button variant="primary">{t('detail.confirmReject')}</Button>
                   </div>
                 </form>
               </details>
@@ -186,17 +194,15 @@ export default async function ChangeSetPage({ params, searchParams }: { params: 
             {actions.undo ? (
               <form action={decideAction.bind(null, cs.id, 'undo')} className="flex flex-col gap-2.5 pt-1">
                 <div className="flex flex-wrap items-center gap-3">
-                  <Button variant="secondary">Undo 還原</Button>
-                  <span className="text-meta text-muted">
-                    還剩 {Math.floor(undoLeft / 3_600_000)} 小時 {Math.floor((undoLeft % 3_600_000) / 60_000)} 分可還原
-                  </span>
+                  <Button variant="secondary">{t('detail.undo')}</Button>
+                  <span className="text-meta text-muted">{t('detail.undoLeft', { hours: Math.floor(undoLeft / 3_600_000), minutes: Math.floor((undoLeft % 3_600_000) / 60_000) })}</span>
                 </div>
-                <p className="text-meta text-faint">執行後 24 小時內可還原。還原會產生一筆新的變更單；若目標已被他人修改，還原會被拒絕。</p>
+                <p className="text-meta text-faint">{t('detail.undoNote')}</p>
               </form>
             ) : null}
           </Card>
 
-          <Card title="稽核紀錄" className="gap-1">
+          <Card title={t('detail.audit')} className="gap-1">
             <div className="mt-2 flex flex-col">
               {detail.audit.map((a, i) => (
                 <div key={i} className="grid grid-cols-[14px_minmax(0,1fr)] gap-3.5">
@@ -214,7 +220,7 @@ export default async function ChangeSetPage({ params, searchParams }: { params: 
                       ) : null}
                     </div>
                     <span className="text-meta text-faint">
-                      {formatAt(a.at, tz)} · {a.actor}
+                      {formatAt(a.at, tz)} · {a.actor ?? (a.actorKind === 'user' ? t('actor.user') : t('actor.system'))}
                     </span>
                     {a.reason ? <span className="text-meta text-muted">{a.reason}</span> : null}
                   </div>
@@ -233,7 +239,7 @@ export default async function ChangeSetPage({ params, searchParams }: { params: 
           ))}
           {detail.revertOf ? (
             <div className="kv">
-              <span>還原自</span>
+              <span>{t('detail.info.revertOf')}</span>
               <Link href={`/changesets/${detail.revertOf.id}`} className="link">
                 {detail.revertOf.summary} →
               </Link>
@@ -243,7 +249,7 @@ export default async function ChangeSetPage({ params, searchParams }: { params: 
             <div className="kv">
               <span>OpenAI trace</span>
               <a href={detail.traceUrl} target="_blank" rel="noreferrer" className="link inline-flex items-center justify-end gap-1.5">
-                開啟 trace
+                {t('detail.info.openTrace')}
                 <Icon name="external" size={14} />
               </a>
             </div>

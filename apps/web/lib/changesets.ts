@@ -18,21 +18,6 @@ import type { ArloSessionUser } from './auth-config';
 
 export const UNDO_WINDOW_MS = 24 * 3_600_000;
 
-export const STATUS_LABEL: Record<ChangeSetStatus, string> = {
-  PENDING_VALIDATION: '驗證中',
-  BLOCKED: '已擋下',
-  PENDING_APPROVAL: '待審核',
-  APPROVED: '已核准',
-  EXECUTING: '執行中',
-  EXECUTED: '已執行',
-  FAILED: '執行失敗',
-  REJECTED: '已拒絕',
-  STALE: '已過時',
-  EXPIRED: '已逾期',
-  SIMULATED: '已模擬',
-  REVERTED: '已還原',
-};
-
 export const STATUS_TONE: Record<ChangeSetStatus, 'neutral' | 'ok' | 'warn' | 'bad' | 'info'> = {
   PENDING_VALIDATION: 'info',
   BLOCKED: 'bad',
@@ -51,23 +36,9 @@ export const STATUS_TONE: Record<ChangeSetStatus, 'neutral' | 'ok' | 'warn' | 'b
 /** Badge tone per tier: Tier 3 stands out, Tier 1 (auto-executed) recedes. */
 export const tierTone = (tier: number | null): 'neutral' | 'warn' | 'info' => (tier === 3 ? 'warn' : tier === 2 ? 'info' : 'neutral');
 
-/** What each status means for the reader of a ChangeSet. */
-export const STATUS_NOTE: Record<ChangeSetStatus, string> = {
-  PENDING_VALIDATION: '正在套用 Validator 規則與風險分級，通常在數秒內完成。',
-  BLOCKED: '至少一條「阻擋」規則未通過，此變更單無法被核准。',
-  PENDING_APPROVAL: '等待具備權限的 Approver 審核，逾期未審核會自動失效。',
-  APPROVED: '已核准，排入執行佇列。',
-  EXECUTING: '正在寫入 Google Ads。',
-  EXECUTED: '所有操作已寫入 Google Ads。',
-  FAILED: '部分或全部操作寫入失敗，請查看各操作的錯誤訊息。',
-  REJECTED: '審核者已拒絕，未寫入任何變更。',
-  STALE: '提出後目標已被他人修改，原值不再成立，變更單作廢。',
-  EXPIRED: '超過到期時間仍未審核，自動失效。',
-  SIMULATED: '此功能在 Shadow 模式：已完整驗證與分級，但未寫入。已在 Slack 收集回饋。',
-  REVERTED: '此變更已由 Undo 還原。',
-};
-
-export const SOURCE_LABEL: Record<string, string> = { chat: 'Slack 對話', schedule: '排程', monitor: 'Monitor', web: 'Web', undo: 'Undo' };
+/** Change set sources with a translated label (`changeset.source.*`); others show their raw kind. */
+export const SOURCE_KINDS = ['chat', 'schedule', 'monitor', 'web', 'undo'] as const;
+export const isSourceKind = (kind: string): kind is (typeof SOURCE_KINDS)[number] => (SOURCE_KINDS as readonly string[]).includes(kind);
 
 export function traceUrl(traceId: string | null | undefined): string | null {
   return traceId ? `https://platform.openai.com/traces/trace?trace_id=${encodeURIComponent(traceId)}` : null;
@@ -139,7 +110,9 @@ export interface AuditRow {
   action: string;
   fromStatus: string | null;
   toStatus: string | null;
-  actor: string;
+  actorKind: string;
+  /** Display name; null for the system or a user who no longer exists (the page labels those). */
+  actor: string | null;
   reason: string | null;
 }
 
@@ -184,7 +157,9 @@ export async function loadDetail(db: DbOrTx, id: string, allowed: readonly strin
       action: a.action,
       fromStatus: a.fromStatus,
       toStatus: a.toStatus,
-      actor: a.actorKind === 'user' ? (names.get(a.actorId ?? '') ?? '使用者') : a.actorKind === 'agent' ? 'Arlo' : '系統',
+      // Display name for users, 'Arlo' for the agent, null for the system (the page labels it).
+      actorKind: a.actorKind,
+      actor: a.actorKind === 'user' ? (names.get(a.actorId ?? '') ?? null) : a.actorKind === 'agent' ? 'Arlo' : null,
       reason: ((a.payload as { reason?: string } | null)?.reason ?? null) || null,
     })),
     revertOf: revertOf ?? null,

@@ -32,7 +32,7 @@ describe('monitor rule form', () => {
     const f = new FormData();
     for (const [k, val] of Object.entries({ type: 'SpendNearCap', accountId: ACC, f_pct: '90', f_hours: 'x', actionKind: 'pause', cooldownHours: '6', enabled: 'on' })) f.set(k, val);
     expect(monitorFormValues(f)).toMatchObject({ type: 'SpendNearCap', fields: { pct: '90' }, enabled: true });
-    expect(describeMonitor({ type: 'CpaSpike', hours: 6, multiplier: 2, minConv: 3 })).toBe('6h CPA > 目標 ×2（≥ 3 轉換）');
-    expect(describeAction({ kind: 'reduce_budget', pct: 0.3 })).toBe('預算 −30%');
+    expect(describeMonitor({ type: 'CpaSpike', hours: 6, multiplier: 2, minConv: 3 })).toEqual({ key: 'CpaSpike', values: { hours: 6, multiplier: 2, minConv: 3 } });
+    expect(describeAction({ kind: 'reduce_budget', pct: 0.3 })).toEqual({ key: 'reduce_budget', values: { pct: '30' } });
   });
 });

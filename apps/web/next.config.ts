@@ -1,5 +1,6 @@
 import { EnvSchema, parseEnv } from '@arlo/config';
 import type { NextConfig } from 'next';
+import createNextIntlPlugin from 'next-intl/plugin';
 
 const env = parseEnv(EnvSchema.pick({ ALLOWED_DEV_ORIGINS: true }));
 
@@ -14,4 +15,4 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: env.ALLOWED_DEV_ORIGINS,
 };
 
-export default nextConfig;
+export default createNextIntlPlugin('./i18n/request.ts')(nextConfig);

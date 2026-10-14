@@ -1,8 +1,10 @@
 import { authorize } from '@arlo/core';
 import { listChangeSets, resolveAccounts } from '@arlo/db';
+import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { Suspense, type ReactNode } from 'react';
 import { signOut } from '../../auth';
+import { LocaleSwitcher } from '../../components/locale-switcher';
 import { AccountSwitcher, SectionLabel, SidebarNav } from '../../components/nav';
 import { Avatar, Badge, Button, Logo } from '../../components/ui';
 import type { ArloSessionUser } from '../../lib/auth-config';
@@ -13,11 +15,11 @@ const ROLE_RANK = ['viewer', 'operator', 'approver', 'admin'] as const;
 const ROLE_NAME = { viewer: 'Viewer', operator: 'Operator', approver: 'Approver', admin: 'Admin' } as const;
 
 /** The user's highest role, with the tier ceiling for approvers. */
-function roleSummary(user: ArloSessionUser): { short: string; long: string } {
+function roleSummary(user: ArloSessionUser, t: Awaited<ReturnType<typeof getTranslations<'console'>>>): { short: string; long: string } {
   const top = user.bindings.reduce<ArloSessionUser['bindings'][number] | null>((best, b) => (!best || ROLE_RANK.indexOf(b.role) > ROLE_RANK.indexOf(best.role) ? b : best), null);
-  if (!top) return { short: '無權限', long: '尚未取得權限' };
+  if (!top) return { short: t('noRoleShort'), long: t('noRoleLong') };
   const short = ROLE_NAME[top.role];
-  return { short, long: top.role === 'approver' ? `${short} · 最高 Tier ${top.maxTier}` : top.role === 'viewer' ? `${short}（唯讀）` : short };
+  return { short, long: top.role === 'approver' ? t('approverLong', { role: short, tier: top.maxTier }) : top.role === 'viewer' ? t('viewerLong', { role: short }) : short };
 }
 
 // Every console page requires a Workspace sign-in (Requirement 1.1).
@@ -26,9 +28,11 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
   const db = getDb();
   const accounts = await resolveAccounts(db, { allowed: readableAccounts(user) });
   const pending = accounts.length ? await listChangeSets(db, { statuses: ['PENDING_APPROVAL'], accountIds: accounts.map((a) => a.id), limit: 100 }) : [];
-  const role = roleSummary(user);
+  const t = await getTranslations('console');
+  const tc = await getTranslations('common');
+  const role = roleSummary(user, t);
   const name = user.displayName ?? user.email;
-  const unbound = <Badge tone="warn" dot>{authorize(user, 'admin').allowed ? 'Slack 未綁定 · 前往綁定' : 'Slack 未綁定'}</Badge>;
+  const unbound = <Badge tone="warn" dot>{authorize(user, 'admin').allowed ? t('slackUnboundAdmin') : t('slackUnbound')}</Badge>;
 
   return (
     <div className="grid min-h-screen bg-bg-secondary md:grid-cols-[232px_minmax(0,1fr)]">
@@ -51,15 +55,16 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
           </div>
           {user.status === 'unbound' ? (
             authorize(user, 'admin').allowed ? (
-              <Link href={`/settings/users/${user.id}`} className="flex" title="前往綁定 Slack">
+              <Link href={`/settings/users/${user.id}`} className="flex" title={t('slackLinkTitle')}>
                 {unbound}
               </Link>
             ) : (
-              <span className="flex" title="尚未對應 Slack 帳號，請洽 Admin 綁定">
+              <span className="flex" title={t('slackAskAdmin')}>
                 {unbound}
               </span>
             )
           ) : null}
+          <LocaleSwitcher className="w-full" />
           <form
             className="flex"
             action={async () => {
@@ -67,7 +72,7 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
               await signOut({ redirectTo: '/signin' });
             }}
           >
-            <Button size="sm">登出</Button>
+            <Button size="sm">{tc('signOut')}</Button>
           </form>
         </div>
       </aside>

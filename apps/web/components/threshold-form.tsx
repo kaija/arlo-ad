@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useActionState, useId, type ReactNode } from 'react';
 import type { ThresholdFormState } from '../app/(console)/settings/thresholds/actions';
 import type { ThresholdFormValues } from '../lib/rules';
@@ -29,6 +30,8 @@ export function ThresholdForm({
   const e = state.errors ?? {};
   const initial = state.values ?? defaults;
   const formId = useId();
+  const t = useTranslations('thresholds');
+  const tc = useTranslations('common');
   return (
     <div className="card card-sm flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -40,28 +43,28 @@ export function ThresholdForm({
           {state.saved ? (
             <span className="flex items-center gap-1.5 text-meta text-success">
               <Icon name="check" size={14} />
-              已儲存
+              {t('saved')}
             </span>
           ) : null}
           {extra}
           {disabled ? null : (
             <Button size="sm" variant="primary" form={formId} disabled={pending}>
-              {pending ? '儲存中…' : '儲存'}
+              {pending ? tc('saving') : tc('save')}
             </Button>
           )}
         </div>
       </div>
       <form id={formId} key={JSON.stringify(initial)} action={formAction} className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
-        <Input label="自動執行的最大降幅 %" size="sm" name="tier1MaxReducePct" defaultValue={initial.tier1MaxReducePct} inputMode="decimal" hint="降幅在此以內視為保護性變更（Tier 1）" error={e.tier1MaxReducePct} disabled={disabled} />
-        <Input label="Tier 3 變動比例門檻 %" size="sm" name="tier3Pct" defaultValue={initial.tier3Pct} inputMode="decimal" hint="增減超過此比例升為 Tier 3" error={e.tier3Pct} disabled={disabled} />
+        <Input label={t('tier1MaxReduce')} size="sm" name="tier1MaxReducePct" defaultValue={initial.tier1MaxReducePct} inputMode="decimal" hint={t('tier1MaxReduceHint')} error={e.tier1MaxReducePct} disabled={disabled} />
+        <Input label={t('tier3Pct')} size="sm" name="tier3Pct" defaultValue={initial.tier3Pct} inputMode="decimal" hint={t('tier3PctHint')} error={e.tier3Pct} disabled={disabled} />
         <Input
-          label={`Tier 3 金額門檻${currency ? `（${currency}）` : ''}`}
+          label={currency ? t('tier3AmountWithCurrency', { currency }) : t('tier3Amount')}
           size="sm"
           name="tier3Amount"
           defaultValue={initial.tier3Amount}
           inputMode="decimal"
-          placeholder="留空 = 停用"
-          hint="每日預算變動金額超過此值升為 Tier 3"
+          placeholder={t('tier3AmountPlaceholder')}
+          hint={t('tier3AmountHint')}
           error={e.tier3Amount}
           disabled={disabled}
         />

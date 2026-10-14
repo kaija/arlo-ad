@@ -1,8 +1,10 @@
 'use client';
 
+import { RULE_TYPES } from '@arlo/core';
+import { useTranslations } from 'next-intl';
 import { useActionState, useState } from 'react';
 import type { RuleFormState } from '../app/(console)/settings/rules/actions';
-import { RULE_FIELDS, RULE_TYPE_HINT, RULE_TYPE_LABEL, type RuleFormValues, type ScopeKind } from '../lib/rules';
+import { RULE_FIELDS, type RuleFormValues, type ScopeKind } from '../lib/rules';
 import { Alert, Button, Input, LinkButton, Radio, Select, Switch } from './ui';
 
 interface Props {
@@ -12,11 +14,7 @@ interface Props {
   campaigns: { id: string; accountId: string; name: string }[];
 }
 
-const SCOPES: [ScopeKind, string][] = [
-  ['org', '全組織'],
-  ['account', '帳戶'],
-  ['campaign', 'Campaign'],
-];
+const SCOPES: readonly ScopeKind[] = ['org', 'account', 'campaign'];
 
 export function RuleForm({ action, initial: defaults, accounts, campaigns }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
@@ -46,15 +44,17 @@ function RuleFormFields({
   const [metric, setMetric] = useState(initial.fields.metric || 'tcpa');
   const currency = accounts.find((a) => a.id === accountId)?.currency;
   const errorCount = Object.values(e).filter(Boolean).length;
+  const t = useTranslations('rules');
+  const tc = useTranslations('common');
 
   return (
     <form action={formAction} className="card flex max-w-[860px] flex-col gap-5 border-accent-glow shadow-[var(--shadow-md),var(--ring-accent)]">
-      {errorCount ? <Alert tone="danger" title={`有 ${errorCount} 個欄位需要修正`} /> : null}
+      {errorCount ? <Alert tone="danger" title={tc('fieldErrorsTitle', { count: errorCount })} /> : null}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-5">
-        <Select label="規則類型" name="type" value={type} onChange={(ev) => setType(ev.target.value as RuleFormValues['type'])} hint={RULE_TYPE_HINT[type]} error={e.type}>
-          {Object.entries(RULE_TYPE_LABEL).map(([value, label]) => (
+        <Select label={t('form.type')} name="type" value={type} onChange={(ev) => setType(ev.target.value as RuleFormValues['type'])} hint={t(`hint.${type}`)} error={e.type}>
+          {RULE_TYPES.map((value) => (
             <option key={value} value={value}>
-              {label}
+              {t(`type.${value}`)}
             </option>
           ))}
         </Select>
@@ -62,10 +62,10 @@ function RuleFormFields({
 
       {type === 'BidTargetRange' ? (
         <div className="field">
-          <span className="field-label">出價目標</span>
+          <span className="field-label">{t('form.bidTarget')}</span>
           <div className="flex flex-wrap gap-6">
-            <Radio name="f_metric" value="tcpa" label="目標 CPA（金額）" checked={metric === 'tcpa'} onChange={() => setMetric('tcpa')} />
-            <Radio name="f_metric" value="troas" label="目標 ROAS（%）" checked={metric === 'troas'} onChange={() => setMetric('troas')} />
+            <Radio name="f_metric" value="tcpa" label={t('form.tcpa')} checked={metric === 'tcpa'} onChange={() => setMetric('tcpa')} />
+            <Radio name="f_metric" value="troas" label={t('form.troas')} checked={metric === 'troas'} onChange={() => setMetric('troas')} />
           </div>
         </div>
       ) : null}
@@ -76,30 +76,30 @@ function RuleFormFields({
           .map((f) => (
             <Input
               key={f.name}
-              label={f.label}
+              label={t(`field.${f.label}`)}
               name={`f_${f.name}`}
               defaultValue={initial.fields[f.name] ?? ''}
               inputMode="decimal"
               error={e[`f_${f.name}`]}
-              hint={f.kind === 'money' ? (type === 'BidTargetRange' && metric === 'troas' ? '百分比，例如 400 = 400%' : (currency ?? '以各帳戶幣別計')) : undefined}
+              hint={f.kind === 'money' ? (type === 'BidTargetRange' && metric === 'troas' ? t('form.percentHint') : (currency ?? t('form.perAccountCurrency'))) : undefined}
               required
             />
           ))}
       </div>
 
       <div className="field">
-        <span className="field-label">範圍</span>
+        <span className="field-label">{t('form.scope')}</span>
         <div className="flex flex-wrap gap-6">
-          {SCOPES.map(([value, label]) => (
-            <Radio key={value} name="scopeKind" value={value} label={label} checked={scope === value} onChange={() => setScope(value)} />
+          {SCOPES.map((value) => (
+            <Radio key={value} name="scopeKind" value={value} label={t(`scope.${value}`)} checked={scope === value} onChange={() => setScope(value)} />
           ))}
         </div>
-        <p className={`field-hint ${e.scopeKind ? 'field-hint-error' : ''}`}>{e.scopeKind ?? '範圍越窄越優先：Campaign 規則覆蓋帳戶規則，帳戶規則覆蓋全組織規則。'}</p>
+        <p className={`field-hint ${e.scopeKind ? 'field-hint-error' : ''}`}>{e.scopeKind ?? t('form.scopeHint')}</p>
       </div>
       {scope !== 'org' ? (
         <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-5">
-          <Select label="帳戶" name="accountId" value={accountId} onChange={(ev) => setAccountId(ev.target.value)} error={e.accountId}>
-            <option value="">選擇帳戶…</option>
+          <Select label={t('form.account')} name="accountId" value={accountId} onChange={(ev) => setAccountId(ev.target.value)} error={e.accountId}>
+            <option value="">{t('form.chooseAccount')}</option>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name}
@@ -107,8 +107,8 @@ function RuleFormFields({
             ))}
           </Select>
           {scope === 'campaign' ? (
-            <Select label="Campaign" name="campaignEntityId" defaultValue={initial.campaignEntityId} error={e.campaignEntityId}>
-              <option value="">選擇 campaign…</option>
+            <Select label={t('scope.campaign')} name="campaignEntityId" defaultValue={initial.campaignEntityId} error={e.campaignEntityId}>
+              <option value="">{t('form.chooseCampaign')}</option>
               {campaigns
                 .filter((c) => c.accountId === accountId)
                 .map((c) => (
@@ -122,19 +122,19 @@ function RuleFormFields({
       ) : null}
 
       <div className="field">
-        <span className="field-label">嚴重度</span>
+        <span className="field-label">{t('form.severity')}</span>
         <div className="flex flex-wrap gap-6">
-          <Radio name="severity" value="HARD_BLOCK" label="阻擋 — 任何人都不能核准" defaultChecked={initial.severity === 'HARD_BLOCK'} />
-          <Radio name="severity" value="WARN" label="警告 — 升為需審核" defaultChecked={initial.severity === 'WARN'} />
+          <Radio name="severity" value="HARD_BLOCK" label={t('form.hardBlock')} defaultChecked={initial.severity === 'HARD_BLOCK'} />
+          <Radio name="severity" value="WARN" label={t('form.warnOption')} defaultChecked={initial.severity === 'WARN'} />
         </div>
       </div>
-      <Switch label="啟用" name="enabled" defaultChecked={initial.enabled} />
+      <Switch label={t('form.enabled')} name="enabled" defaultChecked={initial.enabled} />
       <div className="card-footer mt-0">
         <Button variant="primary" disabled={pending}>
-          {pending ? '儲存中…' : '儲存'}
+          {pending ? tc('saving') : tc('save')}
         </Button>
         <LinkButton variant="secondary" href="/settings/rules">
-          取消
+          {tc('cancel')}
         </LinkButton>
       </div>
     </form>

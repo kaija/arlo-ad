@@ -15,38 +15,38 @@ import {
   type BindingInput,
   type Db,
 } from '@arlo/db';
+import { msg, type Msg } from './msg';
 
-export const ROLE_LABEL: Record<Role, string> = { viewer: 'Viewer（檢視）', operator: 'Operator（提案 / Undo）', approver: 'Approver（審核）', admin: 'Admin（設定）' };
-
-export const STATUS_BADGE = { active: ['ok', '啟用'], unbound: ['warn', 'Slack 未綁定'], disabled: ['bad', '停用'] } as const;
+/** Badge tone per user status; the label is `users.status.*`. */
+export const STATUS_TONE = { active: 'ok', unbound: 'warn', disabled: 'bad' } as const;
 
 const UUID = /^[0-9a-f-]{36}$/i;
 const SLACK_USER = /^[UW][A-Z0-9]{2,}$/;
 
-export type BindingFormErrors = Partial<Record<'role' | 'accountIds' | 'maxTier', string>>;
+export type BindingFormErrors = Partial<Record<'role' | 'accountIds' | 'maxTier', Msg>>;
 
 /** Viewers and operators cannot approve, so their max tier is 0. */
 export function parseBindingForm(form: FormData, knownAccounts: readonly string[]): { ok: true; value: BindingInput } | { ok: false; errors: BindingFormErrors } {
   const errors: BindingFormErrors = {};
   const role = String(form.get('role') ?? '') as Role;
-  if (!(ROLES as readonly string[]).includes(role)) errors.role = '請選擇角色';
+  if (!(ROLES as readonly string[]).includes(role)) errors.role = 'chooseRole';
   const all = form.get('allAccounts') === 'on';
   const accountIds = all ? null : [...new Set(form.getAll('accountIds').map(String).filter(Boolean))];
-  if (accountIds && (accountIds.length === 0 || accountIds.some((id) => !UUID.test(id) || !knownAccounts.includes(id)))) errors.accountIds = '請選擇帳戶，或勾選全部帳戶';
+  if (accountIds && (accountIds.length === 0 || accountIds.some((id) => !UUID.test(id) || !knownAccounts.includes(id)))) errors.accountIds = 'chooseAccountsOrAll';
   const canApprove = role === 'approver' || role === 'admin';
   const maxTier = canApprove ? Number(form.get('maxTier')) : 0;
-  if (canApprove && ![1, 2, 3].includes(maxTier)) errors.maxTier = '請選擇可審核的最高 Tier';
+  if (canApprove && ![1, 2, 3].includes(maxTier)) errors.maxTier = 'chooseMaxTier';
   if (Object.keys(errors).length) return { ok: false, errors };
   return { ok: true, value: { role, accountIds, maxTier } };
 }
 
-export type AdminResult = { ok: true } | { ok: false; error: string };
+export type AdminResult = { ok: true } | { ok: false; error: Msg };
 
 const audit = (db: Db, actorId: string, entityId: string, action: string, payload?: unknown) =>
   writeAudit(db, { actor: { kind: 'user', id: actorId }, entityKind: 'user', entityId, action, payload });
 
 export async function grantBinding(db: Db, actorId: string, userId: string, input: BindingInput): Promise<AdminResult> {
-  if (!(await getUserWithBindings(db, userId))) return { ok: false, error: '找不到使用者' };
+  if (!(await getUserWithBindings(db, userId))) return { ok: false, error: 'userNotFound' };
   const row = await addRoleBinding(db, userId, input);
   await audit(db, actorId, userId, 'grant_role', { bindingId: row.id, ...input });
   return { ok: true };
@@ -55,8 +55,8 @@ export async function grantBinding(db: Db, actorId: string, userId: string, inpu
 /** Refuses to remove the last admin binding so the org cannot lock itself out. */
 export async function revokeBinding(db: Db, actorId: string, bindingId: string): Promise<AdminResult> {
   const binding = await getRoleBinding(db, bindingId);
-  if (!binding) return { ok: false, error: '找不到這個權限' };
-  if (binding.role === 'admin' && (await countOtherAdminBindings(db, bindingId)) === 0) return { ok: false, error: '這是最後一個 admin 權限，不能移除。' };
+  if (!binding) return { ok: false, error: 'bindingNotFound' };
+  if (binding.role === 'admin' && (await countOtherAdminBindings(db, bindingId)) === 0) return { ok: false, error: 'lastAdmin' };
   await deleteRoleBinding(db, bindingId);
   await audit(db, actorId, binding.userId, 'revoke_role', { bindingId, role: binding.role, accountIds: binding.accountIds, maxTier: binding.maxTier });
   return { ok: true };
@@ -64,37 +64,37 @@ export async function revokeBinding(db: Db, actorId: string, bindingId: string):
 
 export async function bindSlackManually(db: Db, actorId: string, userId: string, slackUserId: string | null): Promise<AdminResult> {
   const id = slackUserId?.trim().toUpperCase() || null;
-  if (id && !SLACK_USER.test(id)) return { ok: false, error: 'Slack user ID 格式應為 U 開頭，例如 U0123ABCD' };
+  if (id && !SLACK_USER.test(id)) return { ok: false, error: 'slackIdFormat' };
   const result = await setSlackBinding(db, userId, id);
-  if (!result.ok) return { ok: false, error: { user_not_found: '找不到使用者', user_disabled: '使用者已停用', slack_user_taken: '這個 Slack 帳號已綁定其他使用者' }[result.reason] };
+  if (!result.ok) return { ok: false, error: ({ user_not_found: 'userNotFound', user_disabled: 'userDisabled', slack_user_taken: 'slackUserTaken' } as const)[result.reason] };
   await audit(db, actorId, userId, id ? 'bind_slack' : 'unbind_slack', { slackUserId: id });
   return { ok: true };
 }
 
 export async function bindSlackByEmail(db: Db, actorId: string, userId: string, lookup: (email: string) => Promise<{ slackUserId: string } | null>): Promise<AdminResult> {
   const user = await getUserWithBindings(db, userId);
-  if (!user) return { ok: false, error: '找不到使用者' };
+  if (!user) return { ok: false, error: 'userNotFound' };
   const outcome = await bindSlackUserByEmail(db, user, lookup);
   if (outcome === 'bound') {
     await audit(db, actorId, userId, 'bind_slack', { by: 'email' });
     return { ok: true };
   }
-  return outcome === 'already_bound' ? { ok: true } : { ok: false, error: { not_found: 'Slack 找不到這個 email', slack_user_taken: '這個 Slack 帳號已綁定其他使用者', skipped_disabled: '使用者已停用' }[outcome] };
+  return outcome === 'already_bound' ? { ok: true } : { ok: false, error: ({ not_found: 'slackEmailNotFound', slack_user_taken: 'slackUserTaken', skipped_disabled: 'userDisabled' } as const)[outcome] };
 }
 
 export async function setDisabled(db: Db, actorId: string, userId: string, disabled: boolean): Promise<AdminResult> {
-  if (disabled && actorId === userId) return { ok: false, error: '不能停用自己。' };
-  if (!(await setUserDisabled(db, userId, disabled))) return { ok: false, error: '找不到使用者' };
+  if (disabled && actorId === userId) return { ok: false, error: 'cannotDisableSelf' };
+  if (!(await setUserDisabled(db, userId, disabled))) return { ok: false, error: 'userNotFound' };
   await audit(db, actorId, userId, disabled ? 'disable' : 'enable');
   return { ok: true };
 }
 
 /** Pre-provisions a user so bindings can be set before their first sign-in. Without a domain any address is accepted. */
-export async function addUser(db: Db, actorId: string, email: string, allowedDomain: string | undefined): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
+export async function addUser(db: Db, actorId: string, email: string, allowedDomain: string | undefined): Promise<{ ok: true; userId: string } | { ok: false; error: Msg }> {
   const normalized = email.trim().toLowerCase();
   const domain = allowedDomain?.trim().toLowerCase();
-  if (!/^[^@\s]+@[^@\s]+$/.test(normalized)) return { ok: false, error: '請輸入有效的 email' };
-  if (domain && !normalized.endsWith(`@${domain}`)) return { ok: false, error: `請輸入 @${domain} 的 email` };
+  if (!/^[^@\s]+@[^@\s]+$/.test(normalized)) return { ok: false, error: 'validEmail' };
+  if (domain && !normalized.endsWith(`@${domain}`)) return { ok: false, error: msg('emailDomain', { domain }) };
   const user = await upsertUserOnSignIn(db, { email: normalized });
   await audit(db, actorId, user.id, 'provision', { email: normalized });
   return { ok: true, userId: user.id };

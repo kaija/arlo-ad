@@ -125,6 +125,8 @@ export interface TrendMarker {
   kind: 'change_event' | 'changeset';
   label: string;
   actor: string | null;
+  /** A changeset since undone. */
+  reverted?: boolean;
   changesetId?: string;
 }
 
@@ -168,8 +170,9 @@ export async function trend(db: Db, opts: { account: AdAccount; from: string; to
         date: dateInTimeZone(cs.executedAt!, opts.account.timezone),
         at: cs.executedAt!.toISOString(),
         kind: 'changeset' as const,
-        label: `ChangeSet：${cs.summary}`,
-        actor: cs.status === 'REVERTED' ? 'Arlo（已還原）' : 'Arlo',
+        label: `ChangeSet: ${cs.summary}`,
+        actor: 'Arlo',
+        reverted: cs.status === 'REVERTED',
         changesetId: cs.id,
       })),
   ]

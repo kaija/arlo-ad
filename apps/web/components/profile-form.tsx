@@ -2,9 +2,11 @@
 
 // Business Profile editor. Lists are edited as tags and examples as rows, then posted in the
 // line-based format `parseProfileForm` reads: one item per line, examples "字詞 | 相關 | 備註".
+import { COMPETITOR_POLICIES } from '@arlo/core';
+import { useTranslations } from 'next-intl';
 import { useActionState, useState } from 'react';
 import type { ProfileFormState } from '../app/(console)/settings/business-profile/actions';
-import { COMPETITOR_POLICY_LABEL, type ProfileFormValues } from '../lib/business-profile';
+import type { ProfileFormValues } from '../lib/business-profile';
 import { Icon } from './icons';
 import { Alert, Badge, Button, DataTable, Input, Radio, Select } from './ui';
 
@@ -15,12 +17,7 @@ interface Example {
   note: string;
 }
 
-const LISTS: { name: ListKey; label: string; hint: string; placeholder: string }[] = [
-  { name: 'offerings', label: '販售內容', hint: '產品與服務', placeholder: '新增販售內容' },
-  { name: 'targetIntents', label: '想要的搜尋意圖', hint: '這些意圖判定為相關', placeholder: '新增意圖' },
-  { name: 'excludedIntents', label: '要排除的搜尋意圖', hint: '這些意圖判定為不相關', placeholder: '新增意圖' },
-  { name: 'brandTerms', label: '品牌字', hint: '含品牌字的搜尋字詞永不自動排除', placeholder: '新增品牌字' },
-];
+const LISTS: readonly ListKey[] = ['offerings', 'targetIntents', 'excludedIntents', 'brandTerms'];
 
 const lines = (s: string) => s.split('\n').map((l) => l.trim()).filter(Boolean);
 
@@ -39,6 +36,7 @@ const examplesToText = (rows: Example[]) =>
 
 function TagList({ label, hint, placeholder, items, onChange, error, disabled }: { label: string; hint: string; placeholder: string; items: string[]; onChange: (next: string[]) => void; error?: string; disabled: boolean }) {
   const [draft, setDraft] = useState('');
+  const t = useTranslations('profile');
   const add = () => {
     const v = draft.trim();
     if (!v) return;
@@ -56,13 +54,13 @@ function TagList({ label, hint, placeholder, items, onChange, error, disabled }:
           <span key={v} className="tag">
             {v}
             {disabled ? null : (
-              <button type="button" className="tag-remove" aria-label={`移除 ${v}`} onClick={() => onChange(items.filter((x) => x !== v))}>
+              <button type="button" className="tag-remove" aria-label={t('remove', { item: v })} onClick={() => onChange(items.filter((x) => x !== v))}>
                 <Icon name="close" size={13} strokeWidth={2.25} />
               </button>
             )}
           </span>
         ))}
-        {items.length === 0 ? <span className="text-meta text-faint">尚未新增</span> : null}
+        {items.length === 0 ? <span className="text-meta text-faint">{t('none')}</span> : null}
       </div>
       {disabled ? null : (
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
@@ -80,7 +78,7 @@ function TagList({ label, hint, placeholder, items, onChange, error, disabled }:
             }}
           />
           <Button type="button" size="sm" onClick={add}>
-            新增
+            {t('add')}
           </Button>
         </div>
       )}
@@ -99,7 +97,7 @@ export function ProfileForm({
   action: (prev: ProfileFormState, form: FormData) => Promise<ProfileFormState>;
   initial: ProfileFormValues;
   version: number | null;
-  /** "最後更新 …" line for the stored version. */
+  /** "Last updated …" line for the stored version. */
   updated?: string;
   accountName: string;
   disabled: boolean;
@@ -131,15 +129,17 @@ export function ProfileForm({
   const dirty = (Object.keys(posted) as (keyof ProfileFormValues)[]).some((k) => posted[k] !== baseline[k].replace(/\r\n/g, '\n'));
   const current = state.savedVersion ?? version;
   const setExample = (i: number, patch: Partial<Example>) => setExamples(examples.map((x, n) => (n === i ? { ...x, ...patch } : x)));
+  const t = useTranslations('profile');
+  const tc = useTranslations('common');
 
   if (!started) {
     return (
       <div className="card flex flex-col items-center gap-3 px-7 py-14 text-center">
-        <h2 className="section-title">{accountName} 尚未設定 Business Profile</h2>
-        <p className="max-w-[460px] text-sm text-muted">沒有 Business Profile 時，搜尋字詞無法分類，也不會自動提出否定關鍵字。</p>
+        <h2 className="section-title">{t('notSetTitle', { account: accountName })}</h2>
+        <p className="max-w-[460px] text-sm text-muted">{t('notSetBody')}</p>
         {disabled ? null : (
           <Button type="button" variant="primary" onClick={() => setStarted(true)}>
-            建立 Business Profile
+            {t('create')}
           </Button>
         )}
       </div>
@@ -149,38 +149,42 @@ export function ProfileForm({
   return (
     <form action={formAction} className="flex flex-col gap-5">
       {LISTS.map((l) => (
-        <input key={l.name} type="hidden" name={l.name} value={posted[l.name]} />
+        <input key={l} type="hidden" name={l} value={posted[l]} />
       ))}
       <input type="hidden" name="examples" value={posted.examples} />
 
       <div className="flex flex-wrap items-center gap-3">
-        <Badge tone="info">{current === null ? '尚未儲存' : `v${current}`}</Badge>
-        {state.savedVersion !== undefined && !dirty ? <span className="text-meta text-success">已儲存為 v{state.savedVersion}</span> : updated && state.savedVersion === undefined ? <span className="text-meta text-faint">{updated}</span> : null}
-        {dirty ? <span className="text-meta text-warning">有未儲存的修改</span> : null}
+        <Badge tone="info">{current === null ? t('unsaved') : `v${current}`}</Badge>
+        {state.savedVersion !== undefined && !dirty ? (
+          <span className="text-meta text-success">{t('savedAs', { version: state.savedVersion })}</span>
+        ) : updated && state.savedVersion === undefined ? (
+          <span className="text-meta text-faint">{updated}</span>
+        ) : null}
+        {dirty ? <span className="text-meta text-warning">{t('dirty')}</span> : null}
         {disabled ? null : (
           <div className="ml-auto">
             <Button variant="primary" disabled={pending || (!dirty && current !== null)}>
-              {pending ? '儲存中…' : `儲存為 v${(current ?? 0) + 1}`}
+              {pending ? tc('saving') : t('saveAs', { version: (current ?? 0) + 1 })}
             </Button>
           </div>
         )}
       </div>
       {Object.keys(e).length ? (
-        <Alert tone="danger" title="無法儲存">
-          {e.examples ?? e.competitorPolicy ?? '請檢查標示的欄位。'}
+        <Alert tone="danger" title={t('cannotSave')}>
+          {e.examples ?? e.competitorPolicy ?? t('checkFields')}
         </Alert>
       ) : null}
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,420px),1fr))] gap-5">
         {LISTS.map((l) => (
           <TagList
-            key={l.name}
-            label={l.label}
-            hint={l.hint}
-            placeholder={l.placeholder}
-            items={lists[l.name]}
-            onChange={(next) => setLists({ ...lists, [l.name]: next })}
-            error={e[l.name]}
+            key={l}
+            label={t(`list.${l}.label`)}
+            hint={t(`list.${l}.hint`)}
+            placeholder={t(`list.${l}.placeholder`)}
+            items={lists[l]}
+            onChange={(next) => setLists({ ...lists, [l]: next })}
+            error={e[l]}
             disabled={disabled}
           />
         ))}
@@ -188,16 +192,16 @@ export function ProfileForm({
 
       <div className="card card-sm flex flex-col gap-3">
         <div className="flex flex-col gap-0.5">
-          <span className="font-semibold">競品字詞政策</span>
-          <span className="text-meta text-faint">搜尋字詞含競品名稱時的處理方式</span>
+          <span className="font-semibold">{t('competitorPolicy')}</span>
+          <span className="text-meta text-faint">{t('competitorPolicyHint')}</span>
         </div>
         <div className="flex flex-wrap gap-6">
-          {Object.entries(COMPETITOR_POLICY_LABEL).map(([value, label]) => (
+          {COMPETITOR_POLICIES.map((value) => (
             <Radio
               key={value}
               name="competitorPolicy"
               value={value}
-              label={label}
+              label={t(`policy.${value}`)}
               checked={policy === value}
               onChange={() => setPolicy(value)}
               disabled={disabled}
@@ -209,24 +213,24 @@ export function ProfileForm({
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-col gap-0.5">
-            <span className="font-semibold">範例字詞</span>
-            <span className="text-meta text-faint">給 AI 的判斷範例，越接近實際搜尋字詞越好。審核時剔除的否定字詞也會自動加到這裡。</span>
+            <span className="font-semibold">{t('examples')}</span>
+            <span className="text-meta text-faint">{t('examplesHint')}</span>
           </div>
           {disabled ? null : (
             <Button type="button" size="sm" onClick={() => setExamples([...examples, { term: '', relevant: true, note: '' }])}>
-              + 新增範例
+              {t('addExample')}
             </Button>
           )}
         </div>
         {examples.length === 0 ? (
-          <div className="card card-sm p-8 text-center text-sm text-muted">尚未新增範例。</div>
+          <div className="card card-sm p-8 text-center text-sm text-muted">{t('noExamples')}</div>
         ) : (
           <DataTable minWidth={640}>
             <thead>
               <tr>
-                <th className="w-[32%]">字詞</th>
-                <th className="w-[150px]">判定</th>
-                <th>備註</th>
+                <th className="w-[32%]">{t('term')}</th>
+                <th className="w-[150px]">{t('judgement')}</th>
+                <th>{t('note')}</th>
                 {disabled ? null : <th className="w-12" />}
               </tr>
             </thead>
@@ -234,20 +238,20 @@ export function ProfileForm({
               {examples.map((x, i) => (
                 <tr key={i}>
                   <td>
-                    <Input size="sm" aria-label="字詞" value={x.term} onChange={(ev) => setExample(i, { term: ev.target.value })} disabled={disabled} />
+                    <Input size="sm" aria-label={t('term')} value={x.term} onChange={(ev) => setExample(i, { term: ev.target.value })} disabled={disabled} />
                   </td>
                   <td>
-                    <Select size="sm" aria-label="判定" value={x.relevant ? 'yes' : 'no'} onChange={(ev) => setExample(i, { relevant: ev.target.value === 'yes' })} disabled={disabled}>
-                      <option value="yes">相關</option>
-                      <option value="no">不相關</option>
+                    <Select size="sm" aria-label={t('judgement')} value={x.relevant ? 'yes' : 'no'} onChange={(ev) => setExample(i, { relevant: ev.target.value === 'yes' })} disabled={disabled}>
+                      <option value="yes">{t('relevant')}</option>
+                      <option value="no">{t('irrelevant')}</option>
                     </Select>
                   </td>
                   <td>
-                    <Input size="sm" aria-label="備註" value={x.note} onChange={(ev) => setExample(i, { note: ev.target.value })} disabled={disabled} />
+                    <Input size="sm" aria-label={t('note')} value={x.note} onChange={(ev) => setExample(i, { note: ev.target.value })} disabled={disabled} />
                   </td>
                   {disabled ? null : (
                     <td>
-                      <button type="button" className="icon-btn" aria-label="移除範例" onClick={() => setExamples(examples.filter((_, n) => n !== i))}>
+                      <button type="button" className="icon-btn" aria-label={t('removeExample')} onClick={() => setExamples(examples.filter((_, n) => n !== i))}>
                         <Icon name="trash" size={16} />
                       </button>
                     </td>

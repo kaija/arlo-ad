@@ -1,16 +1,16 @@
 import { authorize } from '@arlo/core';
 import { getScheduledJob, listJobRuns } from '@arlo/db';
 import { previewCron } from '@arlo/queue';
+import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { ConfirmAction } from '../../../../components/client';
 import { ScheduleForm } from '../../../../components/schedule-form';
 import { Alert, Badge, Button, DataTable, PageHeader } from '../../../../components/ui';
 import { scheduleFormOptions } from '../../../../lib/schedule-page-data';
-import { TEMPLATE_LABELS } from '../../../../lib/schedules';
 import { getDb } from '../../../../lib/server';
 import { requireUser } from '../../../../lib/session';
 import { deleteScheduleAction, runScheduleAction, saveScheduleAction } from '../actions';
-import { formatAt, RUN_LABEL, RUN_TONE } from '../../../../lib/time';
+import { formatAt, RUN_TONE } from '../../../../lib/time';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,29 +24,31 @@ export default async function SchedulePage({ params, searchParams }: { params: P
   const isAdmin = authorize(user, 'admin').allowed;
   const [runs, options] = await Promise.all([listJobRuns(db, { scheduledJobId: id, limit: 20 }), scheduleFormOptions(db)]);
   const next = previewCron(job.cron, job.tz, { count: 3 });
+  const t = await getTranslations('schedule');
+  const tc = await getTranslations('common');
 
   return (
     <>
       <PageHeader
-        back={{ href: '/schedules', label: '排程' }}
+        back={{ href: '/schedules', label: t('title') }}
         title={job.name}
-        subtitle={TEMPLATE_LABELS[job.template]}
+        subtitle={t(`template.${job.template}`)}
         actions={
           isAdmin ? (
             <div className="flex gap-2.5">
               <form action={runScheduleAction.bind(null, job.id)}>
-                <Button variant="secondary">立即執行</Button>
+                <Button variant="secondary">{t('runNow')}</Button>
               </form>
-              <ConfirmAction action={deleteScheduleAction.bind(null, job.id)} label="刪除" title={`刪除排程「${job.name}」？`}>
-                刪除後不會再執行，執行紀錄會保留在稽核紀錄中。此動作無法復原。
+              <ConfirmAction action={deleteScheduleAction.bind(null, job.id)} label={tc('delete')} title={t('deleteTitle', { name: job.name })}>
+                {t('deleteBody')}
               </ConfirmAction>
             </div>
           ) : null
         }
       />
-      {flags.saved ? <Alert tone="success" title="已儲存" /> : null}
-      {flags.triggered ? <Alert title="已送出手動執行">結果會發到目標 channel。</Alert> : null}
-      {isAdmin ? null : <Alert title="唯讀">只有 Admin 可以修改排程。</Alert>}
+      {flags.saved ? <Alert tone="success" title={t('saved')} /> : null}
+      {flags.triggered ? <Alert title={t('triggeredTitle')}>{t('triggeredBody')}</Alert> : null}
+      {isAdmin ? null : <Alert title={t('readOnlyTitle')}>{t('readOnlyBody')}</Alert>}
 
       <div className="flex flex-wrap items-start gap-6">
         <ScheduleForm
@@ -65,7 +67,7 @@ export default async function SchedulePage({ params, searchParams }: { params: P
           {...options}
         />
         <div className="card card-sm flex flex-[1_1_280px] flex-col gap-2">
-          <h3 className="mb-1 text-base font-semibold">接下來三次執行</h3>
+          <h3 className="mb-1 text-base font-semibold">{t('nextThree')}</h3>
           {job.enabled && next.ok ? (
             next.next.map((d) => (
               <div key={d.toISOString()} className="border-t border-border py-1.5 font-mono text-meta text-muted">
@@ -73,33 +75,33 @@ export default async function SchedulePage({ params, searchParams }: { params: P
               </div>
             ))
           ) : (
-            <span className="text-meta text-faint">{job.enabled ? 'cron 運算式無法解析。' : '排程已停用，不會自動執行。'}</span>
+            <span className="text-meta text-faint">{job.enabled ? t('cronInvalid') : t('scheduleOff')}</span>
           )}
         </div>
       </div>
 
       <div className="flex flex-col gap-3">
-        <h2 className="section-title">執行紀錄</h2>
+        <h2 className="section-title">{t('runs')}</h2>
         {runs.length === 0 ? (
-          <div className="card card-sm p-8 text-center text-sm text-muted">還沒有執行紀錄。</div>
+          <div className="card card-sm p-8 text-center text-sm text-muted">{t('runsEmpty')}</div>
         ) : (
           <DataTable minWidth={760}>
             <thead>
               <tr>
-                <th>開始時間</th>
-                <th>觸發</th>
-                <th>狀態</th>
-                <th>錯誤訊息</th>
-                <th className="text-right">LLM 成本（USD）</th>
+                <th>{t('run.startedAt')}</th>
+                <th>{t('run.trigger')}</th>
+                <th>{t('run.status')}</th>
+                <th>{t('run.error')}</th>
+                <th className="text-right">{t('run.cost')}</th>
               </tr>
             </thead>
             <tbody>
               {runs.map((r) => (
                 <tr key={r.id}>
                   <td className="table-num text-left">{formatAt(r.startedAt, job.tz)}</td>
-                  <td className="text-muted">{r.trigger === 'manual' ? '手動' : '排程'}</td>
+                  <td className="text-muted">{r.trigger === 'manual' ? t('run.manual') : t('run.scheduled')}</td>
                   <td>
-                    <Badge tone={RUN_TONE[r.status]}>{RUN_LABEL[r.status]}</Badge>
+                    <Badge tone={RUN_TONE[r.status]}>{tc(`runStatus.${r.status}`)}</Badge>
                   </td>
                   <td className={`font-mono text-meta ${r.error ? 'text-danger' : 'text-faint'}`}>{r.error ?? '—'}</td>
                   <td className="table-num">{r.costUsd === null ? '—' : `$${r.costUsd.toFixed(4)}`}</td>

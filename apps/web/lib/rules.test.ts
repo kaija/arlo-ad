@@ -52,8 +52,8 @@ describe('rule forms', () => {
   });
 
   it('describes rules', () => {
-    expect(describeRule({ type: 'DailyBudgetCap', maxMicros: 8_000_000_000 }, 'TWD')).toBe('每日預算 ≤ TWD 8,000');
-    expect(describeRule({ type: 'BidTargetRange', metric: 'troas', min: 2, max: 8 })).toBe('目標 ROAS 200%–800%');
+    expect(describeRule({ type: 'DailyBudgetCap', maxMicros: 8_000_000_000 }, 'TWD')).toEqual({ key: 'DailyBudgetCap', values: { amount: 'TWD 8,000' } });
+    expect(describeRule({ type: 'BidTargetRange', metric: 'troas', min: 2, max: 8 })).toEqual({ key: 'BidTargetRangeTroas', values: { min: 200, max: 800 } });
   });
 });
 
@@ -63,7 +63,7 @@ describe('threshold forms', () => {
     expect(parseThresholdForm({ tier3Pct: '50', tier3Amount: '10000', tier1MaxReducePct: '30' })).toEqual({ ok: true, value: { tier3Pct: 0.5, tier3AmountMicros: 10_000_000_000, tier1MaxReducePct: 0.3 } });
     expect(parseThresholdForm({ tier3Pct: '0', tier3Amount: '-1', tier1MaxReducePct: '120' })).toEqual({
       ok: false,
-      errors: { tier3Pct: expect.any(String), tier3Amount: expect.any(String), tier1MaxReducePct: expect.any(String) },
+      errors: { tier3Pct: 'between0And1000Pct', tier3Amount: 'positiveOrEmpty', tier1MaxReducePct: 'between0And100Pct' },
     });
   });
 });

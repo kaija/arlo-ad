@@ -140,10 +140,10 @@ describe('dashboard query layer', () => {
     }
     const all = await trend(t.db, { account: account!, from: '2026-10-01', to: '2026-10-06' });
     expect(all.markers.filter((m) => m.kind === 'changeset').map((m) => [m.date, m.label])).toEqual([
-      ['2026-10-04', 'ChangeSet：pause Brand'],
-      ['2026-10-04', 'ChangeSet：pause Idle'],
+      ['2026-10-04', 'ChangeSet: pause Brand'],
+      ['2026-10-04', 'ChangeSet: pause Idle'],
     ]);
     const brandOnly = await trend(t.db, { account: account!, from: '2026-10-01', to: '2026-10-06', campaignId: brand, externalCampaignId: '111' });
-    expect(brandOnly.markers.filter((m) => m.kind === 'changeset').map((m) => m.label)).toEqual(['ChangeSet：pause Brand']);
+    expect(brandOnly.markers.filter((m) => m.kind === 'changeset').map((m) => m.label)).toEqual(['ChangeSet: pause Brand']);
   });
 });

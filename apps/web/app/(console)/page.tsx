@@ -1,5 +1,6 @@
 import { addDays, formatMoney, formatPct } from '@arlo/core';
 import { resolveAccounts } from '@arlo/db';
+import { getTranslations } from 'next-intl/server';
 import { CampaignTable } from '../../components/campaign-table';
 import { AutoSubmitForm } from '../../components/client';
 import { TrendChart } from '../../components/trend-chart';
@@ -35,12 +36,13 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const params = await searchParams;
   const allowed = readableAccounts(user);
   const accounts = await resolveAccounts(db, { allowed });
+  const t = await getTranslations('overview');
   if (accounts.length === 0) {
     return (
       <>
-        <PageHeader title="總覽" subtitle="尚無帳戶" />
-        <EmptyState icon="waveform" title="沒有可檢視的帳戶">
-          你的權限目前不包含任何廣告帳戶。帳戶會在第一次同步後出現；權限請聯絡 Admin 在「設定 / 使用者與權限」加入帳戶範圍。
+        <PageHeader title={t('title')} subtitle={t('noAccountsSubtitle')} />
+        <EmptyState icon="waveform" title={t('noAccountsTitle')}>
+          {t('noAccountsBody')}
         </EmptyState>
       </>
     );
@@ -63,38 +65,38 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <PageHeader
-        title="總覽"
-        subtitle={`${account.name} · 金額以 ${cur}、時間以 ${account.timezone} 顯示`}
+        title={t('title')}
+        subtitle={t('subtitle', { account: account.name, currency: cur, timezone: account.timezone })}
         actions={
           <AutoSubmitForm method="get" className="flex flex-wrap items-end gap-2.5">
             <input type="hidden" name="account" value={account.id} />
             {selected ? <input type="hidden" name="campaign" value={selected.campaignId} /> : null}
             <div className="w-40">
-              <Input label="起" type="date" size="sm" name="from" defaultValue={from} max={to} />
+              <Input label={t('from')} type="date" size="sm" name="from" defaultValue={from} max={to} />
             </div>
             <div className="w-40">
-              <Input label="訖" type="date" size="sm" name="to" defaultValue={to} />
+              <Input label={t('to')} type="date" size="sm" name="to" defaultValue={to} />
             </div>
           </AutoSubmitForm>
         }
       />
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(230px,1fr))] gap-4">
-        <StatCard label="本月至今花費" value={formatMoney(o.mtdMicros, cur)} hint={`第 ${o.daysElapsed + 1} 天 / ${o.daysInMonth} 天`}>
+        <StatCard label={t('mtdSpend')} value={formatMoney(o.mtdMicros, cur)} hint={t('dayOfMonth', { day: o.daysElapsed + 1, days: o.daysInMonth })}>
           <Progress value={(o.daysElapsed + 1) / o.daysInMonth} />
         </StatCard>
-        <StatCard label="月底預測花費" value={formatMoney(o.projectedMicros, cur)} hint={`線性推估：${formatMoney(o.linearProjectedMicros, cur)} · 日均 ${formatMoney(o.dailyRateMicros, cur)}`} />
+        <StatCard label={t('projectedSpend')} value={formatMoney(o.projectedMicros, cur)} hint={t('projectedHint', { linear: formatMoney(o.linearProjectedMicros, cur), daily: formatMoney(o.dailyRateMicros, cur) })} />
         <StatCard
-          label="預算 pacing"
+          label={t('pacing')}
           value={formatPct(o.budgetPace, 1)}
-          hint={`啟用中每日預算合計 ${formatMoney(o.enabledBudgetMicros, cur)} · 超過 110% 警示`}
-          badge={o.budgetPace === null ? undefined : { tone: overPace ? 'warn' : 'ok', label: overPace ? '超速' : '正常' }}
+          hint={t('pacingHint', { total: formatMoney(o.enabledBudgetMicros, cur) })}
+          badge={o.budgetPace === null ? undefined : { tone: overPace ? 'warn' : 'ok', label: overPace ? t('overPace') : t('normal') }}
         />
         <StatCard
-          label="月預算上限"
-          value={o.monthlyCapMicros ? formatMoney(o.monthlyCapMicros, cur) : '未設定'}
-          hint={capUse === null ? '可在 Validator 規則設定月花費上限' : `預測使用率 ${formatPct(capUse, 1)}`}
-          badge={capUse === null ? { tone: 'neutral', label: '未設定' } : capUse > 1 ? { tone: 'bad', label: '預計超支' } : capUse > 0.9 ? { tone: 'warn', label: '接近上限' } : { tone: 'ok', label: '正常' }}
+          label={t('monthlyCap')}
+          value={o.monthlyCapMicros ? formatMoney(o.monthlyCapMicros, cur) : t('notSet')}
+          hint={capUse === null ? t('capHintUnset') : t('capHint', { pct: formatPct(capUse, 1) })}
+          badge={capUse === null ? { tone: 'neutral', label: t('notSet') } : capUse > 1 ? { tone: 'bad', label: t('overCap') } : capUse > 0.9 ? { tone: 'warn', label: t('nearCap') } : { tone: 'ok', label: t('normal') }}
         >
           {capUse === null ? null : <Progress value={capUse} tone={capUse > 1 ? 'danger' : 'success'} />}
         </StatCard>
@@ -102,22 +104,20 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
 
       <Card
         className="gap-5"
-        title={selected ? `Campaign：${selected.name ?? selected.externalId}` : '帳戶整體趨勢'}
-        subtitle={`${md(trendFrom)} – ${md(to)} · 虛線為變更事件`}
-        action={selected ? <LinkButton size="sm" href={query({})}>← 回到帳戶整體</LinkButton> : null}
+        title={selected ? t('campaignTrend', { name: selected.name ?? selected.externalId }) : t('accountTrend')}
+        subtitle={t('trendSubtitle', { range: `${md(trendFrom)} – ${md(to)}` })}
+        action={selected ? <LinkButton size="sm" href={query({})}>{t('backToAccount')}</LinkButton> : null}
       >
         <TrendChart currency={cur} points={series.points} markers={series.markers} />
       </Card>
 
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="section-title">Campaign</h2>
-          <span className="text-meta text-faint">
-            {md(from)} – {md(to)} · 點名稱即以該 campaign 篩選趨勢圖
-          </span>
+          <h2 className="section-title">{t('campaigns')}</h2>
+          <span className="text-meta text-faint">{t('tableHint', { range: `${md(from)} – ${md(to)}` })}</span>
         </div>
         {rows.length === 0 ? (
-          <div className="card card-sm p-8 text-center text-sm text-muted">這段期間沒有 campaign 資料。</div>
+          <div className="card card-sm p-8 text-center text-sm text-muted">{t('noCampaigns')}</div>
         ) : (
           <CampaignTable rows={rows} currency={cur} selectedId={selected?.campaignId} hrefFor={(r) => query({ campaign: r.campaignId === selected?.campaignId ? undefined : r.campaignId })} />
         )}

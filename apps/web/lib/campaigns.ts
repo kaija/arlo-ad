@@ -2,8 +2,8 @@
 import { CampaignBriefSchema, type CampaignBrief, type CampaignTaskStatus } from '@arlo/core';
 import { createCampaignTask, type CampaignTask, type Db } from '@arlo/db';
 import { enqueue, inTransaction, Jobs, type PgBoss } from '@arlo/queue';
+import type { Msg } from './msg';
 
-export const TASK_STATUS_LABEL: Record<CampaignTaskStatus, string> = { queued: '排隊中', running: '產生中', draft: '草稿', submitted: '已送出', failed: '失敗' };
 export const TASK_STATUS_TONE: Record<CampaignTaskStatus, 'neutral' | 'ok' | 'warn' | 'bad' | 'info'> = { queued: 'neutral', running: 'info', draft: 'warn', submitted: 'ok', failed: 'bad' };
 
 export interface BriefFormValues {
@@ -19,7 +19,7 @@ export interface BriefFormValues {
   notes: string;
 }
 
-export type BriefFormErrors = Partial<Record<keyof BriefFormValues, string>>;
+export type BriefFormErrors = Partial<Record<keyof BriefFormValues, Msg>>;
 
 const list = (s: string) => s.split(/[,，、\n]/).map((x) => x.trim()).filter(Boolean);
 
@@ -30,7 +30,7 @@ export function briefFormValues(form: FormData): BriefFormValues {
 
 export function parseBriefForm(v: BriefFormValues, accounts: readonly string[]): { ok: true; accountId: string; brief: CampaignBrief } | { ok: false; errors: BriefFormErrors } {
   const errors: BriefFormErrors = {};
-  if (!accounts.includes(v.accountId)) errors.accountId = '請選擇你可以提案的帳戶';
+  if (!accounts.includes(v.accountId)) errors.accountId = 'chooseProposableAccount';
   const parsed = CampaignBriefSchema.safeParse({
     name: v.name,
     objective: v.objective,
@@ -45,7 +45,7 @@ export function parseBriefForm(v: BriefFormValues, accounts: readonly string[]):
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {
       const key = String(issue.path[0]) as keyof BriefFormValues;
-      errors[key] ??= key === 'landingPageUrl' ? '請輸入 https:// 開頭的網址' : key === 'dailyBudget' ? '請輸入正數金額' : key === 'locations' || key === 'languages' ? '至少一項' : '必填或太長';
+      errors[key] ??= key === 'landingPageUrl' ? 'httpsUrl' : key === 'dailyBudget' ? 'positiveAmount' : key === 'locations' || key === 'languages' ? 'atLeastOne' : 'requiredOrTooLong';
     }
   }
   if (Object.keys(errors).length || !parsed.success) return { ok: false, errors };

@@ -1,12 +1,7 @@
 // Business Profile editor (ADR-0019, Requirements 14.1, 18.4): one item per line; examples as
-// "字詞 | 相關/不相關 | 備註".
-import { BusinessProfileSchema, COMPETITOR_POLICIES, type BusinessProfile, type CompetitorPolicy } from '@arlo/core';
-
-export const COMPETITOR_POLICY_LABEL: Record<CompetitorPolicy, string> = {
-  exclude: '排除競品字詞',
-  allow: '允許競品字詞',
-  review: '交由人工審核',
-};
+// "字詞 | 相關/不相關 | 備註". The 相關 / 不相關 tokens are the client ↔ action wire format, not UI text.
+import { BusinessProfileSchema, COMPETITOR_POLICIES, type BusinessProfile } from '@arlo/core';
+import { msg, type Msg } from './msg';
 
 export interface ProfileFormValues {
   offerings: string;
@@ -37,7 +32,7 @@ export function profileToForm(p: BusinessProfile): ProfileFormValues {
   };
 }
 
-export type ProfileFormErrors = Partial<Record<keyof ProfileFormValues, string>>;
+export type ProfileFormErrors = Partial<Record<keyof ProfileFormValues, Msg>>;
 
 export function parseProfileForm(v: ProfileFormValues): { ok: true; value: BusinessProfile } | { ok: false; errors: ProfileFormErrors } {
   const errors: ProfileFormErrors = {};
@@ -46,12 +41,12 @@ export function parseProfileForm(v: ProfileFormValues): { ok: true; value: Busin
     const [term, label, ...note] = line.split('|').map((x) => x.trim());
     const relevant = RELEVANT.has((label ?? '').toLowerCase()) ? true : IRRELEVANT.has((label ?? '').toLowerCase()) ? false : null;
     if (!term || relevant === null) {
-      errors.examples = `第 ${i + 1} 行格式應為「字詞 | 相關 或 不相關 | 備註」`;
+      errors.examples = msg('exampleLineFormat', { line: i + 1 });
       break;
     }
     examples.push({ term, relevant, note: note.join('|').trim() || null });
   }
-  if (!(COMPETITOR_POLICIES as readonly string[]).includes(v.competitorPolicy)) errors.competitorPolicy = '請選擇競品政策';
+  if (!(COMPETITOR_POLICIES as readonly string[]).includes(v.competitorPolicy)) errors.competitorPolicy = 'chooseCompetitorPolicy';
   const parsed = BusinessProfileSchema.safeParse({
     offerings: lines(v.offerings),
     targetIntents: lines(v.targetIntents),
@@ -63,7 +58,7 @@ export function parseProfileForm(v: ProfileFormValues): { ok: true; value: Busin
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {
       const key = String(issue.path[0]) as keyof ProfileFormValues;
-      errors[key] ??= issue.code === 'too_big' ? '項目太多或太長' : '內容不正確';
+      errors[key] ??= issue.code === 'too_big' ? 'tooManyOrTooLong' : 'invalidContent';
     }
   }
   if (Object.keys(errors).length || !parsed.success) return { ok: false, errors };

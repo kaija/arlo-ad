@@ -1,5 +1,6 @@
 import { authorize } from '@arlo/core';
 import { getMonitorRule } from '@arlo/db';
+import { getTranslations } from 'next-intl/server';
 import { notFound, redirect } from 'next/navigation';
 import { MonitorForm } from '../../../../../components/monitor-form';
 import { PageHeader } from '../../../../../components/ui';
@@ -18,9 +19,10 @@ export default async function EditMonitorRulePage({ params }: { params: Promise<
   const db = getDb();
   const rule = /^[0-9a-f-]{36}$/i.test(id) ? await getMonitorRule(db, id) : undefined;
   if (!rule) notFound();
+  const t = await getTranslations('monitor');
   return (
     <>
-      <PageHeader back={{ href: '/settings/monitor', label: 'Monitor 熔斷規則' }} title="編輯規則" />
+      <PageHeader back={{ href: '/settings/monitor', label: t('title') }} title={t('edit')} />
       <MonitorForm action={saveMonitorAction.bind(null, rule.id)} initial={monitorToForm(rule)} {...await ruleFormOptions(db)} />
     </>
   );

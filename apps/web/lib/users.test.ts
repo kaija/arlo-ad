@@ -38,7 +38,7 @@ describe('RBAC administration', () => {
   it('grants and revokes bindings, keeping at least one admin', async () => {
     expect(await grantBinding(t.db, admin, admin, { role: 'admin', accountIds: null, maxTier: 3 })).toEqual({ ok: true });
     const [own] = (await getUserWithBindings(t.db, admin))!.bindings;
-    expect(await revokeBinding(t.db, admin, own!.id)).toEqual({ ok: false, error: expect.stringContaining('最後一個 admin') });
+    expect(await revokeBinding(t.db, admin, own!.id)).toEqual({ ok: false, error: 'lastAdmin' });
 
     await grantBinding(t.db, admin, ann, { role: 'admin', accountIds: null, maxTier: 3 });
     expect(await revokeBinding(t.db, admin, own!.id)).toEqual({ ok: true });
@@ -50,8 +50,8 @@ describe('RBAC administration', () => {
     expect(await bindSlackManually(t.db, admin, ann, 'bad id')).toMatchObject({ ok: false });
     expect(await bindSlackManually(t.db, admin, ann, 'u0123abcd')).toEqual({ ok: true });
     expect((await getUserWithBindings(t.db, ann))).toMatchObject({ slackUserId: 'U0123ABCD', status: 'active' });
-    expect(await bindSlackManually(t.db, admin, admin, 'U0123ABCD')).toEqual({ ok: false, error: expect.stringContaining('已綁定其他使用者') });
-    expect(await bindSlackByEmail(t.db, admin, admin, async () => null)).toEqual({ ok: false, error: 'Slack 找不到這個 email' });
+    expect(await bindSlackManually(t.db, admin, admin, 'U0123ABCD')).toEqual({ ok: false, error: 'slackUserTaken' });
+    expect(await bindSlackByEmail(t.db, admin, admin, async () => null)).toEqual({ ok: false, error: 'slackEmailNotFound' });
     expect(await bindSlackByEmail(t.db, admin, admin, async (email) => (email === 'admin@example.com' ? { slackUserId: 'UADMIN1' } : null))).toEqual({ ok: true });
     expect(await bindSlackManually(t.db, admin, ann, null)).toEqual({ ok: true });
     expect((await getUserWithBindings(t.db, ann))).toMatchObject({ slackUserId: null, status: 'unbound' });
@@ -61,7 +61,7 @@ describe('RBAC administration', () => {
     expect(await setDisabled(t.db, admin, admin, true)).toMatchObject({ ok: false });
     expect(await setDisabled(t.db, admin, ann, true)).toEqual({ ok: true });
     expect((await getUserWithBindings(t.db, ann))?.status).toBe('disabled');
-    expect(await bindSlackManually(t.db, admin, ann, 'U999')).toEqual({ ok: false, error: '使用者已停用' });
+    expect(await bindSlackManually(t.db, admin, ann, 'U999')).toEqual({ ok: false, error: 'userDisabled' });
     expect(await setDisabled(t.db, admin, ann, false)).toEqual({ ok: true });
     expect((await getUserWithBindings(t.db, ann))?.status).toBe('unbound');
   });

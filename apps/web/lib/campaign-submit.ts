@@ -13,16 +13,17 @@ import {
   type Db,
 } from '@arlo/db';
 import { enqueue, inTransaction, Jobs, type PgBoss } from '@arlo/queue';
+import type { Msg } from './msg';
 
-export type SubmitResult = { ok: true; changesetId: string } | { ok: false; error: string; issues?: LintIssue[] };
+export type SubmitResult = { ok: true; changesetId: string } | { ok: false; error: Msg; issues?: LintIssue[] };
 
 /** Latest draft → create_campaign_bundle ChangeSet (PAUSED, at least Tier 2); task → submitted. */
 export async function submitDraft(db: Db, boss: PgBoss, task: CampaignTask, userId: string): Promise<SubmitResult> {
-  if (task.status !== 'draft') return { ok: false, error: '只有草稿狀態可以送出' };
+  if (task.status !== 'draft') return { ok: false, error: 'draftOnlySubmit' };
   const [draft, account] = await Promise.all([latestCampaignDraft(db, task.id), getAdAccount(db, task.accountId)]);
-  if (!draft || !account) return { ok: false, error: '找不到草稿' };
+  if (!draft || !account) return { ok: false, error: 'draftNotFound' };
   const built = draftToBundle(draft.draft, { landingPageUrl: task.brief.landingPageUrl });
-  if (!built.ok) return { ok: false, error: '草稿還有錯誤，請先修正', issues: built.issues };
+  if (!built.ok) return { ok: false, error: 'draftHasErrors', issues: built.issues };
   const op: Op = {
     kind: 'google.create_campaign_bundle',
     target: { platform: account.platform, accountId: account.externalId, kind: 'account', id: account.externalId },
@@ -33,7 +34,7 @@ export async function submitDraft(db: Db, boss: PgBoss, task: CampaignTask, user
   return db.transaction(async (tx) => {
     // Claim the task first so a double submit creates one ChangeSet.
     const claimed = await setCampaignTaskStatus(tx, task.id, ['draft'], 'submitted');
-    if (!claimed) return { ok: false as const, error: '這個草稿已經送出' };
+    if (!claimed) return { ok: false as const, error: 'draftAlreadySubmitted' };
     const cs = await insertChangeSet(tx, {
       accountId: account.id,
       source: { kind: 'web' },
@@ -75,10 +76,10 @@ export async function createdCampaign(db: Db, task: CampaignTask): Promise<Creat
 /** Enabling the paused campaign is its own ChangeSet (Requirement 15.6). */
 export async function enableCampaign(db: Db, boss: PgBoss, task: CampaignTask, userId: string): Promise<SubmitResult> {
   const created = await createdCampaign(db, task);
-  if (!created || created.changesetStatus !== 'EXECUTED' || !created.campaignExternalId) return { ok: false, error: 'campaign 尚未建立完成' };
-  if (created.enableChangesetId) return { ok: false, error: '已經有啟用的變更' };
+  if (!created || created.changesetStatus !== 'EXECUTED' || !created.campaignExternalId) return { ok: false, error: 'campaignNotCreated' };
+  if (created.enableChangesetId) return { ok: false, error: 'enableAlreadyPending' };
   const account = await getAdAccount(db, task.accountId);
-  if (!account) return { ok: false, error: '找不到帳戶' };
+  if (!account) return { ok: false, error: 'accountNotFound' };
   return db.transaction(async (tx) => {
     const cs = await insertChangeSet(tx, {
       accountId: account.id,

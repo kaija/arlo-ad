@@ -2,15 +2,6 @@
 import { AUTOMATION_FEATURES, AUTOMATION_MODES, DEFAULT_AUTOMATION_MODE, type AutomationFeature, type AutomationMode } from '@arlo/core';
 import { listAutomationModes, resolveAccounts, shadowAccuracy, type AdAccount, type DbOrTx } from '@arlo/db';
 
-export const FEATURE_LABEL: Record<AutomationFeature, string> = {
-  negative_kw_auto: '自動否定關鍵字',
-  circuit_breaker: '熔斷（暫停 / 降預算）',
-  bid_auto_reduce: '自動降出價目標',
-  budget_rebalance: '預算再分配',
-};
-
-export const MODE_LABEL: Record<AutomationMode, string> = { off: '關閉', shadow: 'Shadow（只模擬）', live: 'Live（自動執行）' };
-
 export function isMode(v: unknown): v is AutomationMode {
   return (AUTOMATION_MODES as readonly unknown[]).includes(v);
 }

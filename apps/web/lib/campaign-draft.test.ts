@@ -54,7 +54,7 @@ describe('draftFromForm', () => {
   });
 
   it('explains structural errors', () => {
-    expect(draftFromForm(toForm(draft, { g0_ad0_headlines: 'only one' }))).toEqual({ ok: false, error: expect.stringContaining('標題需 3–15 個') });
-    expect(draftFromForm(toForm(draft, { g0_remove: 'on', g1_remove: 'on' }))).toEqual({ ok: false, error: expect.stringContaining('至少保留一個廣告群組') });
+    expect(draftFromForm(toForm(draft, { g0_ad0_headlines: 'only one' }))).toEqual({ ok: false, error: { key: 'draftHeadlines', values: { where: expect.stringContaining('headlines') } } });
+    expect(draftFromForm(toForm(draft, { g0_remove: 'on', g1_remove: 'on' }))).toEqual({ ok: false, error: { key: 'draftAdGroups', values: expect.anything() } });
   });
 });

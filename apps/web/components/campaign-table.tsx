@@ -1,26 +1,29 @@
 import { formatMoney, formatNumber, formatPct } from '@arlo/core';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import type { CampaignTableRow } from '../lib/dashboard';
 import { Badge, DataTable } from './ui';
 
-const STATUS_LABEL: Record<string, string> = { ENABLED: '啟用', PAUSED: '暫停', REMOVED: '已移除' };
+const STATUSES = ['ENABLED', 'PAUSED', 'REMOVED'] as const;
+const isKnownStatus = (s: string | null): s is (typeof STATUSES)[number] => (STATUSES as readonly (string | null)[]).includes(s);
 
 export function statusTone(status: string | null) {
   return status === 'ENABLED' ? 'ok' : status === 'PAUSED' || status === 'REMOVED' ? 'neutral' : 'warn';
 }
 
-const HEAD = ['日預算', '花費', '曝光', '點擊', 'CTR', 'CPC', '轉換', 'CPA', 'ROAS', 'IS', 'IS 損失（預算）', 'IS 損失（排名）'];
+const HEAD = ['budget', 'cost', 'impressions', 'clicks', 'ctr', 'cpc', 'conversions', 'cpa', 'roas', 'is', 'isLostBudget', 'isLostRank'] as const;
 
 export function CampaignTable({ rows, currency, selectedId, hrefFor }: { rows: CampaignTableRow[]; currency: string; selectedId?: string; hrefFor: (row: CampaignTableRow) => string }) {
+  const t = useTranslations('campaignTable');
   return (
     <DataTable minWidth={1240}>
       <thead>
         <tr>
-          <th>名稱</th>
-          <th>狀態</th>
+          <th>{t('name')}</th>
+          <th>{t('status')}</th>
           {HEAD.map((h) => (
             <th key={h} className="text-right">
-              {h}
+              {t(`head.${h}`)}
             </th>
           ))}
         </tr>
@@ -34,7 +37,7 @@ export function CampaignTable({ rows, currency, selectedId, hrefFor }: { rows: C
               </Link>
             </td>
             <td>
-              <Badge tone={statusTone(r.status)}>{STATUS_LABEL[r.status ?? ''] ?? r.status ?? '—'}</Badge>
+              <Badge tone={statusTone(r.status)}>{isKnownStatus(r.status) ? t(`statusValue.${r.status}`) : (r.status ?? '—')}</Badge>
             </td>
             <td className="table-num">{formatMoney(r.budgetMicros, currency)}</td>
             <td className="table-num">{formatMoney(r.costMicros, currency)}</td>

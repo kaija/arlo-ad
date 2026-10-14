@@ -1,6 +1,7 @@
 // Draft editor form ↔ CampaignDraft (Requirements 15.4, 18.5). Lists are one item per line;
 // keywords as "text | MATCH" (MATCH defaults to PHRASE).
 import { CampaignDraftSchema, MATCH_TYPES, type CampaignDraft } from '@arlo/core';
+import { msg, type Msg } from './msg';
 
 const lines = (s: string) => s.split('\n').map((l) => l.trim()).filter(Boolean);
 
@@ -15,7 +16,7 @@ function keywordsFrom(text: string) {
 export const keywordsToText = (ks: readonly { text: string; matchType: string }[]) => ks.map((k) => `${k.text} | ${k.matchType}`).join('\n');
 
 /** Parses the editor form; ad groups ticked for removal are dropped. */
-export function draftFromForm(form: FormData): { ok: true; draft: CampaignDraft } | { ok: false; error: string } {
+export function draftFromForm(form: FormData): { ok: true; draft: CampaignDraft } | { ok: false; error: Msg } {
   const g = (k: string) => String(form.get(k) ?? '');
   const groups = [];
   const groupCount = Number(g('g_count')) || 0;
@@ -45,8 +46,8 @@ export function draftFromForm(form: FormData): { ok: true; draft: CampaignDraft 
   if (!parsed.success) {
     const issue = parsed.error.issues[0]!;
     const where = issue.path.join('.');
-    const hint = /headlines/.test(where) ? '標題需 3–15 個' : /descriptions/.test(where) ? '說明需 2–4 個' : /keywords/.test(where) ? '每個廣告群組至少一個關鍵字' : /adGroups/.test(where) ? '至少保留一個廣告群組' : '欄位不正確';
-    return { ok: false, error: `${hint}（${where}）` };
+    const key = /headlines/.test(where) ? 'draftHeadlines' : /descriptions/.test(where) ? 'draftDescriptions' : /keywords/.test(where) ? 'draftKeywords' : /adGroups/.test(where) ? 'draftAdGroups' : 'draftInvalidField';
+    return { ok: false, error: msg(key, { where }) };
   }
   return { ok: true, draft: parsed.data };
 }

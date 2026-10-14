@@ -1,5 +1,6 @@
 import { authorize } from '@arlo/core';
 import { getRule, toRuleInstance } from '@arlo/db';
+import { getTranslations } from 'next-intl/server';
 import { notFound, redirect } from 'next/navigation';
 import { RuleForm } from '../../../../../components/rule-form';
 import { PageHeader } from '../../../../../components/ui';
@@ -19,9 +20,10 @@ export default async function EditRulePage({ params }: { params: Promise<{ id: s
   const row = /^[0-9a-f-]{36}$/i.test(id) ? await getRule(db, id) : undefined;
   if (!row) notFound();
   const rule = toRuleInstance(row);
+  const t = await getTranslations('rules');
   return (
     <>
-      <PageHeader back={{ href: '/settings/rules', label: 'Validator 規則' }} title="編輯規則" />
+      <PageHeader back={{ href: '/settings/rules', label: t('title') }} title={t('edit')} />
       <RuleForm
         action={saveRuleAction.bind(null, row.id)}
         initial={ruleToFormValues({ scopeKind: row.scopeKind, accountId: row.accountId, campaignEntityId: row.campaignEntityId, spec: rule.spec, severity: row.severity, enabled: row.enabled })}

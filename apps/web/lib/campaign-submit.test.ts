@@ -40,7 +40,7 @@ describe('submitting drafts and enabling campaigns', () => {
   it('submits a clean draft once as a paused bundle ChangeSet, then enables it after execution', async () => {
     const task = await draftTask(draft);
     const result = await submitDraft(t.db, boss, task, userId);
-    if (!result.ok) throw new Error(result.error);
+    if (!result.ok) throw new Error(JSON.stringify(result.error));
     const cs = await getChangeSet(t.db, result.changesetId);
     expect(cs!.ops).toEqual([expect.objectContaining({ kind: 'google.create_campaign_bundle', target: expect.objectContaining({ kind: 'account', id: '1234567890' }), after: expect.objectContaining({ status: 'PAUSED', geoTargetIds: [2158] }), meta: expect.objectContaining({ minTier: 2 }) })]);
     expect((await getCampaignTask(t.db, task.id))?.status).toBe('submitted');
@@ -48,7 +48,7 @@ describe('submitting drafts and enabling campaigns', () => {
     expect(await submitDraft(t.db, boss, task, userId)).toMatchObject({ ok: false });
 
     const submitted = (await getCampaignTask(t.db, task.id))!;
-    expect(await enableCampaign(t.db, boss, submitted, userId)).toEqual({ ok: false, error: 'campaign 尚未建立完成' });
+    expect(await enableCampaign(t.db, boss, submitted, userId)).toEqual({ ok: false, error: 'campaignNotCreated' });
     // Executor's work, simulated: approved and executed, campaign 9001 created.
     let cur = cs!;
     for (const event of [{ type: 'request_approval', tier: 2, expiresAt: new Date(Date.now() + 3_600_000) }, { type: 'approve', by: userId }, { type: 'execute' }, { type: 'executed', at: new Date() }] as const) {
@@ -60,9 +60,9 @@ describe('submitting drafts and enabling campaigns', () => {
     expect(await createdCampaign(t.db, submitted)).toMatchObject({ changesetStatus: 'EXECUTED', campaignExternalId: '9001', enableChangesetId: null });
 
     const enabled = await enableCampaign(t.db, boss, submitted, userId);
-    if (!enabled.ok) throw new Error(enabled.error);
+    if (!enabled.ok) throw new Error(JSON.stringify(enabled.error));
     expect((await getChangeSet(t.db, enabled.changesetId))!.ops).toEqual([expect.objectContaining({ kind: 'set_status', target: expect.objectContaining({ id: '9001' }), before: 'PAUSED', after: 'ENABLED' })]);
-    expect(await enableCampaign(t.db, boss, submitted, userId)).toEqual({ ok: false, error: '已經有啟用的變更' });
+    expect(await enableCampaign(t.db, boss, submitted, userId)).toEqual({ ok: false, error: 'enableAlreadyPending' });
   });
 
   it('refuses drafts with lint errors or unknown targets', async () => {

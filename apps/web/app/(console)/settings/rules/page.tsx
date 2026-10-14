@@ -1,9 +1,10 @@
 import { authorize } from '@arlo/core';
 import { listAllRules, listCampaigns, resolveAccounts, toRuleInstance } from '@arlo/db';
+import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { ConfirmAction } from '../../../../components/client';
 import { Alert, Badge, DataTable, LinkButton, PageHeader } from '../../../../components/ui';
-import { describeRule, RULE_TYPE_LABEL } from '../../../../lib/rules';
+import { describeRule } from '../../../../lib/rules';
 import { getDb } from '../../../../lib/server';
 import { requireUser } from '../../../../lib/session';
 import { deleteRuleAction } from './actions';
@@ -20,31 +21,33 @@ export default async function RulesPage({ searchParams }: { searchParams: Promis
   const account = new Map(accounts.map((a) => [a.id, a]));
   const campaign = new Map(campaigns.map((c) => [c.campaignId, c.name ?? c.externalId]));
   const { saved } = await searchParams;
+  const t = await getTranslations('rules');
+  const ts = await getTranslations('settings');
 
   return (
     <>
       <PageHeader
-        back={{ href: '/settings', label: '設定' }}
-        title="Validator 規則"
-        subtitle="每筆變更單送審前都會檢查這些規則。「阻擋」規則未通過時任何人都不能核准；「警告」會把變更單升為需審核。"
-        actions={isAdmin ? <LinkButton variant="primary" href="/settings/rules/new">新增規則</LinkButton> : null}
+        back={{ href: '/settings', label: ts('title') }}
+        title={t('title')}
+        subtitle={t('subtitle')}
+        actions={isAdmin ? <LinkButton variant="primary" href="/settings/rules/new">{t('new')}</LinkButton> : null}
       />
-      {isAdmin ? null : <Alert title="唯讀">所有設定只有 Admin 能修改，你目前可以檢視。</Alert>}
-      {saved ? <Alert tone="success" title="已儲存" /> : null}
+      {isAdmin ? null : <Alert title={ts('readOnlyTitle')}>{ts('readOnlyBody')}</Alert>}
+      {saved ? <Alert tone="success" title={t('saved')} /> : null}
       {rows.length === 0 ? (
         <div className="card flex flex-col items-center gap-2 px-7 py-14 text-center">
-          <h2 className="section-title">還沒有規則</h2>
-          <p className="text-sm text-muted">沒有規則時，所有變更只依 Tier 門檻分級。</p>
+          <h2 className="section-title">{t('emptyTitle')}</h2>
+          <p className="text-sm text-muted">{t('emptyBody')}</p>
         </div>
       ) : (
         <DataTable minWidth={960}>
           <thead>
             <tr>
-              <th>規則類型</th>
-              <th>條件</th>
-              <th>範圍</th>
-              <th>嚴重度</th>
-              <th>啟用</th>
+              <th>{t('col.type')}</th>
+              <th>{t('col.condition')}</th>
+              <th>{t('col.scope')}</th>
+              <th>{t('col.severity')}</th>
+              <th>{t('col.enabled')}</th>
               {isAdmin ? <th className="w-12" /> : null}
             </tr>
           </thead>
@@ -52,9 +55,10 @@ export default async function RulesPage({ searchParams }: { searchParams: Promis
             {rows.map((row) => {
               const rule = toRuleInstance(row);
               const acc = row.accountId ? account.get(row.accountId) : undefined;
-              const scope = row.scopeKind === 'org' ? '全組織' : row.scopeKind === 'account' ? (acc?.name ?? '帳戶') : `${acc?.name ?? ''} / ${campaign.get(row.campaignEntityId ?? '') ?? 'campaign'}`;
-              const label = RULE_TYPE_LABEL[rule.spec.type];
-              const condition = describeRule(rule.spec, acc?.currency);
+              const scope = row.scopeKind === 'org' ? t('scope.org') : row.scopeKind === 'account' ? (acc?.name ?? t('scope.account')) : `${acc?.name ?? ''} / ${campaign.get(row.campaignEntityId ?? '') ?? t('scope.campaign')}`;
+              const label = t(`type.${rule.spec.type}`);
+              const d = describeRule(rule.spec, acc?.currency);
+              const condition = t(`describe.${d.key}`, d.values);
               return (
                 <tr key={row.id} className={row.enabled ? undefined : 'opacity-55'}>
                   <td className="font-medium whitespace-nowrap">
@@ -69,15 +73,15 @@ export default async function RulesPage({ searchParams }: { searchParams: Promis
                   <td className="text-muted">{condition}</td>
                   <td className="whitespace-nowrap">{scope}</td>
                   <td>
-                    <Badge tone={row.severity === 'HARD_BLOCK' ? 'bad' : 'warn'}>{row.severity === 'HARD_BLOCK' ? '阻擋' : '警告'}</Badge>
+                    <Badge tone={row.severity === 'HARD_BLOCK' ? 'bad' : 'warn'}>{row.severity === 'HARD_BLOCK' ? t('block') : t('warn')}</Badge>
                   </td>
                   <td>
-                    <Badge tone={row.enabled ? 'ok' : 'neutral'}>{row.enabled ? '啟用' : '停用'}</Badge>
+                    <Badge tone={row.enabled ? 'ok' : 'neutral'}>{row.enabled ? t('enabled') : t('disabled')}</Badge>
                   </td>
                   {isAdmin ? (
                     <td>
-                      <ConfirmAction action={deleteRuleAction.bind(null, row.id)} icon="trash" label="刪除規則" title="刪除這條規則？">
-                        {label}：{condition}（{scope}）。刪除後立即生效，無法復原。
+                      <ConfirmAction action={deleteRuleAction.bind(null, row.id)} icon="trash" label={t('deleteLabel')} title={t('deleteTitle')}>
+                        {t('deleteBody', { label, condition, scope })}
                       </ConfirmAction>
                     </td>
                   ) : null}

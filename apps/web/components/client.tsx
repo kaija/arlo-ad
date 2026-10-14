@@ -1,6 +1,7 @@
 'use client';
 
 // Small interactive pieces shared by console pages.
+import { useTranslations } from 'next-intl';
 import { useState, type ComponentProps, type ReactNode } from 'react';
 import { Icon, type IconName } from './icons';
 import { Button } from './ui';
@@ -26,7 +27,7 @@ export function ConfirmAction({
   label,
   icon,
   title,
-  confirmLabel = '確認刪除',
+  confirmLabel,
   children,
 }: {
   action: () => Promise<void>;
@@ -38,6 +39,7 @@ export function ConfirmAction({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const t = useTranslations('common');
   return (
     <>
       {icon ? (
@@ -58,9 +60,9 @@ export function ConfirmAction({
             <div className="dialog-body">{children}</div>
             <form action={action} className="dialog-actions">
               <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-                取消
+                {t('cancel')}
               </Button>
-              <Button variant="primary">{confirmLabel}</Button>
+              <Button variant="primary">{confirmLabel ?? t('confirmDelete')}</Button>
             </form>
           </div>
         </div>

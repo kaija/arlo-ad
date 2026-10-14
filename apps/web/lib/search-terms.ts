@@ -6,16 +6,9 @@ import { getBusinessProfile, getSearchTermLabels, listChangeSets, searchTermStat
 export const LABEL_FILTERS = ['all', 'irrelevant', 'relevant', 'unlabelled', 'negated'] as const;
 export type LabelFilter = (typeof LABEL_FILTERS)[number];
 
-export const INTENT_LABEL: Record<string, string> = {
-  purchase: '購買',
-  research: '研究比較',
-  support: '客服支援',
-  navigational: '導覽',
-  competitor: '競品',
-  jobs: '求職',
-  free_or_diy: '免費 / DIY',
-  unrelated: '無關',
-};
+/** Classifier intents with a translated label (`searchTerms.intent.*`); others show their raw value. */
+export const INTENTS = ['purchase', 'research', 'support', 'navigational', 'competitor', 'jobs', 'free_or_diy', 'unrelated'] as const;
+export const isIntent = (v: string): v is (typeof INTENTS)[number] => (INTENTS as readonly string[]).includes(v);
 
 export interface TermFilter {
   days: 7 | 30 | 90;

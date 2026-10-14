@@ -108,7 +108,7 @@ describe('review queue data', () => {
     });
     expect(d!.audit.map((a) => [a.action, a.actor])).toEqual([
       ['create', 'Arlo'],
-      ['request_approval', '系統'],
+      ['request_approval', null],
       ['approve', 'Bob'],
       ['execute', 'Bob'],
       ['executed', 'Bob'],

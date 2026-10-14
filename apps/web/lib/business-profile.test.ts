@@ -36,7 +36,7 @@ describe('profile form', () => {
   it('reports bad example lines and policies', () => {
     expect(parseProfileForm({ ...values, examples: 'ok | 相關\nbroken line', competitorPolicy: 'bid' })).toEqual({
       ok: false,
-      errors: { examples: expect.stringContaining('第 2 行'), competitorPolicy: expect.any(String) },
+      errors: { examples: { key: 'exampleLineFormat', values: { line: 2 } }, competitorPolicy: 'chooseCompetitorPolicy' },
     });
   });
 });

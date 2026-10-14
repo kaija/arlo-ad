@@ -1,44 +1,31 @@
 // Validator rules and tier thresholds settings (ADR-0008, ADR-0007, Requirements 5.1, 5.2, 18.4).
 // Rule types are fixed in code; admins set parameters, scope and severity. Forms take money in
 // account currency units and percentages, stored as micros and ratios.
+// Labels, hints and descriptions are `rules.*` message keys; the UI translates them.
 import { RuleSpecSchema, RULE_TYPES, type RuleSpec, type RuleType, type Severity, type TierThresholds } from '@arlo/core';
-
-export const RULE_TYPE_LABEL: Record<RuleType, string> = {
-  DailyBudgetCap: '每日預算上限',
-  MonthlySpendCap: '月花費上限',
-  MaxChangePct: '時間窗內最大變動幅度',
-  BidTargetRange: '出價目標範圍',
-  MaxMutationsPerDay: '每日變更次數上限',
-};
-
-export const RULE_TYPE_HINT: Record<RuleType, string> = {
-  DailyBudgetCap: '每個 campaign 的每日預算不可超過；降低預算不受限。',
-  MonthlySpendCap: '本月已花費 + 剩餘天數 × 新每日預算 不可超過（Requirement 5.5）。',
-  MaxChangePct: '同一預算或出價目標在時間窗內的累計變動不可超過。',
-  BidTargetRange: '目標 CPA（金額）或目標 ROAS（%）必須落在範圍內。',
-  MaxMutationsPerDay: '帳戶（或 campaign）每日執行的變更數上限。',
-};
+import type { Msg } from './msg';
 
 export type FieldKind = 'money' | 'percent' | 'int' | 'metric';
 export interface RuleField {
   name: string;
-  label: string;
+  /** `rules.field.*` message key. */
+  label: 'dailyMax' | 'monthlyMax' | 'pct' | 'windowHours' | 'metric' | 'bidMin' | 'bidMax' | 'count';
   kind: FieldKind;
 }
 
 export const RULE_FIELDS: Record<RuleType, RuleField[]> = {
-  DailyBudgetCap: [{ name: 'max', label: '上限（帳戶幣別）', kind: 'money' }],
-  MonthlySpendCap: [{ name: 'max', label: '月上限（帳戶幣別）', kind: 'money' }],
+  DailyBudgetCap: [{ name: 'max', label: 'dailyMax', kind: 'money' }],
+  MonthlySpendCap: [{ name: 'max', label: 'monthlyMax', kind: 'money' }],
   MaxChangePct: [
-    { name: 'pct', label: '最大變動（%）', kind: 'percent' },
-    { name: 'windowHours', label: '時間窗（小時）', kind: 'int' },
+    { name: 'pct', label: 'pct', kind: 'percent' },
+    { name: 'windowHours', label: 'windowHours', kind: 'int' },
   ],
   BidTargetRange: [
-    { name: 'metric', label: '指標', kind: 'metric' },
-    { name: 'min', label: '下限（tCPA 金額 / tROAS %）', kind: 'money' },
-    { name: 'max', label: '上限（tCPA 金額 / tROAS %）', kind: 'money' },
+    { name: 'metric', label: 'metric', kind: 'metric' },
+    { name: 'min', label: 'bidMin', kind: 'money' },
+    { name: 'max', label: 'bidMax', kind: 'money' },
   ],
-  MaxMutationsPerDay: [{ name: 'n', label: '次數', kind: 'int' }],
+  MaxMutationsPerDay: [{ name: 'n', label: 'count', kind: 'int' }],
 };
 
 export type ScopeKind = 'org' | 'account' | 'campaign';
@@ -63,7 +50,7 @@ export interface RuleInput {
   enabled: boolean;
 }
 
-export type RuleFormErrors = Partial<Record<string, string>>;
+export type RuleFormErrors = Partial<Record<string, Msg>>;
 
 const num = (s: string | undefined) => (s === undefined || s.trim() === '' ? NaN : Number(s.replace(/,/g, '')));
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -86,10 +73,10 @@ export function ruleFormValues(form: FormData): RuleFormValues {
 /** Form values → rule input, or errors keyed by field (`f_<name>` for spec fields). */
 export function parseRuleForm(v: RuleFormValues): { ok: true; value: RuleInput } | { ok: false; errors: RuleFormErrors } {
   const errors: RuleFormErrors = {};
-  if (!(RULE_TYPES as readonly string[]).includes(v.type)) return { ok: false, errors: { type: '請選擇規則類型' } };
-  if (!['org', 'account', 'campaign'].includes(v.scopeKind)) errors.scopeKind = '範圍不正確';
-  if (v.scopeKind !== 'org' && !UUID.test(v.accountId)) errors.accountId = '請選擇帳戶';
-  if (v.scopeKind === 'campaign' && !UUID.test(v.campaignEntityId)) errors.campaignEntityId = '請選擇 campaign';
+  if (!(RULE_TYPES as readonly string[]).includes(v.type)) return { ok: false, errors: { type: 'chooseRuleType' } };
+  if (!['org', 'account', 'campaign'].includes(v.scopeKind)) errors.scopeKind = 'invalidScope';
+  if (v.scopeKind !== 'org' && !UUID.test(v.accountId)) errors.accountId = 'chooseAccount';
+  if (v.scopeKind === 'campaign' && !UUID.test(v.campaignEntityId)) errors.campaignEntityId = 'chooseCampaign';
 
   const f = v.fields;
   const money = (name: string) => Math.round(num(f[name]) * 1_000_000);
@@ -118,7 +105,7 @@ export function parseRuleForm(v: RuleFormValues): { ok: true; value: RuleInput }
     for (const issue of parsed.error.issues) {
       const key = String(issue.path[0] ?? '');
       const field = { maxMicros: 'max', pct: 'pct', windowHours: 'windowHours', min: 'min', max: 'max', n: 'n', metric: 'metric' }[key] ?? (key === '' ? 'min' : key);
-      errors[`f_${field}`] ??= issue.message.includes('min must not exceed max') ? '下限不可大於上限' : '數值不正確';
+      errors[`f_${field}`] ??= issue.message.includes('min must not exceed max') ? 'minExceedsMax' : 'invalidValue';
     }
   }
   if (Object.keys(errors).length || !parsed.success) return { ok: false, errors };
@@ -161,19 +148,27 @@ export function ruleToFormValues(rule: RuleInput): RuleFormValues {
 
 const fmt = (micros: number, currency?: string) => `${currency ? `${currency} ` : ''}${(micros / 1_000_000).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
 
-/** One-line description, e.g. "每日預算上限 TWD 8,000". */
-export function describeRule(spec: RuleSpec, currency?: string): string {
+export type RuleDescription =
+  | { key: 'DailyBudgetCap' | 'MonthlySpendCap'; values: { amount: string } }
+  | { key: 'MaxChangePct'; values: { hours: number; pct: number } }
+  | { key: 'BidTargetRangeTcpa'; values: { min: string; max: string } }
+  | { key: 'BidTargetRangeTroas'; values: { min: number; max: number } }
+  | { key: 'MaxMutationsPerDay'; values: { n: number } };
+
+/** One-line description as a `rules.describe.*` key and values, e.g. "Daily budget ≤ TWD 8,000". */
+export function describeRule(spec: RuleSpec, currency?: string): RuleDescription {
   switch (spec.type) {
     case 'DailyBudgetCap':
-      return `每日預算 ≤ ${fmt(spec.maxMicros, currency)}`;
     case 'MonthlySpendCap':
-      return `預估月花費 ≤ ${fmt(spec.maxMicros, currency)}`;
+      return { key: spec.type, values: { amount: fmt(spec.maxMicros, currency) } };
     case 'MaxChangePct':
-      return `${spec.windowHours} 小時內變動 ≤ ${Math.round(spec.pct * 1000) / 10}%`;
+      return { key: 'MaxChangePct', values: { hours: spec.windowHours, pct: Math.round(spec.pct * 1000) / 10 } };
     case 'BidTargetRange':
-      return spec.metric === 'tcpa' ? `目標 CPA ${fmt(spec.min, currency)}–${fmt(spec.max, currency)}` : `目標 ROAS ${spec.min * 100}%–${spec.max * 100}%`;
+      return spec.metric === 'tcpa'
+        ? { key: 'BidTargetRangeTcpa', values: { min: fmt(spec.min, currency), max: fmt(spec.max, currency) } }
+        : { key: 'BidTargetRangeTroas', values: { min: spec.min * 100, max: spec.max * 100 } };
     case 'MaxMutationsPerDay':
-      return `每日變更 ≤ ${spec.n} 次`;
+      return { key: 'MaxMutationsPerDay', values: { n: spec.n } };
   }
 }
 
@@ -193,14 +188,14 @@ export function thresholdsToForm(t: TierThresholds): ThresholdFormValues {
   };
 }
 
-export function parseThresholdForm(v: ThresholdFormValues): { ok: true; value: TierThresholds } | { ok: false; errors: Partial<Record<keyof ThresholdFormValues, string>> } {
-  const errors: Partial<Record<keyof ThresholdFormValues, string>> = {};
+export function parseThresholdForm(v: ThresholdFormValues): { ok: true; value: TierThresholds } | { ok: false; errors: Partial<Record<keyof ThresholdFormValues, Msg>> } {
+  const errors: Partial<Record<keyof ThresholdFormValues, Msg>> = {};
   const tier3Pct = num(v.tier3Pct) / 100;
   const tier1 = num(v.tier1MaxReducePct) / 100;
   const amount = v.tier3Amount.trim() === '' ? null : Math.round(num(v.tier3Amount) * 1_000_000);
-  if (!(tier3Pct > 0 && tier3Pct <= 10)) errors.tier3Pct = '需介於 0–1000%';
-  if (!(tier1 >= 0 && tier1 <= 1)) errors.tier1MaxReducePct = '需介於 0–100%';
-  if (amount !== null && !(amount > 0)) errors.tier3Amount = '需為正數，或留空停用';
+  if (!(tier3Pct > 0 && tier3Pct <= 10)) errors.tier3Pct = 'between0And1000Pct';
+  if (!(tier1 >= 0 && tier1 <= 1)) errors.tier1MaxReducePct = 'between0And100Pct';
+  if (amount !== null && !(amount > 0)) errors.tier3Amount = 'positiveOrEmpty';
   if (Object.keys(errors).length) return { ok: false, errors };
   return { ok: true, value: { tier3Pct, tier3AmountMicros: amount, tier1MaxReducePct: tier1 } };
 }

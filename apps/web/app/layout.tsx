@@ -1,3 +1,5 @@
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale } from 'next-intl/server';
 import type { ReactNode } from 'react';
 import localFont from 'next/font/local';
 import './globals.css';
@@ -12,10 +14,12 @@ export const metadata = {
   title: 'Arlo Ads Bot · Console',
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="zh-Hant" className={`${inter.variable} ${firaCode.variable}`}>
-      <body>{children}</body>
+    <html lang={await getLocale()} className={`${inter.variable} ${firaCode.variable}`}>
+      <body>
+        <NextIntlClientProvider>{children}</NextIntlClientProvider>
+      </body>
     </html>
   );
 }

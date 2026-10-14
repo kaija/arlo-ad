@@ -5,8 +5,11 @@ packages:
 
 # Install scripts are denied unless a package needs one to work.
 # esbuild ships its binary via optional platform packages; ssh2/cpu-features
-# (testcontainers) fall back to pure JS; protobufjs only runs a version check.
+# (testcontainers) fall back to pure JS; protobufjs only runs a version check;
+# @parcel/watcher and @swc/core only serve next-intl's unused message extractor.
 allowBuilds:
+  '@parcel/watcher': false
+  '@swc/core': false
   cpu-features: false
   esbuild: false
   protobufjs: false

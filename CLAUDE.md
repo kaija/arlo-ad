@@ -55,6 +55,8 @@ pnpm eval --sample 3          # agent eval（evals/cases/*.json；需 OPENAI_API
 
 - Web UI 一律用 Arlo AI design system（來源：Claude Design 專案「Arlo Ads Console」）：tokens 是 `apps/web/app/globals.css` 的 `@theme` 變數（`text-muted`、`bg-accent-light`、`rounded-md`…），元件 class（`.btn`、`.card`、`.badge`、`.table`…）在同檔的 `@layer components`，React primitives 在 `apps/web/components/ui.tsx`（`PageHeader`、`Card`、`DataTable`、`Badge`、`Input`、`Select`、`Alert`…）、圖示在 `components/icons.tsx`、互動小元件在 `components/client.tsx`。只有 light theme；不用 emoji；新頁面不要再寫 `zinc-*` 等 Tailwind 預設色。表單維持「client 元件收集輸入 → 以原本的欄位名稱 post 給 server action」，不要為了 UI 改 server action 的欄位格式。
 
+- 多語系（next-intl，無 URL 前綴）：語言存在 `NEXT_LOCALE` cookie，預設 `en`，支援 `en` / `zh-TW` / `ja`（`apps/web/i18n/locales.ts`）。UI 文字一律放在 `apps/web/messages/{en,zh-TW,ja}.json`，server component 用 `getTranslations`、client 與同步 server component 用 `useTranslations`；key 由 `messages/en.json` 型別檢查，`i18n/messages.test.ts` 檢查三個語系 key 與參數一致（新增文字時三個檔案都要加）。`lib/` 不產生顯示文字：錯誤回傳 `errors` 命名空間的 key（`Msg`，`lib/msg.ts`），由 server action 以 `translateMsg` / `translateErrors`（`lib/i18n-server.ts`）翻譯；標籤用 key 讓頁面翻譯。存進 DB 的內容（變更單摘要、`@arlo/core` 產生的理由與檢查訊息、LLM 輸出）不翻譯。
+
 - 環境變數一律經 `@arlo/config` 的 `parseEnv(EnvSchema.pick({...}))` 讀取，不直接讀 `process.env`。每個 process 只 pick 自己用到的 key，功能落地時再擴充 pick（`apps/worker/src/index.ts` 的 `WorkerEnv`、`apps/web/lib/server.ts` 的 `WebEnv`）。新增變數時同時改 `EnvSchema` 與 `.env.example`（`env.test.ts` 會檢查兩者一致）；錯誤訊息只列 key，不可帶出值。
 - 寫入廣告帳戶前必須呼叫 `assertWriteAllowed(env.ADS_WRITE_ALLOWED_CUSTOMER_IDS, customerId)`（ADR-0026）；空白清單代表不允許任何寫入。
 

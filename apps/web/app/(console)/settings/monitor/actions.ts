@@ -3,12 +3,13 @@
 import { deleteMonitorRule, saveMonitorRule } from '@arlo/db';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { monitorFormValues, parseMonitorForm, type MonitorFormErrors, type MonitorFormValues } from '../../../../lib/monitor-rules';
+import { translateErrors } from '../../../../lib/i18n-server';
+import { monitorFormValues, parseMonitorForm, type MonitorFormValues } from '../../../../lib/monitor-rules';
 import { getDb } from '../../../../lib/server';
 import { requireAuthorized } from '../../../../lib/session';
 
 export interface MonitorFormState {
-  errors?: MonitorFormErrors;
+  errors?: Partial<Record<string, string>>;
   values?: MonitorFormValues;
 }
 
@@ -17,7 +18,7 @@ export async function saveMonitorAction(id: string | null, _prev: MonitorFormSta
   const user = await requireAuthorized('admin');
   const values = monitorFormValues(form);
   const parsed = parseMonitorForm(values);
-  if (!parsed.ok) return { errors: parsed.errors, values };
+  if (!parsed.ok) return { errors: await translateErrors(parsed.errors), values };
   await saveMonitorRule(getDb(), { ...parsed.value, ...(id ? { id } : {}) }, { kind: 'user', id: user.id });
   revalidatePath('/settings/monitor');
   redirect('/settings/monitor?saved=1');

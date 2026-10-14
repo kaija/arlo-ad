@@ -36,17 +36,17 @@ describe('schedule form', () => {
   });
 
   it.each([
-    [{ cron: 'every morning' }, 'cron', '無效的 cron'],
-    [{ tz: 'Mars/Base' }, 'tz', '無效的時區'],
-    [{ name: '  ' }, 'name', '請輸入名稱'],
-    [{ channelId: '#ads' }, 'channelId', 'channel ID'],
-    [{ template: 'custom_prompt' }, 'extraInstructions', '需要指示內容'],
-    [{ template: 'rm -rf' }, 'template', ''],
-    [{ accountIds: ['not-a-uuid'] }, 'accountIds', ''],
+    [{ cron: 'every morning' }, 'cron', { key: 'invalidCron', values: { detail: expect.any(String) } }],
+    [{ tz: 'Mars/Base' }, 'tz', 'invalidTimezone'],
+    [{ name: '  ' }, 'name', 'enterName'],
+    [{ channelId: '#ads' }, 'channelId', 'chooseChannel'],
+    [{ template: 'custom_prompt' }, 'extraInstructions', 'customPromptNeedsInstructions'],
+    [{ template: 'rm -rf' }, 'template', 'invalidValue'],
+    [{ accountIds: ['not-a-uuid'] }, 'accountIds', 'invalidValue'],
   ])('rejects %j', (overrides, field, message) => {
     const result = parseScheduleForm(form(overrides));
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errors[field as keyof typeof result.errors]).toContain(message);
+    if (!result.ok) expect(result.errors[field as keyof typeof result.errors]).toEqual(message);
   });
 });
 

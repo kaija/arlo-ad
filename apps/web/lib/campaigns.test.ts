@@ -33,7 +33,7 @@ describe('parseBriefForm', () => {
   it('reports errors per field', () => {
     expect(parseBriefForm(values({ accountId: 'x', landingPageUrl: 'http://insecure', dailyBudget: '-1', locations: ' ' }), [ACC])).toEqual({
       ok: false,
-      errors: { accountId: expect.any(String), landingPageUrl: expect.stringContaining('https'), dailyBudget: expect.any(String), locations: '至少一項' },
+      errors: { accountId: 'chooseProposableAccount', landingPageUrl: 'httpsUrl', dailyBudget: 'positiveAmount', locations: 'atLeastOne' },
     });
   });
 });

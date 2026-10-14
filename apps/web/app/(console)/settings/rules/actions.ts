@@ -3,12 +3,13 @@
 import { deleteRule, saveRule } from '@arlo/db';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { parseRuleForm, ruleFormValues, type RuleFormErrors, type RuleFormValues } from '../../../../lib/rules';
+import { translateErrors } from '../../../../lib/i18n-server';
+import { parseRuleForm, ruleFormValues, type RuleFormValues } from '../../../../lib/rules';
 import { getDb } from '../../../../lib/server';
 import { requireAuthorized } from '../../../../lib/session';
 
 export interface RuleFormState {
-  errors?: RuleFormErrors;
+  errors?: Partial<Record<string, string>>;
   values?: RuleFormValues;
 }
 
@@ -17,7 +18,7 @@ export async function saveRuleAction(id: string | null, _prev: RuleFormState, fo
   const user = await requireAuthorized('admin');
   const values = ruleFormValues(form);
   const parsed = parseRuleForm(values);
-  if (!parsed.ok) return { errors: parsed.errors, values };
+  if (!parsed.ok) return { errors: await translateErrors(parsed.errors), values };
   await saveRule(getDb(), { ...parsed.value, ...(id ? { id } : {}) }, { kind: 'user', id: user.id });
   revalidatePath('/settings/rules');
   redirect('/settings/rules?saved=1');

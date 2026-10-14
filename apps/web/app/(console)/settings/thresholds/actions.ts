@@ -2,6 +2,7 @@
 
 import { clearTierThresholds, setTierThresholds } from '@arlo/db';
 import { revalidatePath } from 'next/cache';
+import { translateErrors } from '../../../../lib/i18n-server';
 import { parseThresholdForm, type ThresholdFormValues } from '../../../../lib/rules';
 import { getDb } from '../../../../lib/server';
 import { requireAuthorized } from '../../../../lib/session';
@@ -21,7 +22,7 @@ export async function saveThresholdsAction(accountId: string | null, _prev: Thre
     tier1MaxReducePct: String(form.get('tier1MaxReducePct') ?? ''),
   };
   const parsed = parseThresholdForm(values);
-  if (!parsed.ok) return { errors: parsed.errors, values };
+  if (!parsed.ok) return { errors: await translateErrors(parsed.errors), values };
   await setTierThresholds(getDb(), accountId, parsed.value, { kind: 'user', id: user.id });
   revalidatePath('/settings/thresholds');
   return { values, saved: true };

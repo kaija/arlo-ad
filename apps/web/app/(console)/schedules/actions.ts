@@ -5,13 +5,14 @@ import { enqueue, Jobs } from '@arlo/queue';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getBoss } from '../../../lib/queue';
+import { translateErrors } from '../../../lib/i18n-server';
 import { parseScheduleForm, saveSchedule, setScheduleEnabled, triggerSchedule, type FieldErrors } from '../../../lib/schedules';
 import { getDb } from '../../../lib/server';
 import { requireAuthorized } from '../../../lib/session';
 import type { ScheduleFormValues } from '../../../components/schedule-form';
 
 export interface ScheduleFormState {
-  errors?: FieldErrors;
+  errors?: Partial<Record<keyof FieldErrors, string>>;
   /** What was submitted, so the form keeps it after React resets fields on a failed action. */
   values?: ScheduleFormValues;
 }
@@ -33,7 +34,7 @@ function submitted(form: FormData): ScheduleFormValues {
 export async function saveScheduleAction(id: string | null, _prev: ScheduleFormState, form: FormData): Promise<ScheduleFormState> {
   const user = await requireAuthorized('admin');
   const parsed = parseScheduleForm(form);
-  if (!parsed.ok) return { errors: parsed.errors, values: submitted(form) };
+  if (!parsed.ok) return { errors: await translateErrors(parsed.errors), values: submitted(form) };
   const row = await saveSchedule(getDb(), await getBoss(), { id: id ?? undefined, value: parsed.value, userId: user.id });
   revalidatePath('/schedules');
   redirect(`/schedules/${row.id}?saved=1`);

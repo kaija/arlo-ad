@@ -1,39 +1,31 @@
 // Monitor rule settings (ADR-0017, Requirement 18.4). Percentages in the form, ratios stored.
+// Labels, hints and descriptions are `monitor.*` message keys; the UI translates them.
 import { MonitorActionSchema, MonitorRuleSpecSchema, MONITOR_RULE_TYPES, type MonitorAction, type MonitorRuleSpec, type MonitorRuleType } from '@arlo/core';
+import type { Msg } from './msg';
 
-export const MONITOR_TYPE_LABEL: Record<MonitorRuleType, string> = {
-  SpendPacing: '當日花費超速',
-  SpendNearCap: '月花費接近上限',
-  CpaSpike: 'CPA 暴增',
-  RoasDrop: 'ROAS 暴跌',
-};
+type FieldKey = 'pacingPct' | 'minSpend' | 'capPct' | 'hours' | 'multiplier' | 'minConv' | 'ratio';
+type HintKey = 'pacingPctHint' | 'minSpendHint' | 'capPctHint' | 'multiplierHint' | 'ratioHint';
 
-export const MONITOR_TYPE_HINT: Record<MonitorRuleType, string> = {
-  SpendPacing: '今日花費 ÷（每日預算 × 已過時間比例）超過門檻時觸發。',
-  SpendNearCap: '本月花費達 MonthlySpendCap 的比例時觸發（需先設定月花費上限規則）。',
-  CpaSpike: 'N 小時內 CPA 超過目標 CPA 的 K 倍、且轉換數 ≥ M 時觸發。',
-  RoasDrop: 'N 小時內 ROAS 低於目標 ROAS 的比例、且轉換數 ≥ M 時觸發。',
-};
-
-export const MONITOR_FIELDS: Record<MonitorRuleType, { name: string; label: string; hint?: string }[]> = {
+/** Inputs per rule type; `label` and `hint` are `monitor.field.*` keys. */
+export const MONITOR_FIELDS: Record<MonitorRuleType, { name: string; label: FieldKey; hint?: HintKey }[]> = {
   SpendPacing: [
-    { name: 'pct', label: '超速門檻（%）', hint: '例如 150 = 花費速度為預期的 1.5 倍' },
-    { name: 'minSpend', label: '最低花費（帳戶幣別）', hint: '避免清晨少量花費誤觸發' },
+    { name: 'pct', label: 'pacingPct', hint: 'pacingPctHint' },
+    { name: 'minSpend', label: 'minSpend', hint: 'minSpendHint' },
   ],
-  SpendNearCap: [{ name: 'pct', label: '達上限比例（%）', hint: '例如 90' }],
+  SpendNearCap: [{ name: 'pct', label: 'capPct', hint: 'capPctHint' }],
   CpaSpike: [
-    { name: 'hours', label: '時間窗（小時）' },
-    { name: 'multiplier', label: '倍數 K', hint: '例如 2 = 目標的 2 倍' },
-    { name: 'minConv', label: '最少轉換數 M' },
+    { name: 'hours', label: 'hours' },
+    { name: 'multiplier', label: 'multiplier', hint: 'multiplierHint' },
+    { name: 'minConv', label: 'minConv' },
   ],
   RoasDrop: [
-    { name: 'hours', label: '時間窗（小時）' },
-    { name: 'ratio', label: '低於目標的比例（%）', hint: '例如 50 = ROAS 低於目標一半' },
-    { name: 'minConv', label: '最少轉換數 M' },
+    { name: 'hours', label: 'hours' },
+    { name: 'ratio', label: 'ratio', hint: 'ratioHint' },
+    { name: 'minConv', label: 'minConv' },
   ],
 };
 
-export const ACTION_LABEL = { pause: '暫停 campaign', reduce_budget: '降低每日預算', reduce_target: '收緊出價目標（降 tCPA / 升 tROAS）' } as const;
+export const ACTION_KINDS = ['pause', 'reduce_budget', 'reduce_target'] as const satisfies readonly MonitorAction['kind'][];
 
 export interface MonitorFormValues {
   type: MonitorRuleType;
@@ -46,7 +38,7 @@ export interface MonitorFormValues {
   enabled: boolean;
 }
 
-export type MonitorFormErrors = Partial<Record<string, string>>;
+export type MonitorFormErrors = Partial<Record<string, Msg>>;
 
 const num = (s: string | undefined) => (s === undefined || s.trim() === '' ? NaN : Number(s.replace(/,/g, '')));
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -78,9 +70,9 @@ export interface MonitorRuleValue {
 
 export function parseMonitorForm(v: MonitorFormValues): { ok: true; value: MonitorRuleValue } | { ok: false; errors: MonitorFormErrors } {
   const errors: MonitorFormErrors = {};
-  if (!(MONITOR_RULE_TYPES as readonly string[]).includes(v.type)) return { ok: false, errors: { type: '請選擇規則類型' } };
-  if (!UUID.test(v.accountId)) errors.accountId = '請選擇帳戶';
-  if (v.campaignEntityId && !UUID.test(v.campaignEntityId)) errors.campaignEntityId = 'campaign 不正確';
+  if (!(MONITOR_RULE_TYPES as readonly string[]).includes(v.type)) return { ok: false, errors: { type: 'chooseRuleType' } };
+  if (!UUID.test(v.accountId)) errors.accountId = 'chooseAccount';
+  if (v.campaignEntityId && !UUID.test(v.campaignEntityId)) errors.campaignEntityId = 'invalidCampaign';
   const f = v.fields;
   const raw =
     v.type === 'SpendPacing'
@@ -91,11 +83,11 @@ export function parseMonitorForm(v: MonitorFormValues): { ok: true; value: Monit
           ? { type: v.type, hours: num(f.hours), multiplier: num(f.multiplier), minConv: num(f.minConv) }
           : { type: v.type, hours: num(f.hours), ratio: num(f.ratio) / 100, minConv: num(f.minConv) };
   const spec = MonitorRuleSpecSchema.safeParse(raw);
-  if (!spec.success) for (const issue of spec.error.issues) errors[`f_${{ minSpendMicros: 'minSpend' }[String(issue.path[0])] ?? String(issue.path[0])}`] ??= '數值不正確';
+  if (!spec.success) for (const issue of spec.error.issues) errors[`f_${{ minSpendMicros: 'minSpend' }[String(issue.path[0])] ?? String(issue.path[0])}`] ??= 'invalidValue';
   const action = MonitorActionSchema.safeParse(v.actionKind === 'pause' ? { kind: 'pause' } : { kind: v.actionKind, pct: num(v.actionPct) / 100 });
-  if (!action.success) errors.actionPct = '幅度需介於 1–90%';
+  if (!action.success) errors.actionPct = 'actionPctRange';
   const cooldown = num(v.cooldownHours);
-  if (!(cooldown >= 0 && cooldown <= 168)) errors.cooldownHours = '冷卻需介於 0–168 小時';
+  if (!(cooldown >= 0 && cooldown <= 168)) errors.cooldownHours = 'cooldownRange';
   if (Object.keys(errors).length || !spec.success || !action.success) return { ok: false, errors };
   return { ok: true, value: { accountId: v.accountId, campaignEntityId: v.campaignEntityId || null, spec: spec.data, action: action.data, cooldownMinutes: Math.round(cooldown * 60), enabled: v.enabled } };
 }
@@ -124,19 +116,24 @@ export function monitorToForm(r: MonitorRuleValue): MonitorFormValues {
   };
 }
 
-export function describeMonitor(spec: MonitorRuleSpec): string {
+/** A `monitor.describe.*` key with its values. */
+export interface MonitorDescription {
+  key: MonitorRuleType | MonitorAction['kind'];
+  values: Record<string, string | number>;
+}
+
+export function describeMonitor(spec: MonitorRuleSpec): MonitorDescription {
   switch (spec.type) {
     case 'SpendPacing':
-      return `花費速度 > ${pct(spec.pct)}%`;
     case 'SpendNearCap':
-      return `月花費 ≥ 上限的 ${pct(spec.pct)}%`;
+      return { key: spec.type, values: { pct: pct(spec.pct) } };
     case 'CpaSpike':
-      return `${spec.hours}h CPA > 目標 ×${spec.multiplier}（≥ ${spec.minConv} 轉換）`;
+      return { key: 'CpaSpike', values: { hours: spec.hours, multiplier: spec.multiplier, minConv: spec.minConv } };
     case 'RoasDrop':
-      return `${spec.hours}h ROAS < 目標的 ${pct(spec.ratio)}%（≥ ${spec.minConv} 轉換）`;
+      return { key: 'RoasDrop', values: { hours: spec.hours, pct: pct(spec.ratio), minConv: spec.minConv } };
   }
 }
 
-export function describeAction(a: MonitorAction): string {
-  return a.kind === 'pause' ? '暫停' : a.kind === 'reduce_budget' ? `預算 −${pct(a.pct)}%` : `出價目標收緊 ${pct(a.pct)}%`;
+export function describeAction(a: MonitorAction): MonitorDescription {
+  return a.kind === 'pause' ? { key: 'pause', values: {} } : { key: a.kind, values: { pct: pct(a.pct) } };
 }

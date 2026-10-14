@@ -1,6 +1,7 @@
 // Daily spend, conversions and CPA as stacked sparklines with numbered change markers on the
 // shared time axis (Requirement 18.2). Plain SVG, rendered on the server.
 import { formatMoney, formatNumber } from '@arlo/core';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 
 export interface TrendChartPoint {
@@ -14,6 +15,8 @@ export interface TrendChartMarker {
   date: string;
   label: string;
   actor: string | null;
+  /** A changeset since undone. */
+  reverted?: boolean;
   kind: 'change_event' | 'changeset';
   changesetId?: string;
 }
@@ -36,12 +39,13 @@ function paths(values: (number | null)[]) {
 const md = (date: string) => date.slice(5).replace('-', '/');
 
 export function TrendChart({ points, markers, currency }: { points: TrendChartPoint[]; markers: TrendChartMarker[]; currency: string }) {
-  if (points.length === 0) return <p className="py-3 text-sm text-muted">這段期間沒有資料。</p>;
+  const t = useTranslations('trend');
+  if (points.length === 0) return <p className="py-3 text-sm text-muted">{t('noData')}</p>;
   const cost = points.reduce((s, p) => s + p.costMicros, 0);
   const conversions = points.reduce((s, p) => s + p.conversions, 0);
   const rows = [
-    { label: '每日花費', total: formatMoney(cost, currency), ...paths(points.map((p) => p.costMicros)) },
-    { label: '轉換', total: formatNumber(conversions, conversions % 1 ? 1 : 0), ...paths(points.map((p) => p.conversions)) },
+    { label: t('dailySpend'), total: formatMoney(cost, currency), ...paths(points.map((p) => p.costMicros)) },
+    { label: t('conversions'), total: formatNumber(conversions, conversions % 1 ? 1 : 0), ...paths(points.map((p) => p.conversions)) },
     { label: 'CPA', total: conversions > 0 ? formatMoney(cost / conversions, currency) : '—', ...paths(points.map((p) => p.cpaMicros)) },
   ];
 
@@ -84,8 +88,8 @@ export function TrendChart({ points, markers, currency }: { points: TrendChartPo
       </div>
 
       <div className="flex flex-col">
-        <span className="eyebrow pb-2">最近事件</span>
-        {recent.length === 0 ? <p className="py-3 text-sm text-muted">這段期間沒有變更事件。</p> : null}
+        <span className="eyebrow pb-2">{t('recentEvents')}</span>
+        {recent.length === 0 ? <p className="py-3 text-sm text-muted">{t('noEvents')}</p> : null}
         {recent.map((m, i) => (
           <div key={i} className="grid grid-cols-[28px_64px_minmax(0,1fr)_auto] items-center gap-3 border-t border-border py-2.5 text-sm">
             <span className="flex h-5 w-5 items-center justify-center rounded-pill bg-accent-light text-[0.6875rem] font-bold text-accent">{number.get(m.date)}</span>
@@ -98,7 +102,7 @@ export function TrendChart({ points, markers, currency }: { points: TrendChartPo
                 </Link>
               ) : null}
             </span>
-            <span className="text-right text-meta text-faint">{m.actor ?? ''}</span>
+            <span className="text-right text-meta text-faint">{m.actor ?? ''}{m.reverted ? ` ${t('reverted')}` : ''}</span>
           </div>
         ))}
       </div>
