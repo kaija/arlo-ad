@@ -29,14 +29,28 @@ services:
       timeout: 3s
       retries: 30
 
+  # One-shot: applies DB migrations and creates pg-boss queues before web/worker start.
+  migrate:
+    <<: *app
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.worker
+      target: dev
+    command: [pnpm, migrate]
+
   web:
     <<: *app
+    depends_on: &after-migrate
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     build:
       context: .
       dockerfile: infra/docker/Dockerfile.web
       target: dev
     ports:
-      - 127.0.0.1:3000:3000
+      - 80:3000
     develop:
       watch:
         - { action: sync, path: ., target: /app }
@@ -44,6 +58,7 @@ services:
 
   worker:
     <<: *app
+    depends_on: *after-migrate
     build:
       context: .
       dockerfile: infra/docker/Dockerfile.worker
