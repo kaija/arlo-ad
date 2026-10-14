@@ -26,10 +26,16 @@ const customerIdList = () =>
     return z.NEVER;
   });
 
+// Comma-separated list; blanks dropped, empty or unset gives [].
+const csvList = () =>
+  z.preprocess(blankToUndefined, z.string().optional()).transform((raw) => (raw ?? '').split(',').map((s) => s.trim()).filter(Boolean));
+
 export const EnvSchema = z.object({
   DATABASE_URL: url(/^postgres(ql)?$/),
   APP_BASE_URL: url(/^https?$/),
   WORKER_HEALTH_PORT: number().pipe(z.int().min(1).max(65535)).default(9090),
+  // Extra hosts allowed to load `next dev` resources (HMR) when the dev server is reached by IP or domain.
+  ALLOWED_DEV_ORIGINS: csvList(),
 
   AUTH_SECRET: required(),
   GOOGLE_OAUTH_CLIENT_ID: required(),

@@ -102,6 +102,19 @@ describe('parseEnv', () => {
   });
 });
 
+describe('ALLOWED_DEV_ORIGINS', () => {
+  const schema = EnvSchema.pick({ ALLOWED_DEV_ORIGINS: true });
+
+  it.each([
+    [undefined, []],
+    ['', []],
+    ['52.69.30.82', ['52.69.30.82']],
+    [' 52.69.30.82 , dev.example.com ,, ', ['52.69.30.82', 'dev.example.com']],
+  ])('parses %j', (raw, expected) => {
+    expect(parseEnv(schema, { ALLOWED_DEV_ORIGINS: raw }).ALLOWED_DEV_ORIGINS).toEqual(expected);
+  });
+});
+
 describe('ADS_WRITE_ALLOWED_CUSTOMER_IDS', () => {
   const schema = EnvSchema.pick({ ADS_WRITE_ALLOWED_CUSTOMER_IDS: true });
 

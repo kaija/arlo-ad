@@ -1,4 +1,7 @@
+import { EnvSchema, parseEnv } from '@arlo/config';
 import type { NextConfig } from 'next';
+
+const env = parseEnv(EnvSchema.pick({ ALLOWED_DEV_ORIGINS: true }));
 
 const nextConfig: NextConfig = {
   // Self-contained server for the Docker image (infra/docker/Dockerfile.web).
@@ -7,6 +10,8 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: import.meta.dirname + '/../..',
   // Workspace packages export TypeScript source directly.
   transpilePackages: ['@arlo/adapters', '@arlo/config', '@arlo/core', '@arlo/db', '@arlo/queue'],
+  // `next dev` only accepts localhost unless the host is listed here.
+  allowedDevOrigins: env.ALLOWED_DEV_ORIGINS,
 };
 
 export default nextConfig;
