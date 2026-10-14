@@ -42,6 +42,10 @@ services:
 
   web:
     <<: *app
+    environment:
+      DATABASE_URL: postgres://arlo:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/arlo
+      # Auth.js builds OAuth callback URLs from the request, which behind Caddy is the container address.
+      AUTH_URL: ${APP_BASE_URL:?set APP_BASE_URL in .env}
     image: arlo-web:latest
     build:
       context: .

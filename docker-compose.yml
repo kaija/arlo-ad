@@ -44,6 +44,10 @@ services:
 
   web:
     <<: *app
+    environment:
+      DATABASE_URL: postgres://arlo:arlo@postgres:5432/arlo
+      # Auth.js builds OAuth callback URLs from the request, which behind a proxy is localhost:3000.
+      AUTH_URL: ${APP_BASE_URL:-http://localhost:3000}
     depends_on: &after-migrate
       postgres:
         condition: service_healthy
