@@ -1,5 +1,9 @@
 # Local development. Start with hot reload:  docker compose up --build --watch
 # Production uses docker-compose.prod.yml (ADR-0025).
+#
+# Dev stack on a server with HTTPS (Let's Encrypt for APP_DOMAIN via Caddy, ports 80/443):
+#   docker compose --profile https up -d --build
+# Set APP_DOMAIN and ALLOWED_DEV_ORIGINS=<APP_DOMAIN> in .env; DNS must point at the host.
 
 x-app: &app
   env_file:
@@ -50,7 +54,7 @@ services:
       dockerfile: infra/docker/Dockerfile.web
       target: dev
     ports:
-      - 80:3000
+      - 127.0.0.1:3000:3000
     develop:
       watch:
         - { action: sync, path: ., target: /app }
@@ -70,5 +74,26 @@ services:
         - { action: sync, path: ., target: /app }
         - { action: rebuild, path: pnpm-lock.yaml }
 
+  caddy:
+    image: caddy:2.11-alpine
+    profiles: [https]
+    restart: unless-stopped
+    environment:
+      # Unset: localhost with a certificate from Caddy's internal CA.
+      APP_DOMAIN: ${APP_DOMAIN:-localhost}
+    ports:
+      - 80:80
+      - 443:443
+      - 443:443/udp
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
 volumes:
   pgdata:
+  # Issued TLS certificates; keep it to avoid Let's Encrypt rate limits.
+  caddy_data:
+  caddy_config:
