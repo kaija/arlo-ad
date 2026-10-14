@@ -1,39 +1,56 @@
 import { formatMoney, formatNumber, formatPct } from '@arlo/core';
 import Link from 'next/link';
 import type { CampaignTableRow } from '../lib/dashboard';
-import { Badge, Table, Td } from './ui';
+import { Badge, DataTable } from './ui';
+
+const STATUS_LABEL: Record<string, string> = { ENABLED: '啟用', PAUSED: '暫停', REMOVED: '已移除' };
 
 export function statusTone(status: string | null) {
-  return status === 'ENABLED' ? 'ok' : status === 'PAUSED' ? 'neutral' : 'warn';
+  return status === 'ENABLED' ? 'ok' : status === 'PAUSED' || status === 'REMOVED' ? 'neutral' : 'warn';
 }
 
-export function CampaignTable({ rows, currency, hrefFor }: { rows: CampaignTableRow[]; currency: string; hrefFor: (row: CampaignTableRow) => string }) {
+const HEAD = ['日預算', '花費', '曝光', '點擊', 'CTR', 'CPC', '轉換', 'CPA', 'ROAS', 'IS', 'IS 損失（預算）', 'IS 損失（排名）'];
+
+export function CampaignTable({ rows, currency, selectedId, hrefFor }: { rows: CampaignTableRow[]; currency: string; selectedId?: string; hrefFor: (row: CampaignTableRow) => string }) {
   return (
-    <Table head={['Campaign', '狀態', '日預算', '花費', '曝光', '點擊', 'CTR', 'CPC', '轉換', 'CPA', 'ROAS', 'IS', 'Lost IS (預算)', 'Lost IS (排名)']}>
-      {rows.map((r) => (
-        <tr key={r.campaignId} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
-          <Td first>
-            <Link className="font-medium hover:underline" href={hrefFor(r)}>
-              {r.name ?? r.externalId}
-            </Link>
-          </Td>
-          <Td>
-            <Badge tone={statusTone(r.status)}>{r.status ?? '—'}</Badge>
-          </Td>
-          <Td>{formatMoney(r.budgetMicros, currency)}</Td>
-          <Td>{formatMoney(r.costMicros, currency)}</Td>
-          <Td>{formatNumber(r.impressions)}</Td>
-          <Td>{formatNumber(r.clicks)}</Td>
-          <Td>{formatPct(r.ctr, 2)}</Td>
-          <Td>{formatMoney(r.cpcMicros, currency)}</Td>
-          <Td>{formatNumber(r.conversions, 1)}</Td>
-          <Td>{formatMoney(r.cpaMicros, currency)}</Td>
-          <Td>{r.roas === null ? '—' : formatNumber(r.roas, 2)}</Td>
-          <Td>{formatPct(r.searchIs, 0)}</Td>
-          <Td>{formatPct(r.lostIsBudget, 0)}</Td>
-          <Td>{formatPct(r.lostIsRank, 0)}</Td>
+    <DataTable minWidth={1240}>
+      <thead>
+        <tr>
+          <th>名稱</th>
+          <th>狀態</th>
+          {HEAD.map((h) => (
+            <th key={h} className="text-right">
+              {h}
+            </th>
+          ))}
         </tr>
-      ))}
-    </Table>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.campaignId} className={r.campaignId === selectedId ? 'bg-accent-light' : undefined}>
+            <td className="font-medium whitespace-nowrap">
+              <Link href={hrefFor(r)} className="hover:text-accent">
+                {r.name ?? r.externalId}
+              </Link>
+            </td>
+            <td>
+              <Badge tone={statusTone(r.status)}>{STATUS_LABEL[r.status ?? ''] ?? r.status ?? '—'}</Badge>
+            </td>
+            <td className="table-num">{formatMoney(r.budgetMicros, currency)}</td>
+            <td className="table-num">{formatMoney(r.costMicros, currency)}</td>
+            <td className="table-num">{formatNumber(r.impressions)}</td>
+            <td className="table-num">{formatNumber(r.clicks)}</td>
+            <td className="table-num">{formatPct(r.ctr, 2)}</td>
+            <td className="table-num">{formatMoney(r.cpcMicros, currency)}</td>
+            <td className="table-num">{formatNumber(r.conversions, 1)}</td>
+            <td className="table-num">{formatMoney(r.cpaMicros, currency)}</td>
+            <td className="table-num">{r.roas === null ? '—' : formatPct(r.roas, 0)}</td>
+            <td className="table-num">{formatPct(r.searchIs, 0)}</td>
+            <td className={`table-num ${r.lostIsBudget !== null && r.lostIsBudget > 0.1 ? 'text-warning' : ''}`}>{formatPct(r.lostIsBudget, 0)}</td>
+            <td className="table-num">{formatPct(r.lostIsRank, 0)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </DataTable>
   );
 }

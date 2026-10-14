@@ -1,35 +1,89 @@
-import type { ReactNode } from 'react';
+import { authorize } from '@arlo/core';
+import { listChangeSets, resolveAccounts } from '@arlo/db';
+import Link from 'next/link';
+import { Suspense, type ReactNode } from 'react';
 import { signOut } from '../../auth';
-import { Nav, NAV_ITEMS } from '../../components/nav';
-import { requireUser } from '../../lib/session';
+import { AccountSwitcher, SectionLabel, SidebarNav } from '../../components/nav';
+import { Avatar, Badge, Button, Logo } from '../../components/ui';
+import type { ArloSessionUser } from '../../lib/auth-config';
+import { getDb } from '../../lib/server';
+import { readableAccounts, requireUser } from '../../lib/session';
+
+const ROLE_RANK = ['viewer', 'operator', 'approver', 'admin'] as const;
+const ROLE_NAME = { viewer: 'Viewer', operator: 'Operator', approver: 'Approver', admin: 'Admin' } as const;
+
+/** The user's highest role, with the tier ceiling for approvers. */
+function roleSummary(user: ArloSessionUser): { short: string; long: string } {
+  const top = user.bindings.reduce<ArloSessionUser['bindings'][number] | null>((best, b) => (!best || ROLE_RANK.indexOf(b.role) > ROLE_RANK.indexOf(best.role) ? b : best), null);
+  if (!top) return { short: '無權限', long: '尚未取得權限' };
+  const short = ROLE_NAME[top.role];
+  return { short, long: top.role === 'approver' ? `${short} · 最高 Tier ${top.maxTier}` : top.role === 'viewer' ? `${short}（唯讀）` : short };
+}
 
 // Every console page requires a Workspace sign-in (Requirement 1.1).
 export default async function ConsoleLayout({ children }: { children: ReactNode }) {
   const user = await requireUser();
+  const db = getDb();
+  const accounts = await resolveAccounts(db, { allowed: readableAccounts(user) });
+  const pending = accounts.length ? await listChangeSets(db, { statuses: ['PENDING_APPROVAL'], accountIds: accounts.map((a) => a.id), limit: 100 }) : [];
+  const role = roleSummary(user);
+  const name = user.displayName ?? user.email;
+  const unbound = <Badge tone="warn" dot>{authorize(user, 'admin').allowed ? 'Slack 未綁定 · 前往綁定' : 'Slack 未綁定'}</Badge>;
 
   return (
-    <div className="min-h-screen">
-      <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-4 px-4 py-2">
-          <span className="font-semibold">Arlo Ads Bot</span>
-          <Nav items={NAV_ITEMS} />
-          <div className="ml-auto flex items-center gap-3 text-sm text-zinc-500">
-            <span>{user.displayName ?? user.email}</span>
-            {user.status === 'unbound' ? <span title="尚未對應 Slack 帳號">（Slack 未綁定）</span> : null}
-            <form
-              action={async () => {
-                'use server';
-                await signOut({ redirectTo: '/signin' });
-              }}
-            >
-              <button type="submit" className="hover:underline">
-                登出
-              </button>
-            </form>
+    <div className="grid min-h-screen bg-bg-secondary md:grid-cols-[232px_minmax(0,1fr)]">
+      <aside className="flex flex-col gap-6 border-border bg-bg px-3.5 py-[18px] max-md:border-b md:sticky md:top-0 md:h-screen md:overflow-y-auto md:border-r">
+        <div className="flex items-center gap-2.5 px-2 py-1">
+          <Logo size={28} />
+          <div className="flex flex-col leading-[1.2]">
+            <span className="text-ui font-semibold tracking-[-0.01em]">Arlo Ads Bot</span>
+            <span className="text-xs text-faint">Web console</span>
           </div>
         </div>
-      </header>
-      <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
+        <SidebarNav pendingReviews={pending.length} />
+        <div className="mt-auto flex flex-col gap-3 border-t border-border px-2.5 pt-3.5 pb-1">
+          <div className="flex items-center gap-2.5">
+            <Avatar name={name} size="sm" />
+            <div className="flex min-w-0 flex-col leading-[1.3]">
+              <span className="truncate text-sm font-semibold">{name}</span>
+              <span className="truncate text-xs text-faint">{role.long}</span>
+            </div>
+          </div>
+          {user.status === 'unbound' ? (
+            authorize(user, 'admin').allowed ? (
+              <Link href={`/settings/users/${user.id}`} className="flex" title="前往綁定 Slack">
+                {unbound}
+              </Link>
+            ) : (
+              <span className="flex" title="尚未對應 Slack 帳號，請洽 Admin 綁定">
+                {unbound}
+              </span>
+            )
+          ) : null}
+          <form
+            className="flex"
+            action={async () => {
+              'use server';
+              await signOut({ redirectTo: '/signin' });
+            }}
+          >
+            <Button size="sm">登出</Button>
+          </form>
+        </div>
+      </aside>
+
+      <main className="flex min-w-0 flex-col">
+        <header className="sticky top-0 z-50 flex min-h-16 flex-wrap items-center gap-x-4 gap-y-3 border-b border-border bg-white/[0.82] px-5 py-2.5 backdrop-blur-[20px] backdrop-saturate-[180%] md:px-10">
+          <Suspense>
+            <SectionLabel />
+            <div className="ml-auto flex flex-wrap items-center gap-3">
+              <AccountSwitcher accounts={accounts.map((a) => ({ id: a.id, name: a.name, externalId: a.externalId, currency: a.currency, timezone: a.timezone }))} />
+              <Badge>{role.short}</Badge>
+            </div>
+          </Suspense>
+        </header>
+        <div className="flex w-full max-w-[1360px] flex-col gap-6 px-5 pt-8 pb-20 md:px-10">{children}</div>
+      </main>
     </div>
   );
 }

@@ -1,30 +1,36 @@
+import { authorize } from '@arlo/core';
 import Link from 'next/link';
-import { Card, PageTitle } from '../../../components/ui';
+import { Alert, Icon, PageHeader, type IconName } from '../../../components/ui';
 import { requireUser } from '../../../lib/session';
 
 export const dynamic = 'force-dynamic';
 
-const SECTIONS = [
-  { href: '/settings/rules', title: 'Validator 規則', text: '預算上限、月花費上限、變動幅度、出價範圍、每日變更次數（ADR-0008）。' },
-  { href: '/settings/monitor', title: 'Monitor 熔斷規則', text: '花費超速、接近月上限、CPA 暴增、ROAS 暴跌時自動止血（ADR-0017）。' },
-  { href: '/settings/thresholds', title: 'Tier 門檻', text: '哪些變更可自動執行、哪些需要 Tier 3 確認（ADR-0007）。' },
-  { href: '/settings/business-profile', title: 'Business Profile', text: '各帳戶販售內容、想要／排除的搜尋意圖、品牌字與範例，供搜尋字詞分類使用（ADR-0019）。' },
-  { href: '/settings/users', title: '使用者與權限', text: '角色、帳戶範圍、可審核的 Tier 上限、Slack 綁定（ADR-0010）。' },
-  { href: '/schedules', title: '排程', text: '定期報告與自動化任務（ADR-0016）。' },
+const SECTIONS: { href: string; title: string; text: string; icon: IconName }[] = [
+  { href: '/settings/rules', title: 'Validator 規則', text: '每筆變更單送審前檢查的規則，例如預算上限、變動幅度。', icon: 'check-circle' },
+  { href: '/settings/monitor', title: 'Monitor 熔斷規則', text: '花費超速、CPA 暴增時自動暫停或降預算。', icon: 'zap' },
+  { href: '/settings/thresholds', title: 'Tier 門檻', text: '決定變更單屬於哪個風險分級。', icon: 'filter' },
+  { href: '/settings/business-profile', title: 'Business Profile', text: '告訴 AI 你賣什麼、要哪些搜尋意圖。', icon: 'file' },
+  { href: '/settings/users', title: '使用者與權限', text: '角色、可審核的 Tier、帳戶範圍與 Slack 綁定。', icon: 'user' },
+  { href: '/schedules', title: '排程', text: '定時報告、否定關鍵字掃描等排程任務。', icon: 'calendar' },
 ];
 
 // Settings hub (Requirement 18.4).
 export default async function SettingsPage() {
-  await requireUser();
+  const user = await requireUser();
+  const isAdmin = authorize(user, 'admin').allowed;
   return (
     <>
-      <PageTitle>設定</PageTitle>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <PageHeader title="設定" subtitle="管理 Arlo 的規則、門檻與權限。所有設定只有 Admin 能修改。" />
+      {isAdmin ? null : <Alert title="唯讀">所有設定只有 Admin 能修改，你目前可以檢視。</Alert>}
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-5">
         {SECTIONS.map((s) => (
-          <Link key={s.href} href={s.href} className="block">
-            <Card title={s.title} className="h-full transition hover:border-zinc-400">
-              <p className="text-sm text-zinc-500">{s.text}</p>
-            </Card>
+          <Link key={s.href} href={s.href} className="card card-sm card-interactive flex flex-col gap-3">
+            <span className="icon-tile">
+              <Icon name={s.icon} size={20} />
+            </span>
+            <span className="text-base font-semibold tracking-[-0.01em]">{s.title}</span>
+            <span className="text-sm text-muted">{s.text}</span>
+            <span className="mt-auto text-meta text-accent">{isAdmin ? '管理' : '檢視'} →</span>
           </Link>
         ))}
       </div>

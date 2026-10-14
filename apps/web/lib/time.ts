@@ -4,3 +4,4 @@ export function formatAt(d: Date, tz: string): string {
 }
 
 export const RUN_TONE = { succeeded: 'ok', failed: 'bad', skipped: 'warn', running: 'info' } as const;
+export const RUN_LABEL = { succeeded: '成功', failed: '失敗', skipped: '略過', running: '執行中' } as const;

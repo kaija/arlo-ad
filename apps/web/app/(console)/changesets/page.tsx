@@ -1,7 +1,8 @@
 import { CHANGESET_STATUSES } from '@arlo/core';
 import Link from 'next/link';
-import { Badge, Button, Card, inputClass, PageTitle, Table, Td } from '../../../components/ui';
-import { loadQueue, parseQueueFilter, SOURCE_LABEL, STATUS_LABEL, STATUS_TONE } from '../../../lib/changesets';
+import { AutoSubmitForm } from '../../../components/client';
+import { Badge, DataTable, EmptyState, LinkButton, PageHeader, Select } from '../../../components/ui';
+import { loadQueue, parseQueueFilter, SOURCE_LABEL, STATUS_LABEL, STATUS_TONE, tierTone } from '../../../lib/changesets';
 import { getDb } from '../../../lib/server';
 import { readableAccounts, requireUser } from '../../../lib/session';
 import { formatAt } from '../../../lib/time';
@@ -13,71 +14,107 @@ export default async function ChangeSetsPage({ searchParams }: { searchParams: P
   const user = await requireUser();
   const filter = parseQueueFilter(await searchParams);
   const { rows, accounts } = await loadQueue(getDb(), readableAccounts(user), filter);
-  const tz = accounts[0]?.timezone ?? 'UTC';
+  const zone = new Map(accounts.map((a) => [a.id, a.timezone]));
+  const filtered = !!(filter.status || filter.tier !== undefined || filter.account);
+  const pending = rows.filter((r) => r.cs.status === 'PENDING_APPROVAL').length;
 
   return (
     <>
-      <PageTitle
+      <PageHeader
+        title="審核佇列"
+        subtitle={`AI agent 提出的每一筆寫入都會成為變更單，經驗證、分級後在這裡審核。${pending ? `目前 ${pending} 筆待審核。` : ''}`}
         actions={
-          <form className="flex flex-wrap items-center gap-2" method="get">
-            <select name="status" defaultValue={filter.status ?? ''} className={inputClass} aria-label="狀態">
-              <option value="">所有狀態</option>
-              {CHANGESET_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {STATUS_LABEL[s]}
-                </option>
-              ))}
-            </select>
-            <select name="tier" defaultValue={filter.tier ?? ''} className={inputClass} aria-label="Tier">
-              <option value="">所有 Tier</option>
-              {[1, 2, 3].map((t) => (
-                <option key={t} value={t}>
-                  Tier {t}
-                </option>
-              ))}
-            </select>
-            <select name="account" defaultValue={filter.account ?? ''} className={inputClass} aria-label="帳戶">
-              <option value="">所有帳戶</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
-            <Button variant="secondary" type="submit">
-              篩選
-            </Button>
-          </form>
+          <AutoSubmitForm method="get" className="flex flex-wrap gap-2.5">
+            <div className="w-[150px]">
+              <Select label="狀態" size="sm" name="status" defaultValue={filter.status ?? ''}>
+                <option value="">全部狀態</option>
+                {CHANGESET_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {STATUS_LABEL[s]}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="w-[110px]">
+              <Select label="Tier" size="sm" name="tier" defaultValue={filter.tier ?? ''}>
+                <option value="">全部</option>
+                {[1, 2, 3].map((t) => (
+                  <option key={t} value={t}>
+                    Tier {t}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="w-[170px]">
+              <Select label="帳戶" size="sm" name="account" defaultValue={filter.account ?? ''}>
+                <option value="">全部帳戶</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </AutoSubmitForm>
         }
-      >
-        審核佇列
-      </PageTitle>
-      <Card>
-        {rows.length === 0 ? (
-          <p className="text-sm text-zinc-500">沒有符合條件的變更。</p>
-        ) : (
-          <Table head={['摘要', '帳戶', 'Tier', '狀態', '來源', '建立時間', '到期']}>
-            {rows.map(({ cs, accountName }) => (
-              <tr key={cs.id}>
-                <Td first>
-                  <Link href={`/changesets/${cs.id}`} className="font-medium hover:underline">
-                    {cs.summary}
-                  </Link>
-                  {cs.violations.length ? <span className="ml-2 text-xs text-amber-600">⚠ {cs.violations.length}</span> : null}
-                </Td>
-                <Td>{accountName}</Td>
-                <Td>{cs.tier === null ? '—' : `Tier ${cs.tier}`}</Td>
-                <Td>
-                  <Badge tone={STATUS_TONE[cs.status]}>{STATUS_LABEL[cs.status]}</Badge>
-                </Td>
-                <Td>{SOURCE_LABEL[cs.source.kind] ?? cs.source.kind}</Td>
-                <Td className="whitespace-nowrap text-zinc-500">{formatAt(cs.createdAt, tz)}</Td>
-                <Td className="whitespace-nowrap text-zinc-500">{cs.status === 'PENDING_APPROVAL' && cs.expiresAt ? formatAt(cs.expiresAt, tz) : '—'}</Td>
-              </tr>
-            ))}
-          </Table>
-        )}
-      </Card>
+      />
+      {rows.length === 0 ? (
+        <EmptyState
+          icon="check-circle"
+          title={filtered ? '沒有符合篩選條件的變更單' : '目前沒有變更單'}
+          action={filtered ? <LinkButton size="sm" href="/changesets">清除篩選</LinkButton> : null}
+        >
+          {filtered ? '試試調整狀態、Tier 或帳戶篩選。' : 'Agent 在 Slack、排程或 Monitor 提出變更後，會出現在這裡。'}
+        </EmptyState>
+      ) : (
+        <DataTable minWidth={1020}>
+          <thead>
+            <tr>
+              <th>摘要</th>
+              <th>帳戶</th>
+              <th>Tier</th>
+              <th>狀態</th>
+              <th>來源</th>
+              <th>建立時間</th>
+              <th>到期時間</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ cs, accountName }) => {
+              const tz = zone.get(cs.accountId) ?? 'UTC';
+              return (
+                <tr key={cs.id}>
+                  <td>
+                    <div className="flex flex-col gap-[3px]">
+                      <Link href={`/changesets/${cs.id}`} className="font-medium hover:text-accent">
+                        {cs.summary}
+                      </Link>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs text-faint">{cs.id.slice(-8)}</span>
+                        {cs.violations.length ? (
+                          <Badge tone={cs.violations.some((v) => v.severity === 'HARD_BLOCK') ? 'bad' : 'warn'} className="px-2 py-0.5">
+                            {cs.violations.length} 項違規
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="whitespace-nowrap">{accountName}</td>
+                  <td>{cs.tier === null ? <span className="text-faint">—</span> : <Badge tone={tierTone(cs.tier)}>Tier {cs.tier}</Badge>}</td>
+                  <td>
+                    <Badge tone={STATUS_TONE[cs.status]} dot>
+                      {STATUS_LABEL[cs.status]}
+                    </Badge>
+                  </td>
+                  <td className="whitespace-nowrap text-muted">{SOURCE_LABEL[cs.source.kind] ?? cs.source.kind}</td>
+                  <td className="table-num text-left">{formatAt(cs.createdAt, tz)}</td>
+                  <td className="table-num text-left">{cs.status === 'PENDING_APPROVAL' && cs.expiresAt ? formatAt(cs.expiresAt, tz) : '—'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </DataTable>
+      )}
     </>
   );
 }

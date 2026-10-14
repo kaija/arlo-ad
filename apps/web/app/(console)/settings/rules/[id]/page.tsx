@@ -2,7 +2,7 @@ import { authorize } from '@arlo/core';
 import { getRule, toRuleInstance } from '@arlo/db';
 import { notFound, redirect } from 'next/navigation';
 import { RuleForm } from '../../../../../components/rule-form';
-import { Card, PageTitle } from '../../../../../components/ui';
+import { PageHeader } from '../../../../../components/ui';
 import { ruleToFormValues } from '../../../../../lib/rules';
 import { getDb } from '../../../../../lib/server';
 import { requireUser } from '../../../../../lib/session';
@@ -21,14 +21,12 @@ export default async function EditRulePage({ params }: { params: Promise<{ id: s
   const rule = toRuleInstance(row);
   return (
     <>
-      <PageTitle>編輯規則</PageTitle>
-      <Card>
-        <RuleForm
-          action={saveRuleAction.bind(null, row.id)}
-          initial={ruleToFormValues({ scopeKind: row.scopeKind, accountId: row.accountId, campaignEntityId: row.campaignEntityId, spec: rule.spec, severity: row.severity, enabled: row.enabled })}
-          {...await ruleFormOptions(db)}
-        />
-      </Card>
+      <PageHeader back={{ href: '/settings/rules', label: 'Validator 規則' }} title="編輯規則" />
+      <RuleForm
+        action={saveRuleAction.bind(null, row.id)}
+        initial={ruleToFormValues({ scopeKind: row.scopeKind, accountId: row.accountId, campaignEntityId: row.campaignEntityId, spec: rule.spec, severity: row.severity, enabled: row.enabled })}
+        {...await ruleFormOptions(db)}
+      />
     </>
   );
 }

@@ -1,7 +1,8 @@
-import { formatMoney, formatNumber, formatPct } from '@arlo/core';
+import { authorize, formatMoney, formatNumber, formatPct } from '@arlo/core';
 import { resolveAccounts } from '@arlo/db';
 import Link from 'next/link';
-import { Badge, Button, Card, inputClass, PageTitle, Table, Td } from '../../../components/ui';
+import { AutoSubmitForm } from '../../../components/client';
+import { Alert, Badge, DataTable, EmptyState, Icon, Input, LinkButton, PageHeader, PillTabs, Select } from '../../../components/ui';
 import { STATUS_LABEL, STATUS_TONE } from '../../../lib/changesets';
 import { INTENT_LABEL, loadSearchTerms, parseTermFilter } from '../../../lib/search-terms';
 import { getDb } from '../../../lib/server';
@@ -11,6 +12,7 @@ import { formatAt } from '../../../lib/time';
 export const dynamic = 'force-dynamic';
 
 const FILTER_LABEL = { all: '全部', irrelevant: '判定不相關', relevant: '判定相關', unlabelled: '尚未分類', negated: '已提出否定' } as const;
+const SUBTITLE = 'AI 依 Business Profile 判斷每個搜尋字詞的意圖與相關性，不相關的字詞會被提出為否定關鍵字。';
 
 // Search terms, classification and negative keyword history (Requirement 18.6).
 export default async function SearchTermsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -21,105 +23,160 @@ export default async function SearchTermsPage({ searchParams }: { searchParams: 
   const account = accounts.find((a) => a.id === params.account) ?? accounts[0];
   if (!account) {
     return (
-      <Card title="搜尋字詞">
-        <p className="text-sm text-zinc-500">沒有可檢視的帳戶。</p>
-      </Card>
+      <>
+        <PageHeader title="搜尋字詞" subtitle={SUBTITLE} />
+        <EmptyState icon="search" title="沒有搜尋字詞資料">
+          尚無可檢視的帳戶。
+        </EmptyState>
+      </>
     );
   }
   const filter = parseTermFilter(params);
   const { rows, profileVersion, history } = await loadSearchTerms(db, account, filter, new Date());
   const cur = account.currency;
+  const isAdmin = authorize(user, 'admin').allowed;
+  const profileHref = `/settings/business-profile?account=${account.id}`;
+  const filtered = filter.label !== 'all' || !!filter.q;
+  const href = (days: number) => `/search-terms?${new URLSearchParams({ account: account.id, days: String(days), label: filter.label, ...(filter.q ? { q: filter.q } : {}) }).toString()}`;
 
   return (
     <>
-      <PageTitle
-        actions={
-          <form className="flex flex-wrap items-center gap-2" method="get">
-            <select name="account" defaultValue={account.id} className={inputClass} aria-label="帳戶">
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
-            <select name="days" defaultValue={String(filter.days)} className={inputClass} aria-label="期間">
-              <option value="7">近 7 天</option>
-              <option value="30">近 30 天</option>
-              <option value="90">近 90 天</option>
-            </select>
-            <select name="label" defaultValue={filter.label} className={inputClass} aria-label="分類">
+      <PageHeader title="搜尋字詞" subtitle={SUBTITLE} />
+
+      {profileVersion ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-bg px-4 py-3 text-sm">
+          <Icon name="file" size={16} />
+          <span>
+            分類依據 <strong className="font-semibold">Business Profile v{profileVersion}</strong>
+          </span>
+          <Link href={profileHref} className="link ml-auto">
+            {isAdmin ? '編輯 Business Profile' : '檢視 Business Profile'} →
+          </Link>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2.5">
+          <Alert tone="warning" title="此帳戶尚未設定 Business Profile">
+            沒有 Business Profile 時無法判斷搜尋字詞是否相關，下方字詞皆為「尚未分類」，也不會提出否定關鍵字。
+          </Alert>
+          <div className="flex">
+            <LinkButton size="sm" href={profileHref}>
+              {isAdmin ? '設定 Business Profile' : '檢視設定頁'} →
+            </LinkButton>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-[7px]">
+          <span className="field-label">期間</span>
+          <PillTabs tabs={([7, 30, 90] as const).map((d) => ({ href: href(d), label: `近 ${d} 天`, active: filter.days === d }))} />
+        </div>
+        <AutoSubmitForm method="get" className="contents">
+          <input type="hidden" name="account" value={account.id} />
+          <input type="hidden" name="days" value={filter.days} />
+          <div className="w-[170px]">
+            <Select label="分類" size="sm" name="label" defaultValue={filter.label}>
               {Object.entries(FILTER_LABEL).map(([v, l]) => (
                 <option key={v} value={v}>
                   {l}
                 </option>
               ))}
-            </select>
-            <input name="q" defaultValue={filter.q} placeholder="搜尋字詞" className={inputClass} />
-            <Button variant="secondary" type="submit">
-              篩選
-            </Button>
-          </form>
-        }
-      >
-        搜尋字詞
-      </PageTitle>
-      <p className="mb-4 text-sm text-zinc-500">
-        {profileVersion ? `分類依據 Business Profile 第 ${profileVersion} 版` : '尚未設定 Business Profile，無法分類。'} ·{' '}
-        <Link href={`/settings/business-profile?account=${account.id}`} className="hover:underline">
-          編輯 Business Profile
-        </Link>
-      </p>
-      <Card>
-        {rows.length === 0 ? (
-          <p className="text-sm text-zinc-500">沒有符合條件的搜尋字詞。</p>
-        ) : (
-          <Table head={['搜尋字詞', '花費', '點擊', '90 天轉換', '分類', '信心', '否定']}>
+            </Select>
+          </div>
+          <div className="max-w-80 flex-[1_1_220px]">
+            <Input label="搜尋" size="sm" icon="search" name="q" defaultValue={filter.q} placeholder="輸入字詞後按 Enter" />
+          </div>
+        </AutoSubmitForm>
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="card flex flex-col items-center gap-2.5 px-7 py-14 text-center">
+          <h2 className="section-title">{filtered ? '沒有符合條件的字詞' : '沒有搜尋字詞資料'}</h2>
+          <p className="max-w-[420px] text-sm text-muted">{filtered ? '試試調整分類、期間或搜尋文字。' : '這段期間帳戶沒有產生搜尋字詞。'}</p>
+        </div>
+      ) : (
+        <DataTable minWidth={1080}>
+          <thead>
+            <tr>
+              <th className="w-[34%]">字詞</th>
+              <th className="text-right">花費</th>
+              <th className="text-right">點擊</th>
+              <th className="text-right">90 天轉換</th>
+              <th>意圖分類</th>
+              <th className="text-right">信心</th>
+              <th>否定狀態</th>
+            </tr>
+          </thead>
+          <tbody>
             {rows.slice(0, 300).map((r) => (
               <tr key={r.term}>
-                <Td first>
-                  <span className="font-medium">{r.term}</span>
-                  {r.label ? <div className="max-w-md truncate text-xs text-zinc-500">{r.label.reason}</div> : null}
-                </Td>
-                <Td>{formatMoney(r.costMicros, cur)}</Td>
-                <Td>{formatNumber(r.clicks)}</Td>
-                <Td>{formatNumber(r.conversions90d, 1)}</Td>
-                <Td>{r.label ? <Badge tone={r.label.relevant ? 'ok' : 'warn'}>{`${INTENT_LABEL[r.label.intent] ?? r.label.intent} · ${r.label.relevant ? '相關' : '不相關'}`}</Badge> : <span className="text-zinc-400">—</span>}</Td>
-                <Td>{r.label ? formatPct(r.label.confidence, 0) : '—'}</Td>
-                <Td>
+                <td>
+                  <div className="flex flex-col gap-[3px]">
+                    <span className="font-medium">{r.term}</span>
+                    <span className="text-xs leading-normal text-pretty text-faint">{r.label ? r.label.reason : profileVersion ? '新出現字詞，等待下一次分類掃描。' : '未設定 Business Profile，無法分類。'}</span>
+                  </div>
+                </td>
+                <td className="table-num">{formatMoney(r.costMicros, cur)}</td>
+                <td className="table-num">{formatNumber(r.clicks)}</td>
+                <td className="table-num">{formatNumber(r.conversions90d, 1)}</td>
+                <td>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge>{r.label ? (INTENT_LABEL[r.label.intent] ?? r.label.intent) : '尚未分類'}</Badge>
+                    {r.label ? <Badge tone={r.label.relevant ? 'ok' : 'bad'}>{r.label.relevant ? '相關' : '不相關'}</Badge> : null}
+                  </div>
+                </td>
+                <td className="table-num">{r.label ? formatPct(r.label.confidence, 0) : '—'}</td>
+                <td className="whitespace-nowrap">
                   {r.negative ? (
-                    <Link href={`/changesets/${r.negative.changesetId}`} className="hover:underline">
+                    <Link href={`/changesets/${r.negative.changesetId}`} className="link inline-flex items-center gap-1.5 text-meta">
                       <Badge tone={r.negative.excluded ? 'neutral' : STATUS_TONE[r.negative.status]}>{r.negative.excluded ? '已剔除' : STATUS_LABEL[r.negative.status]}</Badge>
+                      <span className="font-mono">{r.negative.changesetId.slice(-8)}</span>
                     </Link>
                   ) : (
-                    '—'
+                    <span className="text-faint">—</span>
                   )}
-                </Td>
+                </td>
               </tr>
             ))}
-          </Table>
-        )}
-      </Card>
-      <Card title="否定關鍵字紀錄" className="mt-4">
+          </tbody>
+        </DataTable>
+      )}
+
+      <div className="mt-2 flex flex-col gap-3">
+        <h2 className="section-title">否定關鍵字紀錄</h2>
         {history.length === 0 ? (
-          <p className="text-sm text-zinc-500">還沒有否定關鍵字的變更。</p>
+          <div className="card card-sm p-8 text-center text-sm text-muted">尚未新增任何否定關鍵字。</div>
         ) : (
-          <Table head={['字詞', '比對', '來源', '狀態', '時間']}>
-            {history.slice(0, 100).map((h, i) => (
-              <tr key={`${h.changesetId}-${i}`}>
-                <Td first>{h.term}</Td>
-                <Td>{h.matchType}</Td>
-                <Td>{h.auto ? '自動' : '審核'}</Td>
-                <Td>
-                  <Link href={`/changesets/${h.changesetId}`} className="hover:underline">
-                    <Badge tone={h.excluded ? 'neutral' : STATUS_TONE[h.status]}>{h.excluded ? '已剔除' : STATUS_LABEL[h.status]}</Badge>
-                  </Link>
-                </Td>
-                <Td className="whitespace-nowrap text-zinc-500">{formatAt(h.createdAt, account.timezone)}</Td>
+          <DataTable minWidth={640}>
+            <thead>
+              <tr>
+                <th>字詞</th>
+                <th>比對類型</th>
+                <th>來源</th>
+                <th>狀態</th>
+                <th>時間</th>
               </tr>
-            ))}
-          </Table>
+            </thead>
+            <tbody>
+              {history.slice(0, 100).map((h, i) => (
+                <tr key={`${h.changesetId}-${i}`}>
+                  <td className="font-medium">{h.term}</td>
+                  <td>
+                    <span className="font-mono text-meta text-muted">{h.matchType}</span>
+                  </td>
+                  <td>{h.auto ? '自動' : '審核'}</td>
+                  <td>
+                    <Link href={`/changesets/${h.changesetId}`}>
+                      <Badge tone={h.excluded ? 'neutral' : STATUS_TONE[h.status]}>{h.excluded ? '已剔除' : STATUS_LABEL[h.status]}</Badge>
+                    </Link>
+                  </td>
+                  <td className="table-num text-left">{formatAt(h.createdAt, account.timezone)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </DataTable>
         )}
-      </Card>
+      </div>
     </>
   );
 }

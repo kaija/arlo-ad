@@ -2,7 +2,7 @@ import { authorize } from '@arlo/core';
 import { getMonitorRule } from '@arlo/db';
 import { notFound, redirect } from 'next/navigation';
 import { MonitorForm } from '../../../../../components/monitor-form';
-import { Card, PageTitle } from '../../../../../components/ui';
+import { PageHeader } from '../../../../../components/ui';
 import { monitorToForm } from '../../../../../lib/monitor-rules';
 import { getDb } from '../../../../../lib/server';
 import { requireUser } from '../../../../../lib/session';
@@ -20,10 +20,8 @@ export default async function EditMonitorRulePage({ params }: { params: Promise<
   if (!rule) notFound();
   return (
     <>
-      <PageTitle>編輯 Monitor 規則</PageTitle>
-      <Card>
-        <MonitorForm action={saveMonitorAction.bind(null, rule.id)} initial={monitorToForm(rule)} {...await ruleFormOptions(db)} />
-      </Card>
+      <PageHeader back={{ href: '/settings/monitor', label: 'Monitor 熔斷規則' }} title="編輯規則" />
+      <MonitorForm action={saveMonitorAction.bind(null, rule.id)} initial={monitorToForm(rule)} {...await ruleFormOptions(db)} />
     </>
   );
 }

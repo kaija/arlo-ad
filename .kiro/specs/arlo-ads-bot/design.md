@@ -55,7 +55,7 @@ LLM 只負責理解、分析、提議、解釋；任何金錢相關的決定（�
 | Slack | `@slack/web-api`（events/interactivity 由 Next.js route 自行驗簽） |
 | Web auth | Auth.js（Google provider） |
 | DB / Queue | Postgres、`drizzle-orm` + `drizzle-kit`、`pg-boss` |
-| UI | Next.js App Router、Tailwind、shadcn/ui、Recharts |
+| UI | Next.js App Router、Tailwind、Arlo AI design system（tokens 與元件 class 在 `apps/web/app/globals.css`，primitives 在 `apps/web/components/ui.tsx`；圖表為 SVG） |
 | 測試 | Vitest、Testcontainers |
 | Log | pino（JSON → stdout） |
 

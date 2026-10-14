@@ -1,7 +1,8 @@
 import { authorize } from '@arlo/core';
 import { listAllRules, listCampaigns, resolveAccounts, toRuleInstance } from '@arlo/db';
 import Link from 'next/link';
-import { Badge, Button, Card, PageTitle, Table, Td } from '../../../../components/ui';
+import { ConfirmAction } from '../../../../components/client';
+import { Alert, Badge, DataTable, LinkButton, PageHeader } from '../../../../components/ui';
 import { describeRule, RULE_TYPE_LABEL } from '../../../../lib/rules';
 import { getDb } from '../../../../lib/server';
 import { requireUser } from '../../../../lib/session';
@@ -22,45 +23,70 @@ export default async function RulesPage({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <PageTitle actions={isAdmin ? <Link href="/settings/rules/new"><Button>新增規則</Button></Link> : null}>Validator 規則</PageTitle>
-      {saved ? <p className="mb-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">已儲存。</p> : null}
-      <Card>
-        {rows.length === 0 ? (
-          <p className="text-sm text-zinc-500">還沒有規則。沒有規則時，所有變更只依 Tier 門檻分級。</p>
-        ) : (
-          <Table head={['規則', '條件', '範圍', '嚴重度', '狀態', '']}>
+      <PageHeader
+        back={{ href: '/settings', label: '設定' }}
+        title="Validator 規則"
+        subtitle="每筆變更單送審前都會檢查這些規則。「阻擋」規則未通過時任何人都不能核准；「警告」會把變更單升為需審核。"
+        actions={isAdmin ? <LinkButton variant="primary" href="/settings/rules/new">新增規則</LinkButton> : null}
+      />
+      {isAdmin ? null : <Alert title="唯讀">所有設定只有 Admin 能修改，你目前可以檢視。</Alert>}
+      {saved ? <Alert tone="success" title="已儲存" /> : null}
+      {rows.length === 0 ? (
+        <div className="card flex flex-col items-center gap-2 px-7 py-14 text-center">
+          <h2 className="section-title">還沒有規則</h2>
+          <p className="text-sm text-muted">沒有規則時，所有變更只依 Tier 門檻分級。</p>
+        </div>
+      ) : (
+        <DataTable minWidth={960}>
+          <thead>
+            <tr>
+              <th>規則類型</th>
+              <th>條件</th>
+              <th>範圍</th>
+              <th>嚴重度</th>
+              <th>啟用</th>
+              {isAdmin ? <th className="w-12" /> : null}
+            </tr>
+          </thead>
+          <tbody>
             {rows.map((row) => {
               const rule = toRuleInstance(row);
               const acc = row.accountId ? account.get(row.accountId) : undefined;
               const scope = row.scopeKind === 'org' ? '全組織' : row.scopeKind === 'account' ? (acc?.name ?? '帳戶') : `${acc?.name ?? ''} / ${campaign.get(row.campaignEntityId ?? '') ?? 'campaign'}`;
+              const label = RULE_TYPE_LABEL[rule.spec.type];
+              const condition = describeRule(rule.spec, acc?.currency);
               return (
-                <tr key={row.id}>
-                  <Td first className="font-medium">
+                <tr key={row.id} className={row.enabled ? undefined : 'opacity-55'}>
+                  <td className="font-medium whitespace-nowrap">
                     {isAdmin ? (
-                      <Link href={`/settings/rules/${row.id}`} className="hover:underline">
-                        {RULE_TYPE_LABEL[rule.spec.type]}
+                      <Link href={`/settings/rules/${row.id}`} className="hover:text-accent">
+                        {label}
                       </Link>
                     ) : (
-                      RULE_TYPE_LABEL[rule.spec.type]
+                      label
                     )}
-                  </Td>
-                  <Td>{describeRule(rule.spec, acc?.currency)}</Td>
-                  <Td>{scope}</Td>
-                  <Td>{row.severity === 'HARD_BLOCK' ? <Badge tone="bad">阻擋</Badge> : <Badge tone="warn">警告</Badge>}</Td>
-                  <Td>{row.enabled ? <Badge tone="ok">啟用</Badge> : <Badge>停用</Badge>}</Td>
-                  <Td>
-                    {isAdmin ? (
-                      <form action={deleteRuleAction.bind(null, row.id)}>
-                        <Button variant="secondary">刪除</Button>
-                      </form>
-                    ) : null}
-                  </Td>
+                  </td>
+                  <td className="text-muted">{condition}</td>
+                  <td className="whitespace-nowrap">{scope}</td>
+                  <td>
+                    <Badge tone={row.severity === 'HARD_BLOCK' ? 'bad' : 'warn'}>{row.severity === 'HARD_BLOCK' ? '阻擋' : '警告'}</Badge>
+                  </td>
+                  <td>
+                    <Badge tone={row.enabled ? 'ok' : 'neutral'}>{row.enabled ? '啟用' : '停用'}</Badge>
+                  </td>
+                  {isAdmin ? (
+                    <td>
+                      <ConfirmAction action={deleteRuleAction.bind(null, row.id)} icon="trash" label="刪除規則" title="刪除這條規則？">
+                        {label}：{condition}（{scope}）。刪除後立即生效，無法復原。
+                      </ConfirmAction>
+                    </td>
+                  ) : null}
                 </tr>
               );
             })}
-          </Table>
-        )}
-      </Card>
+          </tbody>
+        </DataTable>
+      )}
     </>
   );
 }

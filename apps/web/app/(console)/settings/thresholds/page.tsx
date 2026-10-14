@@ -1,7 +1,7 @@
 import { authorize, DEFAULT_TIER_THRESHOLDS } from '@arlo/core';
 import { listTierThresholds, resolveAccounts } from '@arlo/db';
 import { ThresholdForm } from '../../../../components/threshold-form';
-import { Button, Card, PageTitle } from '../../../../components/ui';
+import { Alert, Button, PageHeader } from '../../../../components/ui';
 import { thresholdsToForm } from '../../../../lib/rules';
 import { getDb } from '../../../../lib/server';
 import { requireUser } from '../../../../lib/session';
@@ -20,37 +20,36 @@ export default async function ThresholdsPage() {
 
   return (
     <>
-      <PageTitle>Tier 門檻</PageTitle>
-      <p className="mb-4 max-w-3xl text-sm text-zinc-500">
-        保護性變更（降低預算、暫停、降低目標 CPA、EXACT 否定關鍵字）在自動執行降幅內為 Tier 1，會直接執行並附 Undo；擴張性變更至少 Tier 2，需要 approver 核准；超過 Tier 3 門檻的變更需要確認且不得由提出者本人核准。
-      </p>
-      <Card title={`全組織預設${org ? '' : '（目前使用內建值）'}`}>
-        <ThresholdForm action={saveThresholdsAction.bind(null, null)} initial={thresholdsToForm(orgValues)} disabled={!isAdmin} />
-      </Card>
-      {accounts.map((a) => {
-        const own = rows.find((r) => r.accountId === a.id);
-        return (
-          <Card
-            key={a.id}
-            className="mt-4"
-            title={`${a.name}${own ? '' : '（沿用全組織預設）'}`}
-            actions={
-              own && isAdmin ? (
-                <form action={clearThresholdsAction.bind(null, a.id)}>
-                  <Button variant="secondary">改回預設</Button>
-                </form>
-              ) : null
-            }
-          >
+      <PageHeader
+        back={{ href: '/settings', label: '設定' }}
+        title="Tier 門檻"
+        subtitle="決定變更單的風險分級。Tier 1 為保護性變更（降預算、暫停、降目標 CPA），自動執行並附 Undo；Tier 2 需一人審核；Tier 3 需審核 + 二次確認，且不得由提出者本人核准。"
+      />
+      {isAdmin ? null : <Alert title="唯讀">所有設定只有 Admin 能修改，你目前可以檢視。</Alert>}
+      <div className="flex flex-col gap-4">
+        <ThresholdForm action={saveThresholdsAction.bind(null, null)} initial={thresholdsToForm(orgValues)} title="全組織預設" meta={org ? '套用到沒有自訂門檻的帳戶' : '目前使用內建值'} disabled={!isAdmin} />
+        {accounts.map((a) => {
+          const own = rows.find((r) => r.accountId === a.id);
+          return (
             <ThresholdForm
+              key={a.id}
               action={saveThresholdsAction.bind(null, a.id)}
               initial={thresholdsToForm(own ? { tier3Pct: own.tier3Pct, tier3AmountMicros: own.tier3AmountMicros, tier1MaxReducePct: own.tier1MaxReducePct } : orgValues)}
+              title={a.name}
+              meta={`${a.externalId} · ${a.currency}${own ? '' : ' · 沿用全組織預設'}`}
               currency={a.currency}
               disabled={!isAdmin}
+              extra={
+                own && isAdmin ? (
+                  <form action={clearThresholdsAction.bind(null, a.id)}>
+                    <Button size="sm">改回預設</Button>
+                  </form>
+                ) : null
+              }
             />
-          </Card>
-        );
-      })}
+          );
+        })}
+      </div>
     </>
   );
 }

@@ -2,7 +2,8 @@
 
 import { useActionState } from 'react';
 import type { ScheduleFormState } from '../app/(console)/schedules/actions';
-import { Button, inputClass } from './ui';
+import { ChipSelect } from './client';
+import { Alert, Button, Input, LinkButton, Select, Switch, Textarea } from './ui';
 
 export interface ScheduleFormValues {
   name: string;
@@ -22,96 +23,76 @@ interface Props {
   accounts: { id: string; name: string; externalId: string }[];
   channels: { id: string; name: string; private: boolean }[];
   timeZones: string[];
+  /** Non-admins see the settings but cannot change them. */
+  readOnly?: boolean;
 }
 
-function Field({ label, error, hint, children }: { label: string; error?: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <label className="block space-y-1">
-      <span className="text-sm font-medium">{label}</span>
-      {children}
-      {hint && !error ? <span className="block text-xs text-zinc-500">{hint}</span> : null}
-      {error ? <span className="block text-xs text-red-600">{error}</span> : null}
-    </label>
-  );
-}
-
-export function ScheduleForm({ action, initial: defaults, templates, accounts, channels, timeZones }: Props) {
+export function ScheduleForm({ action, initial: defaults, templates, accounts, channels, timeZones, readOnly }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
   const e = state.errors ?? {};
   const initial = state.values ?? defaults;
   const knownChannel = channels.some((c) => c.id === initial.channelId);
+  const errorCount = Object.values(e).filter(Boolean).length;
   return (
     // Keyed by the echoed values so the uncontrolled fields pick them up after a failed submit.
-    <form key={JSON.stringify(initial)} action={formAction} className="grid max-w-2xl gap-4">
-      <Field label="名稱" error={e.name}>
-        <input name="name" defaultValue={initial.name} className={`${inputClass} w-full`} required />
-      </Field>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="模板" error={e.template}>
-          <select name="template" defaultValue={initial.template} className={`${inputClass} w-full`}>
+    <form key={JSON.stringify(initial)} action={formAction} className="card flex min-w-0 flex-[999_1_520px] flex-col gap-5">
+      {errorCount ? (
+        <Alert tone="danger" title={`有 ${errorCount} 個欄位需要修正`}>
+          {e.form ?? '請檢查標示的欄位。'}
+        </Alert>
+      ) : null}
+      <fieldset disabled={readOnly} className="flex min-w-0 flex-col gap-5">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-5">
+          <Input label="名稱" name="name" defaultValue={initial.name} error={e.name} required />
+          <Select label="模板" name="template" defaultValue={initial.template} error={e.template}>
             {templates.map((t) => (
               <option key={t.value} value={t.value}>
                 {t.label}
               </option>
             ))}
-          </select>
-        </Field>
-        <Field label="目標 Slack channel" error={e.channelId} hint={channels.length ? '僅列出 bot 已加入的 channel' : '無法讀取 channel 清單，請輸入 channel ID'}>
-          {channels.length ? (
-            <select name="channelId" defaultValue={knownChannel ? initial.channelId : ''} className={`${inputClass} w-full`}>
-              <option value="">選擇 channel…</option>
-              {channels.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.private ? '🔒' : '#'}
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input name="channelId" defaultValue={initial.channelId} placeholder="C0123456789" className={`${inputClass} w-full`} />
-          )}
-        </Field>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Cron" error={e.cron} hint="分 時 日 月 星期，例如 0 9 * * 1-5（平日 09:00）">
-          <input name="cron" defaultValue={initial.cron} className={`${inputClass} w-full font-mono`} required />
-        </Field>
-        <Field label="時區" error={e.tz}>
-          <select name="tz" defaultValue={initial.tz} className={`${inputClass} w-full`}>
+          </Select>
+        </div>
+        {channels.length ? (
+          <Select label="目標 Slack channel" name="channelId" defaultValue={knownChannel ? initial.channelId : ''} hint="只列出 bot 已加入的 channel" error={e.channelId}>
+            <option value="">選擇 channel…</option>
+            {channels.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.private ? '（私人）' : '#'}
+                {c.name}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <Input label="目標 Slack channel ID" name="channelId" defaultValue={initial.channelId} placeholder="C04ABCD123" hint="讀不到 bot 已加入的 channel 清單，請手動輸入 channel ID。" error={e.channelId} className="font-mono" />
+        )}
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-5">
+          <Input label="cron 運算式" name="cron" defaultValue={initial.cron} hint="分 時 日 月 週，例如 0 9 * * 1-5" error={e.cron} className="font-mono" required />
+          <Select label="時區" name="tz" defaultValue={initial.tz} error={e.tz}>
             {timeZones.map((tz) => (
               <option key={tz} value={tz}>
                 {tz}
               </option>
             ))}
-          </select>
-        </Field>
-      </div>
-      <fieldset className="space-y-1">
-        <legend className="text-sm font-medium">帳戶</legend>
-        <p className="text-xs text-zinc-500">都不勾選 = 所有啟用中的帳戶</p>
-        <div className="grid gap-1 sm:grid-cols-2">
-          {accounts.map((a) => (
-            <label key={a.id} className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="accountIds" value={a.id} defaultChecked={initial.accountIds.includes(a.id)} />
-              {a.name}
-              <span className="text-xs text-zinc-500">{a.externalId}</span>
-            </label>
-          ))}
+          </Select>
         </div>
+        <div className="field">
+          <span className="field-label">帳戶</span>
+          <ChipSelect name="accountIds" options={accounts.map((a) => ({ value: a.id, label: a.name }))} initial={initial.accountIds} disabled={readOnly} />
+          <p className="field-hint">都不選 = 所有啟用中的帳戶</p>
+        </div>
+        <Textarea label="給 agent 的額外指示（選填）" name="extraInstructions" defaultValue={initial.extraInstructions} placeholder="例如：報告只列出 CPA 變動超過 20% 的 campaign" error={e.extraInstructions} />
+        <Switch label="啟用" name="enabled" defaultChecked={initial.enabled} disabled={readOnly} />
       </fieldset>
-      <Field label="額外指示（選填）" error={e.extraInstructions} hint="會交給 agent 參考，例如「特別注意 Brand campaign 的 CPA」">
-        <textarea name="extraInstructions" defaultValue={initial.extraInstructions} rows={3} className={`${inputClass} w-full`} />
-      </Field>
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" name="enabled" defaultChecked={initial.enabled} />
-        啟用
-      </label>
-      {e.form ? <p className="text-sm text-red-600">{e.form}</p> : null}
-      <div>
-        <Button type="submit" disabled={pending}>
-          {pending ? '儲存中…' : '儲存'}
-        </Button>
-      </div>
+      {readOnly ? null : (
+        <div className="card-footer mt-0">
+          <Button variant="primary" disabled={pending}>
+            {pending ? '儲存中…' : '儲存'}
+          </Button>
+          <LinkButton variant="secondary" href="/schedules">
+            取消
+          </LinkButton>
+        </div>
+      )}
     </form>
   );
 }

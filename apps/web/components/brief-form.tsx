@@ -1,72 +1,56 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import type { BriefFormState } from '../app/(console)/campaigns/actions';
 import type { BriefFormValues } from '../lib/campaigns';
-import { Button, inputClass } from './ui';
-
-function Field({ label, error, hint, children }: { label: string; error?: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <label className="block space-y-1">
-      <span className="text-sm font-medium">{label}</span>
-      {children}
-      {error ? <span className="block text-xs text-red-600">{error}</span> : hint ? <span className="block text-xs text-zinc-500">{hint}</span> : null}
-    </label>
-  );
-}
+import { Alert, Button, Input, LinkButton, Select, Textarea } from './ui';
 
 export function BriefForm({ action, initial: defaults, accounts }: { action: (prev: BriefFormState, form: FormData) => Promise<BriefFormState>; initial: BriefFormValues; accounts: { id: string; name: string; currency: string }[] }) {
   const [state, formAction, pending] = useActionState(action, {});
   const e = state.errors ?? {};
   const v = state.values ?? defaults;
+  const [accountId, setAccountId] = useState(v.accountId);
+  const currency = accounts.find((a) => a.id === accountId)?.currency ?? '帳戶幣別';
+  const errorCount = Object.values(e).filter(Boolean).length;
   return (
-    <form key={JSON.stringify(v)} action={formAction} className="grid max-w-3xl gap-4">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="帳戶" error={e.accountId}>
-          <select name="accountId" defaultValue={v.accountId} className={`${inputClass} w-full`}>
+    // Keyed by the echoed values so the uncontrolled fields pick them up after a failed submit.
+    <form key={JSON.stringify(v)} action={formAction} className="flex flex-col gap-6">
+      {errorCount ? (
+        <Alert tone="danger" title={`有 ${errorCount} 個欄位需要修正`}>
+          請檢查下方標示的欄位後再送出。
+        </Alert>
+      ) : null}
+      <div className="card flex flex-col gap-5">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-5">
+          <Select label="帳戶" name="accountId" value={accountId} onChange={(ev) => setAccountId(ev.target.value)} error={e.accountId}>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.name}（{a.currency}）
+                {a.name}
               </option>
             ))}
-          </select>
-        </Field>
-        <Field label="Campaign 名稱" error={e.name}>
-          <input name="name" defaultValue={v.name} className={`${inputClass} w-full`} required />
-        </Field>
-      </div>
-      <Field label="目標" error={e.objective} hint="例如：Q4 新品預購、提高視訊門鈴的線上銷售">
-        <textarea name="objective" defaultValue={v.objective} rows={2} className={`${inputClass} w-full`} required />
-      </Field>
-      <Field label="產品 / 服務與賣點" error={e.offering}>
-        <textarea name="offering" defaultValue={v.offering} rows={4} className={`${inputClass} w-full`} required />
-      </Field>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="到達網頁" error={e.landingPageUrl}>
-          <input name="landingPageUrl" defaultValue={v.landingPageUrl} placeholder="https://" className={`${inputClass} w-full`} required />
-        </Field>
-        <Field label="每日預算（帳戶幣別）" error={e.dailyBudget}>
-          <input name="dailyBudget" defaultValue={v.dailyBudget} inputMode="decimal" className={`${inputClass} w-full`} required />
-        </Field>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="地區" error={e.locations} hint="以逗號分隔，例如：台灣">
-          <input name="locations" defaultValue={v.locations} className={`${inputClass} w-full`} required />
-        </Field>
-        <Field label="語言" error={e.languages} hint="以逗號分隔，例如：zh-TW, en">
-          <input name="languages" defaultValue={v.languages} className={`${inputClass} w-full`} required />
-        </Field>
-      </div>
-      <Field label="目標受眾（選填）" error={e.audience}>
-        <textarea name="audience" defaultValue={v.audience} rows={2} className={`${inputClass} w-full`} />
-      </Field>
-      <Field label="其他備註（選填）" error={e.notes} hint="品牌語氣、必須包含或避免的詞、促銷資訊">
-        <textarea name="notes" defaultValue={v.notes} rows={3} className={`${inputClass} w-full`} />
-      </Field>
-      <div>
-        <Button type="submit" disabled={pending}>
-          {pending ? '送出中…' : '產生草稿'}
-        </Button>
+          </Select>
+          <Input label="Campaign 名稱" name="name" defaultValue={v.name} placeholder="例如 Arlo 企業方案｜Search" error={e.name} required />
+        </div>
+        <Textarea label="目標" name="objective" defaultValue={v.objective} rows={2} placeholder="例如：取得企業試用申請、提高線上銷售" error={e.objective} required />
+        <Textarea label="產品 / 服務與賣點" name="offering" defaultValue={v.offering} rows={4} placeholder="販售什麼、和競品差在哪、價格或優惠" error={e.offering} required />
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-5">
+          <Input label="到達網頁" name="landingPageUrl" defaultValue={v.landingPageUrl} placeholder="https://" error={e.landingPageUrl} required />
+          <Input label={`每日預算（${currency}）`} name="dailyBudget" defaultValue={v.dailyBudget} inputMode="decimal" placeholder="3000" error={e.dailyBudget} required />
+        </div>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-5">
+          <Input label="地區（可多個）" name="locations" defaultValue={v.locations} hint="以逗號分隔，例如：台灣, 香港" error={e.locations} required />
+          <Input label="語言（可多個）" name="languages" defaultValue={v.languages} hint="以逗號分隔，例如：zh-TW, en" error={e.languages} required />
+        </div>
+        <Input label="目標受眾（選填）" name="audience" defaultValue={v.audience} placeholder="例如 50 人以上企業的 IT 主管" error={e.audience} />
+        <Textarea label="其他備註（選填）" name="notes" defaultValue={v.notes} rows={3} placeholder="不想出現的字、必須包含的訊息等" error={e.notes} />
+        <div className="card-footer mt-1">
+          <Button variant="primary" disabled={pending}>
+            {pending ? '送出中…' : '送出並產生草稿'}
+          </Button>
+          <LinkButton variant="secondary" href="/campaigns">
+            取消
+          </LinkButton>
+        </div>
       </div>
     </form>
   );

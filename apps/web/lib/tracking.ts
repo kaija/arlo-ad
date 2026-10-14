@@ -12,5 +12,5 @@ export async function loadTracking(db: DbOrTx, account: AdAccount, now: Date) {
   const series = account.ga4PropertyId ? await conversionGapSeries(db, account, addDays(today, -17), addDays(today, -1)) : [];
   const gap = account.ga4PropertyId ? ga4Gap(series) : null;
   const anomalies = await listAnomalies(db, { accountIds: [account.id], since: addDays(today, -14), limit: 30 });
-  return { health, gap, series, anomalies, categories: new Map(actions.map((a) => [a.externalId, a.category])) };
+  return { health, gap, series, anomalies, categories: new Map(actions.map((a) => [a.externalId, a.category])), primary: new Set(actions.filter((a) => a.primary).map((a) => a.externalId)) };
 }

@@ -2,11 +2,12 @@ import { authorize } from '@arlo/core';
 import { latestRunsByJob, listScheduledJobs, resolveAccounts } from '@arlo/db';
 import { previewCron } from '@arlo/queue';
 import Link from 'next/link';
-import { Badge, Button, Card, PageTitle, Table, Td } from '../../../components/ui';
+import { AutoSubmitForm } from '../../../components/client';
+import { Badge, Button, DataTable, EmptyState, LinkButton, PageHeader, Switch } from '../../../components/ui';
 import { TEMPLATE_LABELS } from '../../../lib/schedules';
 import { getDb } from '../../../lib/server';
 import { listBotChannels } from '../../../lib/slack-channels';
-import { formatAt, RUN_TONE } from '../../../lib/time';
+import { formatAt, RUN_LABEL, RUN_TONE } from '../../../lib/time';
 import { requireUser } from '../../../lib/session';
 import { runScheduleAction, toggleScheduleAction } from './actions';
 
@@ -23,62 +24,85 @@ export default async function SchedulesPage() {
 
   return (
     <>
-      <PageTitle actions={isAdmin ? <Link href="/schedules/new"><Button>新增排程</Button></Link> : null}>排程</PageTitle>
-      <Card>
-        {jobs.length === 0 ? (
-          <p className="text-sm text-zinc-500">還沒有排程。{isAdmin ? '可以從「新增排程」建立每日報告。' : ''}</p>
-        ) : (
-          <Table head={['名稱', '模板', '時間', '帳戶', 'Channel', '狀態', '上次執行', '']}>
+      <PageHeader
+        title="排程"
+        subtitle="定時讓 agent 執行任務，結果發到指定的 Slack channel。"
+        actions={isAdmin ? <LinkButton variant="primary" href="/schedules/new">新增排程</LinkButton> : null}
+      />
+      {jobs.length === 0 ? (
+        <EmptyState icon="calendar" title="還沒有排程">
+          {isAdmin ? '點「新增排程」建立每日報告或否定關鍵字掃描。' : 'Admin 建立排程後會出現在這裡。'}
+        </EmptyState>
+      ) : (
+        <DataTable minWidth={1120}>
+          <thead>
+            <tr>
+              <th>名稱</th>
+              <th>模板</th>
+              <th>時間</th>
+              <th>帳戶</th>
+              <th>Slack channel</th>
+              <th>啟用</th>
+              <th>上次執行</th>
+              {isAdmin ? <th /> : null}
+            </tr>
+          </thead>
+          <tbody>
             {jobs.map((job) => {
               const next = job.enabled ? previewCron(job.cron, job.tz, { count: 1 }) : null;
               const run = runs.get(job.id);
               const target = job.target as { channelId?: string };
               return (
                 <tr key={job.id}>
-                  <Td first>
-                    <Link href={`/schedules/${job.id}`} className="font-medium hover:underline">
+                  <td>
+                    <Link href={`/schedules/${job.id}`} className="font-medium hover:text-accent">
                       {job.name}
                     </Link>
-                  </Td>
-                  <Td>{TEMPLATE_LABELS[job.template]}</Td>
-                  <Td>
-                    <code className="text-xs">{job.cron}</code>
-                    <div className="text-xs text-zinc-500">
-                      {job.tz}
-                      {next?.ok && next.next[0] ? ` · 下次 ${formatAt(next.next[0], job.tz)}` : ''}
+                  </td>
+                  <td className="whitespace-nowrap text-muted">{TEMPLATE_LABELS[job.template]}</td>
+                  <td>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-mono text-meta">{job.cron}</span>
+                      <span className="text-xs whitespace-nowrap text-faint">
+                        {job.tz}
+                        {next?.ok && next.next[0] ? ` · 下次 ${formatAt(next.next[0], job.tz)}` : ''}
+                      </span>
                     </div>
-                  </Td>
-                  <Td>{job.accountIds ? job.accountIds.map((id) => accountName.get(id) ?? id).join('、') : '全部'}</Td>
-                  <Td>#{channelName.get(target.channelId ?? '') ?? target.channelId}</Td>
-                  <Td>{job.enabled ? <Badge tone="ok">啟用</Badge> : <Badge>停用</Badge>}</Td>
-                  <Td>
-                    {run ? (
-                      <span className="inline-flex items-center gap-1">
-                        <Badge tone={RUN_TONE[run.status]}>{run.status}</Badge>
-                        <span className="text-xs text-zinc-500">{formatAt(run.startedAt, job.tz)}</span>
-                      </span>
-                    ) : (
-                      '—'
-                    )}
-                  </Td>
-                  <Td>
+                  </td>
+                  <td className="text-muted">{job.accountIds ? job.accountIds.map((id) => accountName.get(id) ?? id).join('、') : '全部帳戶'}</td>
+                  <td className="font-mono text-meta text-muted">#{channelName.get(target.channelId ?? '') ?? target.channelId}</td>
+                  <td>
                     {isAdmin ? (
-                      <span className="inline-flex gap-1">
-                        <form action={runScheduleAction.bind(null, job.id)}>
-                          <Button variant="secondary">立即執行</Button>
-                        </form>
-                        <form action={toggleScheduleAction.bind(null, job.id, !job.enabled)}>
-                          <Button variant="secondary">{job.enabled ? '停用' : '啟用'}</Button>
-                        </form>
-                      </span>
-                    ) : null}
-                  </Td>
+                      <AutoSubmitForm action={toggleScheduleAction.bind(null, job.id, !job.enabled)}>
+                        <Switch size="sm" defaultChecked={job.enabled} aria-label={`啟用 ${job.name}`} />
+                      </AutoSubmitForm>
+                    ) : (
+                      <Badge tone={job.enabled ? 'ok' : 'neutral'}>{job.enabled ? '啟用' : '停用'}</Badge>
+                    )}
+                  </td>
+                  <td>
+                    {run ? (
+                      <div className="flex flex-col items-start gap-[3px]">
+                        <Badge tone={RUN_TONE[run.status]}>{RUN_LABEL[run.status]}</Badge>
+                        <span className="font-mono text-xs text-faint">{formatAt(run.startedAt, job.tz)}</span>
+                      </div>
+                    ) : (
+                      <span className="text-faint">—</span>
+                    )}
+                  </td>
+                  {isAdmin ? (
+                    <td>
+                      <form action={runScheduleAction.bind(null, job.id)}>
+                        <Button size="sm">立即執行</Button>
+                      </form>
+                    </td>
+                  ) : null}
                 </tr>
               );
             })}
-          </Table>
-        )}
-      </Card>
+          </tbody>
+        </DataTable>
+      )}
     </>
   );
 }

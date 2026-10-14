@@ -53,6 +53,8 @@ pnpm eval --sample 3          # agent eval（evals/cases/*.json；需 OPENAI_API
 - 平台資料（`packages/db/src/schema/platform.ts`）：`platform` 只存在 `ad_accounts`；`entities.external_id` 在 (account, kind) 內唯一（Google keyword 用 `adGroupId~criterionId`）；帳戶層級 metrics 用 kind=`account` 的 entity。`metrics_*` 的 `account_id`/`level` 是反正規化欄位，由複合 FK 對應 entity。金額一律 micros（bigint），比例 0–1。
 - 同步寫入走 `packages/db/src/repositories/platform.ts` 的 upsert 函式：metrics / 報表衝突時覆寫（回補）、snapshot 與 change_events 只插入不改；自動分批避開 bind parameter 上限；同一次呼叫內 row 不可重複 conflict key。
 
+- Web UI 一律用 Arlo AI design system（來源：Claude Design 專案「Arlo Ads Console」）：tokens 是 `apps/web/app/globals.css` 的 `@theme` 變數（`text-muted`、`bg-accent-light`、`rounded-md`…），元件 class（`.btn`、`.card`、`.badge`、`.table`…）在同檔的 `@layer components`，React primitives 在 `apps/web/components/ui.tsx`（`PageHeader`、`Card`、`DataTable`、`Badge`、`Input`、`Select`、`Alert`…）、圖示在 `components/icons.tsx`、互動小元件在 `components/client.tsx`。只有 light theme；不用 emoji；新頁面不要再寫 `zinc-*` 等 Tailwind 預設色。表單維持「client 元件收集輸入 → 以原本的欄位名稱 post 給 server action」，不要為了 UI 改 server action 的欄位格式。
+
 - 環境變數一律經 `@arlo/config` 的 `parseEnv(EnvSchema.pick({...}))` 讀取，不直接讀 `process.env`。每個 process 只 pick 自己用到的 key，功能落地時再擴充 pick（`apps/worker/src/index.ts` 的 `WorkerEnv`、`apps/web/lib/server.ts` 的 `WebEnv`）。新增變數時同時改 `EnvSchema` 與 `.env.example`（`env.test.ts` 會檢查兩者一致）；錯誤訊息只列 key，不可帶出值。
 - 寫入廣告帳戶前必須呼叫 `assertWriteAllowed(env.ADS_WRITE_ALLOWED_CUSTOMER_IDS, customerId)`（ADR-0026）；空白清單代表不允許任何寫入。
 
