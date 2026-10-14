@@ -52,6 +52,26 @@ describe('Auth.js config', () => {
     expect(await findUserByEmail(t.db, p.email)).toBeUndefined();
   });
 
+  describe('without a Workspace domain', () => {
+    const open = () => buildAuthConfig({ ...env, ALLOWED_WORKSPACE_DOMAIN: undefined }, { db: t.db, logger, directory });
+
+    it('does not narrow Google account selection', () => {
+      const google = open().providers[0] as unknown as { options: { authorization: { params: Record<string, string> } } };
+      expect(google.options.authorization.params).not.toHaveProperty('hd');
+    });
+
+    it('accepts a verified consumer account as an unbound user', async () => {
+      const p = profile('pat@gmail.com', { hd: undefined });
+      expect(await (open().callbacks as Callbacks).signIn({ user: {}, account: { provider: 'google', type: 'oidc', providerAccountId: 'sub' }, profile: p } as SignInArgs)).toBe(true);
+      expect(await findUserByEmail(t.db, 'pat@gmail.com')).toMatchObject({ status: 'unbound' });
+    });
+
+    it('still rejects an unverified email', async () => {
+      const p = profile('pat@gmail.com', { hd: undefined, email_verified: false });
+      expect(await (open().callbacks as Callbacks).signIn({ user: {}, account: { provider: 'google', type: 'oidc', providerAccountId: 'sub' }, profile: p } as SignInArgs)).toBe(false);
+    });
+  });
+
   it('rejects other providers', async () => {
     expect(await signIn(profile('pat@example.com'), 'github')).toBe(false);
   });

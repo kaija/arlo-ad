@@ -34,7 +34,8 @@ export const EnvSchema = z.object({
   AUTH_SECRET: required(),
   GOOGLE_OAUTH_CLIENT_ID: required(),
   GOOGLE_OAUTH_CLIENT_SECRET: required(),
-  ALLOWED_WORKSPACE_DOMAIN: required(),
+  // Unset: any verified Google account may sign in (and gets no role until an admin grants one).
+  ALLOWED_WORKSPACE_DOMAIN: optional(),
 
   SLACK_BOT_TOKEN: required(),
   SLACK_SIGNING_SECRET: required(),

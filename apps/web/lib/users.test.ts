@@ -72,4 +72,10 @@ describe('RBAC administration', () => {
     expect(added).toMatchObject({ ok: true });
     expect((await listUsersWithBindings(t.db)).map((u) => u.googleEmail)).toContain('pat@example.com');
   });
+
+  it('pre-provisions any address when no domain is configured', async () => {
+    expect(await addUser(t.db, admin, 'not-an-email', undefined)).toMatchObject({ ok: false });
+    expect(await addUser(t.db, admin, ' Pat@Gmail.com ', undefined)).toMatchObject({ ok: true });
+    expect((await listUsersWithBindings(t.db)).map((u) => u.googleEmail)).toContain('pat@gmail.com');
+  });
 });

@@ -290,7 +290,7 @@ const Env = z.object({
   APP_BASE_URL: z.string().url(),
   AUTH_SECRET: z.string(),
   GOOGLE_OAUTH_CLIENT_ID: z.string(), GOOGLE_OAUTH_CLIENT_SECRET: z.string(),
-  ALLOWED_WORKSPACE_DOMAIN: z.string(),
+  ALLOWED_WORKSPACE_DOMAIN: z.string().optional(),   // 未設定：任何已驗證 Google 帳號可登入，仍需 role binding
   SLACK_BOT_TOKEN: z.string(), SLACK_SIGNING_SECRET: z.string(),
   SLACK_APPROVAL_CHANNEL_ID: z.string(), SLACK_OPS_CHANNEL_ID: z.string(),
   GOOGLE_ADS_DEVELOPER_TOKEN: z.string(), GOOGLE_ADS_CLIENT_ID: z.string(),

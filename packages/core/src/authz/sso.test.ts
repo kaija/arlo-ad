@@ -16,6 +16,16 @@ describe('checkWorkspaceProfile', () => {
     expect(checkWorkspaceProfile(profile, 'example.com')).toEqual(expected);
   });
 
+  it.each([
+    ['consumer account', { email: 'Pat@Gmail.com', email_verified: true }, { ok: true, email: 'pat@gmail.com' }],
+    ['any Workspace', { email: 'pat@other.com', email_verified: true, hd: 'other.com' }, { ok: true, email: 'pat@other.com' }],
+    ['unverified email', { email: 'pat@gmail.com', email_verified: false }, { ok: false, reason: 'unverified' }],
+    ['missing email', { email_verified: true }, { ok: false, reason: 'no_email' }],
+  ])('without a configured domain: %s', (_, profile, expected) => {
+    expect(checkWorkspaceProfile(profile, undefined)).toEqual(expected);
+    expect(checkWorkspaceProfile(profile, '  ')).toEqual(expected);
+  });
+
   it('rejects a missing profile', () => {
     expect(checkWorkspaceProfile(undefined, 'example.com')).toEqual({ ok: false, reason: 'no_email' });
   });

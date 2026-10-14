@@ -85,8 +85,9 @@ describe('parseEnv', () => {
   });
 
   it('turns blank optional values into undefined', () => {
-    expect(parseEnv(EnvSchema, { ...valid, GA4_SERVICE_ACCOUNT_JSON: '', BACKUP_S3_BUCKET: 'bkt' })).toMatchObject({
+    expect(parseEnv(EnvSchema, { ...valid, GA4_SERVICE_ACCOUNT_JSON: '', ALLOWED_WORKSPACE_DOMAIN: ' ', BACKUP_S3_BUCKET: 'bkt' })).toMatchObject({
       GA4_SERVICE_ACCOUNT_JSON: undefined,
+      ALLOWED_WORKSPACE_DOMAIN: undefined,
       BACKUP_S3_BUCKET: 'bkt',
     });
   });

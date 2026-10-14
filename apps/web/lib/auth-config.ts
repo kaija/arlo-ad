@@ -11,7 +11,8 @@ export interface AuthEnv {
   AUTH_SECRET: string;
   GOOGLE_OAUTH_CLIENT_ID: string;
   GOOGLE_OAUTH_CLIENT_SECRET: string;
-  ALLOWED_WORKSPACE_DOMAIN: string;
+  /** Unset: any verified Google account may sign in. */
+  ALLOWED_WORKSPACE_DOMAIN?: string | undefined;
 }
 
 export interface AuthDeps {
@@ -49,8 +50,8 @@ export function buildAuthConfig(env: AuthEnv, { db, logger, directory }: AuthDep
       Google({
         clientId: env.GOOGLE_OAUTH_CLIENT_ID,
         clientSecret: env.GOOGLE_OAUTH_CLIENT_SECRET,
-        // Only narrows Google's account chooser; the signIn callback enforces the domain.
-        authorization: { params: { hd: domain, prompt: 'select_account' } },
+        // `hd` only narrows Google's account chooser; the signIn callback enforces the domain.
+        authorization: { params: { ...(domain ? { hd: domain } : {}), prompt: 'select_account' } },
       }),
     ],
     callbacks: {

@@ -89,10 +89,12 @@ export async function setDisabled(db: Db, actorId: string, userId: string, disab
   return { ok: true };
 }
 
-/** Pre-provisions a Workspace user so bindings can be set before their first sign-in. */
-export async function addUser(db: Db, actorId: string, email: string, allowedDomain: string): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
+/** Pre-provisions a user so bindings can be set before their first sign-in. Without a domain any address is accepted. */
+export async function addUser(db: Db, actorId: string, email: string, allowedDomain: string | undefined): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
   const normalized = email.trim().toLowerCase();
-  if (!/^[^@\s]+@[^@\s]+$/.test(normalized) || !normalized.endsWith(`@${allowedDomain.trim().toLowerCase()}`)) return { ok: false, error: `請輸入 @${allowedDomain} 的 email` };
+  const domain = allowedDomain?.trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+$/.test(normalized)) return { ok: false, error: '請輸入有效的 email' };
+  if (domain && !normalized.endsWith(`@${domain}`)) return { ok: false, error: `請輸入 @${domain} 的 email` };
   const user = await upsertUserOnSignIn(db, { email: normalized });
   await audit(db, actorId, user.id, 'provision', { email: normalized });
   return { ok: true, userId: user.id };
