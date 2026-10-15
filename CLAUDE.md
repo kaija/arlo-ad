@@ -24,6 +24,7 @@ pnpm eval --sample 3          # agent eval（evals/cases/*.json；需 OPENAI_API
 ```
 
 - Workspace package（`@arlo/*`）直接 export TypeScript 原始碼（`exports: ./src/index.ts`），沒有個別 build 步驟；`apps/web` 以 `transpilePackages` 編譯。新增被 web 使用的 package 時要加進 `apps/web/next.config.ts`。
+- 根目錄 `AGENTS.md`（turbo）與 `apps/web/AGENTS.md`、`apps/web/CLAUDE.md`（`next dev`）含工具管理的 agent-rules 區塊，缺少時會自動加回：照原樣 commit，不要改動標記內文字；Next.js 版本相關文件在 `apps/web/node_modules/next/dist/docs/`。
 - 共用版本放在 `pnpm-workspace.yaml` 的 `catalog:`。
 - typescript 固定 `~6.0`：typescript-eslint 尚未支援 TS 7。
 - pnpm 啟用 minimumReleaseAge；不要為了裝剛發布的版本而加入 `minimumReleaseAgeExclude`，改用前一個已過門檻的版本。
