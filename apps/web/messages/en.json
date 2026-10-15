@@ -440,7 +440,9 @@
     "cannotDisableSelf": "You can't disable yourself.",
     "validEmail": "Enter a valid email",
     "emailDomain": "Enter an @{domain} email",
-    "slackUnreachable": "Couldn't reach Slack; try again later or enter the Slack user ID manually"
+    "slackUnreachable": "Couldn't reach Slack; try again later or enter the Slack user ID manually",
+    "slackMissingScope": "The Slack bot token lacks the users:read.email scope; add it in the Slack app and reinstall",
+    "slackInvalidToken": "Slack rejected the bot token; check SLACK_BOT_TOKEN (xoxb-…) and restart the web service"
   },
   "brief": {
     "name": "Campaign name",

@@ -15,7 +15,7 @@ import {
   type BindingInput,
   type Db,
 } from '@arlo/db';
-import { msg, type Msg } from './msg';
+import { msg, type ErrorKey, type Msg } from './msg';
 
 /** Badge tone per user status; the label is `users.status.*`. */
 export const STATUS_TONE = { active: 'ok', unbound: 'warn', disabled: 'bad' } as const;
@@ -80,6 +80,14 @@ export async function bindSlackByEmail(db: Db, actorId: string, userId: string, 
     return { ok: true };
   }
   return outcome === 'already_bound' ? { ok: true } : { ok: false, error: ({ not_found: 'slackEmailNotFound', slack_user_taken: 'slackUserTaken', skipped_disabled: 'userDisabled' } as const)[outcome] };
+}
+
+/** Maps a failed Slack directory call to a message; token and scope problems are configuration, not outages. */
+export function slackLookupError(err: unknown): ErrorKey {
+  const code = (err as { data?: { error?: string } } | null)?.data?.error;
+  if (code === 'missing_scope') return 'slackMissingScope';
+  if (code === 'invalid_auth' || code === 'not_authed' || code === 'account_inactive' || code === 'token_revoked' || code === 'token_expired') return 'slackInvalidToken';
+  return 'slackUnreachable';
 }
 
 export async function setDisabled(db: Db, actorId: string, userId: string, disabled: boolean): Promise<AdminResult> {

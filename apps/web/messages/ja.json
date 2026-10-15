@@ -440,7 +440,9 @@
     "cannotDisableSelf": "自分自身を無効化することはできません。",
     "validEmail": "有効なメールアドレスを入力してください",
     "emailDomain": "@{domain} のメールアドレスを入力してください",
-    "slackUnreachable": "Slack に接続できません。しばらくしてから再試行するか、Slack ユーザー ID を手動で入力してください"
+    "slackUnreachable": "Slack に接続できません。しばらくしてから再試行するか、Slack ユーザー ID を手動で入力してください",
+    "slackMissingScope": "Slack ボットトークンに users:read.email スコープがありません。Slack アプリで追加して再インストールしてください",
+    "slackInvalidToken": "Slack がボットトークンを拒否しました。SLACK_BOT_TOKEN（xoxb-…）を確認し、web サービスを再起動してください"
   },
   "brief": {
     "name": "キャンペーン名",

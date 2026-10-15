@@ -440,7 +440,9 @@
     "cannotDisableSelf": "不能停用自己。",
     "validEmail": "請輸入有效的 email",
     "emailDomain": "請輸入 @{domain} 的 email",
-    "slackUnreachable": "無法連線 Slack，請稍後再試或手動輸入 Slack user ID"
+    "slackUnreachable": "無法連線 Slack，請稍後再試或手動輸入 Slack user ID",
+    "slackMissingScope": "Slack bot token 缺少 users:read.email scope；請在 Slack app 加上後重新安裝",
+    "slackInvalidToken": "Slack 拒絕了 bot token；請檢查 SLACK_BOT_TOKEN（xoxb-…）並重新啟動 web 服務"
   },
   "brief": {
     "name": "Campaign 名稱",

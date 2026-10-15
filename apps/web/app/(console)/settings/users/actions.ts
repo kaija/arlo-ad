@@ -8,9 +8,9 @@ import { getTranslations } from 'next-intl/server';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { translateMsg } from '../../../../lib/i18n-server';
-import { getDb } from '../../../../lib/server';
+import { getDb, logger } from '../../../../lib/server';
 import { requireAuthorized } from '../../../../lib/session';
-import { addUser, bindSlackByEmail, bindSlackManually, grantBinding, parseBindingForm, revokeBinding, setDisabled, type AdminResult } from '../../../../lib/users';
+import { addUser, bindSlackByEmail, bindSlackManually, grantBinding, parseBindingForm, revokeBinding, setDisabled, slackLookupError, type AdminResult } from '../../../../lib/users';
 
 type OkKey = 'granted' | 'revoked' | 'slackBound' | 'slackUnbound' | 'slackMatched' | 'disabled' | 'enabled' | 'added';
 
@@ -57,8 +57,9 @@ export async function lookupSlackAction(userId: string): Promise<void> {
   let result: AdminResult;
   try {
     result = await bindSlackByEmail(getDb(), admin.id, userId, (email) => directory.lookupByEmail(email));
-  } catch {
-    result = { ok: false, error: 'slackUnreachable' };
+  } catch (err) {
+    logger.warn({ err, userId }, 'slack lookup by email failed');
+    result = { ok: false, error: slackLookupError(err) };
   }
   await done(userId, result, 'slackMatched');
 }

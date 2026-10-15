@@ -1,7 +1,7 @@
 import { DEFAULT_ORG_ID, getUserWithBindings, listAudit, listUsersWithBindings, upsertAdAccounts, upsertUserOnSignIn } from '@arlo/db';
 import { useTestDatabase } from '@arlo/db/testing';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { addUser, bindSlackByEmail, bindSlackManually, grantBinding, parseBindingForm, revokeBinding, setDisabled } from './users';
+import { addUser, bindSlackByEmail, bindSlackManually, grantBinding, parseBindingForm, revokeBinding, setDisabled, slackLookupError } from './users';
 
 const ACC = '0199b0c2-8f1e-7a3b-9c4d-123456789abc';
 const form = (entries: [string, string][]) => {
@@ -9,6 +9,20 @@ const form = (entries: [string, string][]) => {
   for (const [k, v] of entries) f.append(k, v);
   return f;
 };
+
+describe('slackLookupError', () => {
+  const slackErr = (code: string) => Object.assign(new Error(`An API error occurred: ${code}`), { data: { error: code } });
+  it.each([
+    [slackErr('missing_scope'), 'slackMissingScope'],
+    [slackErr('invalid_auth'), 'slackInvalidToken'],
+    [slackErr('not_authed'), 'slackInvalidToken'],
+    [slackErr('ratelimited'), 'slackUnreachable'],
+    [new Error('getaddrinfo ENOTFOUND slack.com'), 'slackUnreachable'],
+    [null, 'slackUnreachable'],
+  ])('maps %#', (err, key) => {
+    expect(slackLookupError(err)).toBe(key);
+  });
+});
 
 describe('parseBindingForm', () => {
   it.each([
