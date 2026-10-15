@@ -3,7 +3,8 @@ import { GoogleAdsApi, type Customer, type MutateOperation, type services } from
 import type { Row } from './mappers';
 
 export interface GoogleAdsCredentials {
-  developerToken: string;
+  /** Deprecated: Google retired developer tokens on 2026-09-09 and ignores the header. */
+  developerToken?: string;
   clientId: string;
   clientSecret: string;
   refreshToken: string;
@@ -24,7 +25,10 @@ export function createGoogleAdsClient(creds: GoogleAdsCredentials): GoogleAdsCli
   const api = new GoogleAdsApi({
     client_id: creds.clientId,
     client_secret: creds.clientSecret,
-    developer_token: creds.developerToken,
+    // google-ads-api 25 always sends a `developer-token` header, and its gRPC path stringifies the
+    // value (undefined would go out as "undefined"), so pass '' when unset. Revisit on the API
+    // version that rejects the header: the library should drop it then.
+    developer_token: creds.developerToken ?? '',
   });
   const customers = new Map<string, Customer>();
   const customer = (customerId: string) => {

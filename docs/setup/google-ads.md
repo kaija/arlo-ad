@@ -9,12 +9,12 @@ Worker（`apps/worker`）透過 Google Ads API 同步帳戶資料並執行變更
 | `GOOGLE_ADS_REFRESH_TOKEN` | 有 `adwords` scope 的 refresh token | OAuth Playground → [步驟 3](#3-取得-refresh-token) |
 | `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | 管理員帳戶（MCC）的 customer ID | Google Ads UI → [步驟 4](#4-設定-customer-id) |
 | `ADS_WRITE_ALLOWED_CUSTOMER_IDS` | 允許寫入的帳戶（逗號分隔） | 自己決定 → [步驟 4](#4-設定-customer-id) |
-| `GOOGLE_ADS_DEVELOPER_TOKEN` | 已停用，見下方說明 | — |
+| `GOOGLE_ADS_DEVELOPER_TOKEN` | 選填（已停用），留空，見下方說明 | — |
 
 只有 worker 會讀這些變數；web 不需要。
 
 > **Developer token 已於 2026-09-09 停用。** Google 改以 **OAuth client 所在的 Google Cloud project** 決定 API 存取等級，不再發新的 developer token，也不要再從管理員帳戶的 API Center 申請。API 仍接受 `developer-token` header，但會忽略其值，未來的 API 主要版本會拒絕它。
-> 目前 `@arlo/config` 的 `EnvSchema` 仍把 `GOOGLE_ADS_DEVELOPER_TOKEN` 設為必填：有舊 token 就沿用，沒有就填任意非空字串（例如 `unused`）。
+> `GOOGLE_ADS_DEVELOPER_TOKEN` 因此改為選填，留空即可；舊 token 若仍設定會照常送出，但不影響存取。
 
 ---
 

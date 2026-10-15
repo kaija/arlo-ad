@@ -49,6 +49,10 @@ describe('parseEnv', () => {
     expect(env.BACKUP_S3_BUCKET).toBeUndefined();
   });
 
+  it('does not require the retired Google Ads developer token', () => {
+    expect(parseEnv(EnvSchema, without(['GOOGLE_ADS_DEVELOPER_TOKEN'])).GOOGLE_ADS_DEVELOPER_TOKEN).toBeUndefined();
+  });
+
   it('reports every missing variable at once', () => {
     expect(issuesOf(without(['SLACK_BOT_TOKEN', 'OPENAI_API_KEY', 'DATABASE_URL']))).toEqual({
       DATABASE_URL: 'is required',
@@ -85,9 +89,10 @@ describe('parseEnv', () => {
   });
 
   it('turns blank optional values into undefined', () => {
-    expect(parseEnv(EnvSchema, { ...valid, GA4_SERVICE_ACCOUNT_JSON: '', ALLOWED_WORKSPACE_DOMAIN: ' ', BACKUP_S3_BUCKET: 'bkt' })).toMatchObject({
+    expect(parseEnv(EnvSchema, { ...valid, GA4_SERVICE_ACCOUNT_JSON: '', ALLOWED_WORKSPACE_DOMAIN: ' ', GOOGLE_ADS_DEVELOPER_TOKEN: '', BACKUP_S3_BUCKET: 'bkt' })).toMatchObject({
       GA4_SERVICE_ACCOUNT_JSON: undefined,
       ALLOWED_WORKSPACE_DOMAIN: undefined,
+      GOOGLE_ADS_DEVELOPER_TOKEN: undefined,
       BACKUP_S3_BUCKET: 'bkt',
     });
   });

@@ -48,7 +48,9 @@ export const EnvSchema = z.object({
   SLACK_APPROVAL_CHANNEL_ID: required(),
   SLACK_OPS_CHANNEL_ID: required(),
 
-  GOOGLE_ADS_DEVELOPER_TOKEN: required(),
+  // Deprecated: Google retired developer tokens on 2026-09-09; the Cloud project that owns the
+  // OAuth client now sets the access level. Only sent when set; the API ignores it either way.
+  GOOGLE_ADS_DEVELOPER_TOKEN: optional(),
   GOOGLE_ADS_CLIENT_ID: required(),
   GOOGLE_ADS_CLIENT_SECRET: required(),
   GOOGLE_ADS_REFRESH_TOKEN: required(),
