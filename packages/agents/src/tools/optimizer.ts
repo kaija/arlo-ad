@@ -43,9 +43,10 @@ export const RunBudgetOptimizerParams = z.object({
 export async function runBudgetOptimizer(ctx: AgentContext, p: z.infer<typeof RunBudgetOptimizerParams>) {
   const [acc, more] = await resolveAccounts(ctx.db, { allowed: ctx.allowedAccountIds, account: p.account });
   if (!acc || more) throw new ToolInputError(`找不到唯一且有權限的帳戶「${p.account}」。`);
-  const inputs = await loadOptimizerInputs(ctx.db, acc, ctx.now(), { valueBased: p.optimizeFor === 'value' });
+  const now = ctx.now();
+  const inputs = await loadOptimizerInputs(ctx.db, acc, now, { valueBased: p.optimizeFor === 'value' });
   const plan = planReallocation(inputs, { maxChangePct: DEFAULT_REALLOCATION_MAX_CHANGE, minConversions: DEFAULT_REALLOCATION_MIN_CONVERSIONS });
-  const run = await saveOptimizerRun(ctx.db, { accountId: acc.id, inputs, plan, maxChangePct: DEFAULT_REALLOCATION_MAX_CHANGE, minConversions: DEFAULT_REALLOCATION_MIN_CONVERSIONS });
+  const run = await saveOptimizerRun(ctx.db, { accountId: acc.id, inputs, plan, maxChangePct: DEFAULT_REALLOCATION_MAX_CHANGE, minConversions: DEFAULT_REALLOCATION_MIN_CONVERSIONS, createdAt: now });
   return {
     resultId: run.id,
     account: acc.name,

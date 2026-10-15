@@ -63,7 +63,8 @@ export async function loadOptimizerInputs(db: DbOrTx, account: AdAccount, now: D
 
 export type OptimizerRun = typeof optimizerRuns.$inferSelect;
 
-export async function saveOptimizerRun(db: DbOrTx, input: { accountId: string; inputs: OptimizerCampaign[]; plan: ReallocationPlan; maxChangePct: number; minConversions: number }): Promise<OptimizerRun> {
+/** `createdAt` is the caller's clock, the same one the proposal's 24 h TTL check uses. */
+export async function saveOptimizerRun(db: DbOrTx, input: { accountId: string; inputs: OptimizerCampaign[]; plan: ReallocationPlan; maxChangePct: number; minConversions: number; createdAt: Date }): Promise<OptimizerRun> {
   const [row] = await db.insert(optimizerRuns).values({ orgId: DEFAULT_ORG_ID, ...input }).returning();
   return row!;
 }
