@@ -77,7 +77,8 @@ export class FakePlatformAdapter implements GoogleAdsPlatform {
   }
 
   addMetrics(accountId: string, rows: MetricRow[]): this {
-    this.account(accountId).metrics.push(...clone(rows));
+    const account = this.account(accountId);
+    account.metrics = account.metrics.concat(clone(rows));
     return this;
   }
 
@@ -91,7 +92,8 @@ export class FakePlatformAdapter implements GoogleAdsPlatform {
   }
 
   addChangeEvents(accountId: string, rows: ChangeEventRow[]): this {
-    this.account(accountId).changeEvents.push(...clone(rows));
+    const account = this.account(accountId);
+    account.changeEvents = account.changeEvents.concat(clone(rows));
     return this;
   }
 

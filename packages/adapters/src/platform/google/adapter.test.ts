@@ -47,6 +47,18 @@ describe('GoogleAdsAdapter (reads)', () => {
     expect(queries.map((q) => /FROM (\w+)/.exec(q.gaql)?.[1])).toEqual(['campaign', 'keyword_view']);
   });
 
+  it('returns hundreds of thousands of keywords without overflowing the stack', async () => {
+    const n = 200_000;
+    const rows = Array.from({ length: n }, (_, i) => ({
+      ad_group: { id: 221 },
+      ad_group_criterion: { criterion_id: i, status: 2, negative: false, keyword: { text: `kw ${i}`, match_type: 2 } },
+    }));
+    const { client } = recordingClient({ keyword_view: rows });
+    const entities = await new GoogleAdsAdapter(client, { loginCustomerId: ACC, writeAllowedCustomerIds: [] }).fetchEntities(ACC, ['keyword']);
+    expect(entities).toHaveLength(n);
+    expect(entities.at(-1)).toMatchObject({ kind: 'keyword', externalId: `221~${n - 1}` });
+  });
+
   it('builds metric queries per level and validates the range', async () => {
     const { client, queries } = recordingClient({});
     const adapter = new GoogleAdsAdapter(client, { loginCustomerId: ACC, writeAllowedCustomerIds: [] });

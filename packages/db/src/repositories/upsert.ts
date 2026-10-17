@@ -27,6 +27,9 @@ export async function inBatches<R, T>(
 ): Promise<T[]> {
   const size = Math.max(1, Math.floor(MAX_PARAMS / Object.keys(getTableColumns(table)).length));
   const out: T[] = [];
-  for (let i = 0; i < rows.length; i += size) out.push(...(await fn(rows.slice(i, i + size))));
+  for (let i = 0; i < rows.length; i += size) {
+    // Not push(...result): spreading a large result can overflow the call stack.
+    for (const r of await fn(rows.slice(i, i + size))) out.push(r);
+  }
   return out;
 }

@@ -67,7 +67,12 @@ export class GoogleAdsAdapter implements GoogleAdsPlatform {
   }
 
   async fetchEntities(accountId: string, kinds: EntityKind[]): Promise<EntityRecord[]> {
+    // Large accounts return hundreds of thousands of keywords: append with a loop, since
+    // spreading that many arguments into push() overflows the call stack.
     const out: EntityRecord[] = [];
+    const append = (records: EntityRecord[]) => {
+      for (const r of records) out.push(r);
+    };
     for (const kind of new Set(kinds)) {
       switch (kind) {
         case 'account': {
@@ -76,19 +81,19 @@ export class GoogleAdsAdapter implements GoogleAdsPlatform {
           break;
         }
         case 'campaign':
-          out.push(...M.mapCampaigns(await this.client.query(accountId, Q.CAMPAIGNS)));
+          append(M.mapCampaigns(await this.client.query(accountId, Q.CAMPAIGNS)));
           break;
         case 'ad_group':
-          out.push(...M.mapAdGroups(await this.client.query(accountId, Q.AD_GROUPS)));
+          append(M.mapAdGroups(await this.client.query(accountId, Q.AD_GROUPS)));
           break;
         case 'keyword':
-          out.push(...M.mapKeywords(await this.client.query(accountId, Q.KEYWORDS)));
+          append(M.mapKeywords(await this.client.query(accountId, Q.KEYWORDS)));
           break;
         case 'shared_set':
-          out.push(...M.mapSharedSets(await this.client.query(accountId, Q.NEGATIVE_SHARED_SETS)));
+          append(M.mapSharedSets(await this.client.query(accountId, Q.NEGATIVE_SHARED_SETS)));
           break;
         case 'campaign_budget':
-          out.push(...M.mapCampaignBudgets(await this.client.query(accountId, Q.CAMPAIGN_BUDGETS)));
+          append(M.mapCampaignBudgets(await this.client.query(accountId, Q.CAMPAIGN_BUDGETS)));
           break;
       }
     }

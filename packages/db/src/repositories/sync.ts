@@ -47,6 +47,9 @@ export async function loadEntityIds(db: DbOrTx, accountId: string, kinds?: reado
 /**
  * Entities of `kind` the platform no longer returns (removed there) are kept for history
  * with status REMOVED. Returns how many were marked.
+ *
+ * The kept ids go as one text[] parameter: large accounts have more keywords than the
+ * 65535 bind parameters `NOT IN ($1, $2, …)` would need.
  */
 export async function markEntitiesRemoved(db: DbOrTx, accountId: string, kind: EntityKind, keepExternalIds: readonly string[]) {
   const rows = await db
@@ -57,7 +60,7 @@ export async function markEntitiesRemoved(db: DbOrTx, accountId: string, kind: E
         eq(entities.accountId, accountId),
         eq(entities.kind, kind),
         sql`${entities.status} is distinct from 'REMOVED'`,
-        keepExternalIds.length ? notInArray(entities.externalId, [...keepExternalIds]) : undefined,
+        keepExternalIds.length ? sql`${entities.externalId} <> all(${sql.param([...keepExternalIds])}::text[])` : undefined,
       ),
     )
     .returning({ id: entities.id });
