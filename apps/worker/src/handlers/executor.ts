@@ -581,7 +581,8 @@ export function executorJobs(executor: Executor) {
     defineJob(Jobs.changesetProcess, async (data) => {
       await executor.process(data.changesetId);
     }),
-    defineJob(Jobs.changesetExpire, async () => ({ expired: await executor.expireDue() })),
-    defineJob(Jobs.changesetRemind, async () => ({ reminded: await executor.remindSla() })),
+    // Frequent crons: completion at debug; expireDue/remindSla log at info when they act.
+    defineJob(Jobs.changesetExpire, async () => ({ expired: await executor.expireDue() }), { completedLogLevel: 'debug' }),
+    defineJob(Jobs.changesetRemind, async () => ({ reminded: await executor.remindSla() }), { completedLogLevel: 'debug' }),
   ];
 }
