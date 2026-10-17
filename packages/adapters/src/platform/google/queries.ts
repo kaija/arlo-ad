@@ -78,6 +78,8 @@ const LEVEL_SOURCE: Record<MetricLevel, { from: string; key: string }> = {
 };
 
 export function metrics(level: MetricLevel, range: DateRange, hourly = false): string {
+  // Google rejects segments.hour on keyword_view (QueryError 51).
+  if (hourly && level === 'keyword') throw new Error('keyword metrics cannot be segmented by hour');
   const { from, key } = LEVEL_SOURCE[level];
   const fields = [key, 'segments.date', ...(hourly ? ['segments.hour'] : []), METRIC_FIELDS, ...(hourly ? [] : [SHARE_FIELDS[level]])];
   return `
