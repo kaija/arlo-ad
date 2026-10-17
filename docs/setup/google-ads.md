@@ -14,7 +14,7 @@ Worker（`apps/worker`）透過 Google Ads API 同步帳戶資料並執行變更
 只有 worker 會讀這些變數；web 不需要。
 
 > **Developer token 已於 2026-09-09 停用。** Google 改以 **OAuth client 所在的 Google Cloud project** 決定 API 存取等級，不再發新的 developer token，也不要再從管理員帳戶的 API Center 申請。API 仍接受 `developer-token` header，但會忽略其值，未來的 API 主要版本會拒絕它。
-> `GOOGLE_ADS_DEVELOPER_TOKEN` 因此改為選填，留空即可；舊 token 若仍設定會照常送出，但不影響存取。
+> `GOOGLE_ADS_DEVELOPER_TOKEN` 因此改為選填，留空即可：留空時 worker 完全不送 `developer-token` header（送空值會被 API 以 `DEVELOPER_TOKEN_PARAMETER_MISSING` 拒絕）。舊 token 若仍設定會照常送出，但不影響存取。
 
 ---
 
@@ -103,6 +103,7 @@ Test 等級只能存取測試帳戶。測試帳戶不會投放廣告，也不會
 |---|---|---|
 | `invalid_grant` | Refresh token 失效（7 天過期、撤銷、帳號權限被移除） | 確認 consent screen 為 Internal 或 In production，重做步驟 3 |
 | `USER_PERMISSION_DENIED` | 授權的 Google 帳號無法存取 `GOOGLE_ADS_LOGIN_CUSTOMER_ID`，或子帳戶不在該 MCC 底下 | 在 Google Ads 把帳號加入 MCC，或修正 login customer ID |
+| `DEVELOPER_TOKEN_PARAMETER_MISSING` | 請求帶了空的 `developer-token` header（worker 版本早於此修正） | 更新到最新版並重新部署（`scripts/deploy.sh`）；`GOOGLE_ADS_DEVELOPER_TOKEN` 維持留空 |
 | 只能存取測試帳戶（例如 `DEVELOPER_TOKEN_NOT_APPROVED`） | Cloud project 的存取等級仍是 Test | 在 Google Ads API Overview 頁申請 Explorer 以上；確認 OAuth client 建在同一個 project |
 | `AUTHORIZATION_ERROR`（2026-09-09 後升級的 project） | Google 端的已知問題 | 等 Google 修正，或聯絡 Google Ads API support |
 | `CUSTOMER_NOT_ENABLED` | 帳戶尚未啟用或已取消 | 在 Google Ads 完成帳戶設定；sync 只會列出 `ENABLED` 的帳戶 |
