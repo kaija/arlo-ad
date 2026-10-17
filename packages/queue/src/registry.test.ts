@@ -8,6 +8,9 @@ import { defineJob, registerJobs } from './registry';
 import { jobSpec } from './spec';
 
 const logger = createLogger({ component: 'test', level: 'silent' });
+const jobLines: Record<string, unknown>[] = [];
+const jobLogger = createLogger({ component: 'test', level: 'info' }, { write: (s: string) => void jobLines.push(JSON.parse(s)) });
+const linesFor = (id: string) => jobLines.filter((l) => l.job_id === id);
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -54,7 +57,7 @@ describe('pg-boss job registry', () => {
           { pollingIntervalSeconds: 0.5 },
         ),
       ],
-      { logger },
+      { logger: jobLogger },
     );
     // Web-style producer: no schema migration, maintenance or cron.
     producer = createBoss({ connectionString: t.url, logger, role: 'producer' });
@@ -71,6 +74,7 @@ describe('pg-boss job registry', () => {
     expect(id).toMatch(/[0-9a-f-]{36}/);
     expect(await echoed.promise).toEqual({ message: 'hi', n: 1 });
     await waitForState(worker, Echo.name, id, 'completed');
+    expect(linesFor(id)).toEqual([expect.objectContaining({ level: 'info', msg: 'job completed', job: Echo.name })]);
   });
 
   it('rejects invalid payloads before sending', async () => {
@@ -83,6 +87,12 @@ describe('pg-boss job registry', () => {
     expect(attempts).toEqual([0, 1]);
     const job = await waitForState(worker, Flaky.name, id, 'completed');
     expect(job.output).toEqual({ ok: true });
+    expect(linesFor(id).map((l) => [l.level, l.msg, l.retry_count])).toEqual([
+      ['error', 'job failed', 0],
+      ['info', 'job completed', 1],
+    ]);
+    expect(linesFor(id)[0]).toMatchObject({ err: { message: 'transient' } });
+    expect(linesFor(id)[1]).toMatchObject({ result: { ok: true } });
   });
 
   it('fails malformed payloads terminally without calling the handler', async () => {
@@ -91,6 +101,7 @@ describe('pg-boss job registry', () => {
     const job = await waitForState(worker, Echo.name, id, 'failed');
     expect(job.retryCount).toBe(0);
     expect(job.output).toMatchObject({ error: 'invalid_payload' });
+    expect(linesFor(id)).toEqual([expect.objectContaining({ level: 'warn', msg: 'invalid job payload' })]);
   });
 
   it('reports queue health', async () => {
