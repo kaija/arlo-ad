@@ -188,6 +188,8 @@ export class FakePlatformAdapter implements GoogleAdsPlatform {
 
   async fetchMetrics(q: MetricsQuery): Promise<MetricRow[]> {
     this.enter('fetchMetrics');
+    // Mirrors Google: keyword_view has no segments.hour.
+    if (q.hourly && q.level === 'keyword') throw new Error('keyword metrics cannot be segmented by hour');
     return this.account(q.accountId)
       .metrics.filter((r) => r.level === q.level && inRange(r.date, q.range) && (r.hour !== undefined) === Boolean(q.hourly))
       .map(clone);

@@ -111,14 +111,15 @@ describe('sync', () => {
         metric('campaign', '111', '2026-10-06', { hour: 9, clicks: 3 }),
         metric('campaign', '111', '2026-10-06', { hour: 10, clicks: 4 }),
         metric('campaign', '111', '2026-10-06', { clicks: 7 }),
-        metric('keyword', '221~3001', '2026-10-06', { hour: 9, clicks: 1 }),
+        // keyword_view has no hour segment: keywords get today's daily totals only.
+        metric('keyword', '221~3001', '2026-10-06', { clicks: 1 }),
         metric('campaign', 'unknown', '2026-10-06', { hour: 9 }),
       ]);
       const first = await syncHourly(deps, account);
-      expect(first).toEqual({ date: '2026-10-06', hourly: 3, daily: 1, skipped: 1 });
+      expect(first).toEqual({ date: '2026-10-06', hourly: 2, daily: 2, skipped: 1 });
       await syncHourly(deps, account);
-      expect(await rows(schema.metricsHourly)).toBe(3);
-      expect(await rows(schema.metricsDaily)).toBe(1);
+      expect(await rows(schema.metricsHourly)).toBe(2);
+      expect(await rows(schema.metricsDaily)).toBe(2);
     });
 
     it('daily sync re-pulls D-3..D-1 and overwrites backfilled conversions', async () => {
@@ -187,7 +188,7 @@ describe('sync', () => {
         hour: 1,
       });
       expect(await cleanupHourlyMetrics(deps)).toBe(1);
-      expect(await rows(schema.metricsHourly)).toBe(3);
+      expect(await rows(schema.metricsHourly)).toBe(2);
     });
   });
 

@@ -44,6 +44,8 @@ const orgId = DEFAULT_ORG_ID;
 // Parents before children so parent ids resolve.
 const ENTITY_ORDER: EntityKind[] = ['account', 'campaign_budget', 'shared_set', 'campaign', 'ad_group', 'keyword'];
 const METRIC_LEVELS: MetricLevel[] = ['account', 'campaign', 'ad_group', 'keyword'];
+// keyword_view cannot be segmented by hour; keywords get today's daily totals only.
+const HOURLY_METRIC_LEVELS: MetricLevel[] = ['account', 'campaign', 'ad_group'];
 const SNAPSHOT_SLOT_MS = 15 * 60_000;
 // Overlap when resuming change history; inserts are de-duplicated by external id.
 const CHANGE_EVENT_OVERLAP_MS = 60 * 60_000;
@@ -145,10 +147,11 @@ async function upsertMetricLevels(
   hourly: boolean,
 ): Promise<{ written: number; skipped: number }> {
   const { db, platform } = deps;
-  const ids = await loadEntityIds(db, account.id, METRIC_LEVELS);
+  const levels = hourly ? HOURLY_METRIC_LEVELS : METRIC_LEVELS;
+  const ids = await loadEntityIds(db, account.id, levels);
   let written = 0;
   let skipped = 0;
-  for (const level of METRIC_LEVELS) {
+  for (const level of levels) {
     const rows = await platform.fetchMetrics({ accountId: account.externalId, level, range, hourly });
     const mapped = rows.flatMap((r) => {
       const entityId = ids.get(entityMapKey(level, r.externalId));

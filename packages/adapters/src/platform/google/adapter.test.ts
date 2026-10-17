@@ -62,10 +62,17 @@ describe('GoogleAdsAdapter (reads)', () => {
   it('builds metric queries per level and validates the range', async () => {
     const { client, queries } = recordingClient({});
     const adapter = new GoogleAdsAdapter(client, { loginCustomerId: ACC, writeAllowedCustomerIds: [] });
-    await adapter.fetchMetrics({ accountId: ACC, level: 'keyword', range: { from: '2026-10-06', to: '2026-10-06' }, hourly: true });
+    const day = { from: '2026-10-06', to: '2026-10-06' };
+    await adapter.fetchMetrics({ accountId: ACC, level: 'ad_group', range: day, hourly: true });
     expect(queries[0]!.gaql).toContain("segments.hour");
-    expect(queries[0]!.gaql).toContain("FROM keyword_view WHERE segments.date BETWEEN '2026-10-06' AND '2026-10-06'");
+    expect(queries[0]!.gaql).toContain("FROM ad_group WHERE segments.date BETWEEN '2026-10-06' AND '2026-10-06'");
     expect(queries[0]!.gaql).not.toContain('impression_share');
+    await adapter.fetchMetrics({ accountId: ACC, level: 'keyword', range: day });
+    expect(queries[1]!.gaql).toContain("FROM keyword_view WHERE segments.date BETWEEN '2026-10-06' AND '2026-10-06'");
+    expect(queries[1]!.gaql).not.toContain('segments.hour');
+    // Google rejects segments.hour on keyword_view (QueryError 51), so it is never sent.
+    await expect(adapter.fetchMetrics({ accountId: ACC, level: 'keyword', range: day, hourly: true })).rejects.toThrow('cannot be segmented by hour');
+    expect(queries).toHaveLength(2);
     await expect(
       adapter.fetchMetrics({ accountId: ACC, level: 'campaign', range: { from: "2026-10-06' OR 1=1 --", to: '2026-10-06' } }),
     ).rejects.toThrow('invalid date range');
