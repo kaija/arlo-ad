@@ -192,12 +192,35 @@ export async function syncDaily(deps: SyncDeps, account: AdAccount) {
   const range = { from: addDays(today, -BACKFILL_DAYS), to: addDays(today, -1) };
   const metrics = await upsertMetricLevels(deps, account, range, false);
 
+  const terms = await upsertSearchTermRange(deps, account, range);
+
+  const actions = await platform.fetchConversionActions(account.externalId);
+  await upsertConversionActions(
+    db,
+    actions.map((a) => ({ orgId, accountId: account.id, ...a })),
+  );
+
+  const ga4 = await syncGa4(deps, account, today);
+  const budgetSimulations = await syncBudgetSimulations(deps, account, today);
+  const adPolicies = await syncDraftPolicies(deps, account);
+  const audiences = await syncAudiences(deps, account, today);
+  const result = { range, metrics: metrics.written, searchTerms: terms.written, conversionActions: actions.length, skipped: metrics.skipped + terms.skipped, ga4, budgetSimulations, adPolicies, audiences };
+  logger.info({ account: account.externalId, ...result }, 'daily sync done');
+  return result;
+}
+
+/** Search terms over a date range, for campaigns and ad groups already synced as entities. */
+async function upsertSearchTermRange(
+  { db, platform }: SyncDeps,
+  account: AdAccount,
+  range: { from: string; to: string },
+): Promise<{ written: number; skipped: number }> {
   const ids = await loadEntityIds(db, account.id, ['campaign', 'ad_group']);
-  let skippedTerms = 0;
+  let skipped = 0;
   const terms = (await platform.fetchSearchTerms(account.externalId, range)).flatMap((t) => {
     const campaignId = ids.get(entityMapKey('campaign', t.campaignExternalId));
     const adGroupId = ids.get(entityMapKey('ad_group', t.adGroupExternalId));
-    if (!campaignId || !adGroupId) return (skippedTerms++, []);
+    if (!campaignId || !adGroupId) return (skipped++, []);
     return [
       {
         orgId,
@@ -214,22 +237,46 @@ export async function syncDaily(deps: SyncDeps, account: AdAccount) {
       },
     ];
   });
-  const searchTerms = await upsertSearchTerms(db, terms);
-
-  const actions = await platform.fetchConversionActions(account.externalId);
-  await upsertConversionActions(
-    db,
-    actions.map((a) => ({ orgId, accountId: account.id, ...a })),
-  );
-
-  const ga4 = await syncGa4(deps, account, today);
-  const budgetSimulations = await syncBudgetSimulations(deps, account, today);
-  const adPolicies = await syncDraftPolicies(deps, account);
-  const audiences = await syncAudiences(deps, account, today);
-  const result = { range, metrics: metrics.written, searchTerms, conversionActions: actions.length, skipped: metrics.skipped + skippedTerms, ga4, budgetSimulations, adPolicies, audiences };
-  logger.info({ account: account.externalId, ...result }, 'daily sync done');
-  return result;
+  return { written: await upsertSearchTerms(db, terms), skipped };
 }
+
+/** Days per backfill request, so accounts with 100k+ keywords don't build huge responses. */
+export const BACKFILL_CHUNK_DAYS = 7;
+
+export interface BackfillOptions {
+  /** D-days..D-1 in the account timezone; today is left to the hourly sync. */
+  days: number;
+  chunkDays?: number;
+  searchTerms?: boolean;
+}
+
+/**
+ * One-off history for a newly onboarded account: daily metrics (and search terms) for
+ * D-days..D-1, newest chunk first so a partial run still fills month-to-date. Idempotent;
+ * metrics of entities not synced as entities (e.g. removed before onboarding) are skipped.
+ */
+export async function backfillMetrics(deps: SyncDeps, account: AdAccount, { days, chunkDays = BACKFILL_CHUNK_DAYS, searchTerms = true }: BackfillOptions) {
+  if (!Number.isInteger(days) || days < 1) throw new Error('days must be a positive integer');
+  if (!Number.isInteger(chunkDays) || chunkDays < 1) throw new Error('chunkDays must be a positive integer');
+  const today = dateInTimeZone(deps.now(), account.timezone);
+  const first = addDays(today, -days);
+  const total = { range: { from: first, to: addDays(today, -1) }, chunks: 0, metrics: 0, searchTerms: 0, skipped: 0 };
+  for (let to = addDays(today, -1); to >= first; to = addDays(to, -chunkDays)) {
+    const from = maxDate(addDays(to, -(chunkDays - 1)), first);
+    const range = { from, to };
+    const metrics = await upsertMetricLevels(deps, account, range, false);
+    const terms = searchTerms ? await upsertSearchTermRange(deps, account, range) : { written: 0, skipped: 0 };
+    total.chunks++;
+    total.metrics += metrics.written;
+    total.searchTerms += terms.written;
+    total.skipped += metrics.skipped + terms.skipped;
+    deps.logger.info({ account: account.externalId, range, metrics: metrics.written, searchTerms: terms.written, skipped: metrics.skipped + terms.skipped }, 'backfill chunk done');
+  }
+  deps.logger.info({ account: account.externalId, ...total }, 'backfill done');
+  return total;
+}
+
+const maxDate = (a: string, b: string) => (a > b ? a : b);
 
 /** Audience segment performance (ADR-0022, Requirement 17.1); 30 days, overwritten daily. No PII. */
 async function syncAudiences(deps: SyncDeps, account: AdAccount, today: string): Promise<number | 'failed'> {

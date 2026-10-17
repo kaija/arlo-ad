@@ -10,7 +10,8 @@
     "start": "node --import tsx src/index.ts",
     "migrate": "tsx src/migrate.ts",
     "typecheck": "tsc",
-    "seed:demo": "tsx src/dev/seed-demo.ts"
+    "seed:demo": "tsx src/dev/seed-demo.ts",
+    "sync:backfill": "tsx src/sync-backfill.ts"
   },
   "dependencies": {
     "@arlo/adapters": "workspace:*",
